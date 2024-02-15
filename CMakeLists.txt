@@ -19,6 +19,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# 用于添加qt其它的扩展
+set(PROJECT_LIBRARIES)
+
 
 # option
 option(BUILD_ASSETS "Build assets" ON)
@@ -54,7 +57,12 @@ set(TINAKIT_RESOURCE_FILES
 
 # find_package(skia REQUIRED)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Sql)
+
+list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Core)
+list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Sql)
+list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Widgets)
+
 
 add_subdirectory(3rdparty/QXlsx)
 
@@ -94,7 +102,8 @@ qt_add_resources(${PROJECT_NAME} "TINAKIT" PREFIX "/" BASE "assets" FILES ${TINA
 target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
 target_link_libraries(${PROJECT_NAME} PRIVATE QXlsx::QXlsx)
 # target_link_libraries(${PROJECT_NAME} PRIVATE skottie sksg svg skparagraph skshaper skunicode skresources skia)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_LIBRARIES})
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
