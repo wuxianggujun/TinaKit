@@ -1,8 +1,11 @@
-#ifndef MAINWINDOW_H
+﻿#ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
 #include <QMainWindow>
 #include <QHBoxLayout>
+#include <QPushButton>
+
+#include "widgets/LogViewer.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -18,7 +21,10 @@ public:
 	MainWindow(QWidget* parent = nullptr);
 	~MainWindow();
 
+	LogViewer* getLogViewer();
+
 private:
 	Ui::MainWindow* ui;
+	LogViewer logViewer;
 };
 #endif // MAINWINDOW_H

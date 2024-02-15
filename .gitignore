@@ -833,3 +833,5 @@ MigrationBackup/
 .ionide/
 
 3rdparty/Skia
+3rdparty/QXlsx
+

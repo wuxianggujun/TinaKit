@@ -8,6 +8,8 @@ set(TINAKIT_MINOR 0)
 set(TINAKIE_PATCH 0)
 
 set(PROJECT_VERSION ${TINAKIT_MAJOR}.${TINAKIT_MINOR}.${TINAKIT_PATCH})
+# 明明使用了插件，可是删除几次缓存，不适用这个就报错。真难用。
+set(CMAKE_PREFIX_PATH "D:\\Software\\Qt\\6.6.1\\msvc2019_64\\" CACHE PATH "Qt installation prefix")
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -15,7 +17,7 @@ set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+#set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 
 # option
@@ -42,9 +44,20 @@ if (NOT SKIA_ARCH)
     endif ()
 endif ()
 
-find_package(skia REQUIRED)
+# Resources
+set(TINAKIT_RESOURCE_FILES 
+    "assets/test.txt"
+    "assets/images/icon/error.png"
+    "assets/images/icon/success.png"
+)
+
+
+# find_package(skia REQUIRED)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+
+add_subdirectory(3rdparty/QXlsx)
+
 
 # 游历全部的头文件和源文件
 file(GLOB_RECURSE SOURCE_FILE  CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR} common/*.cpp core/*.cpp)
@@ -73,8 +86,14 @@ else()
     endif()
 endif()
 
+# PREFIX 指定资源文件的前缀路径
+
+qt_add_resources(${PROJECT_NAME} "TINAKIT" PREFIX "/" BASE "assets" FILES ${TINAKIT_RESOURCE_FILES})
+
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
-target_link_libraries(${PROJECT_NAME} PRIVATE skottie sksg svg skparagraph skshaper skunicode skresources skia)
+target_link_libraries(${PROJECT_NAME} PRIVATE QXlsx::QXlsx)
+# target_link_libraries(${PROJECT_NAME} PRIVATE skottie sksg svg skparagraph skshaper skunicode skresources skia)
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
