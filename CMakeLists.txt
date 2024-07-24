@@ -33,15 +33,16 @@ message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 # Resources
 set(TINAKIT_RESOURCE_FILES 
     "assets/test.txt"
-    "assets/images/icon/error.png"
-    "assets/images/icon/success.png"
+    "assets/images/icons/error.png"
+    "assets/images/icons/success.png"
 )
 
 
 # find_package(skia REQUIRED)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network)
 
+list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Core)
 list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Widgets)
 list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Network)
 list(APPEND PROJECT_LIBRARIES QXlsx::QXlsx)
