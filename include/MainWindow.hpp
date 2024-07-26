@@ -31,7 +31,6 @@ namespace Tina
     public:
         QToolBar* toolBar{};
         QStackedWidget* stackedWidget{};
-        QVector<QPushButton*> buttons{};
     };
 
     class MainWindow : public QMainWindow
