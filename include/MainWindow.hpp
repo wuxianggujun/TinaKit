@@ -5,12 +5,19 @@
 #ifndef MAINWINDOW_HPP
 #define MAINWINDOW_HPP
 
+#include <QLabel>
 #include <QWidget>
 #include <QMainWindow>
 #include <QTableView>
 #include <QToolBar>
 #include <QListView>
+#include <QPushButton>
+#include <QToolButton>
 #include <QHBoxLayout>
+#include <QGridLayout>
+#include <QStackedWidget>
+#include <QStackedLayout>
+#include <QButtonGroup>
 #include <QStandardItemModel>
 
 namespace Tina
@@ -22,11 +29,9 @@ namespace Tina
         void cleanUpUi() const;
 
     public:
-        QListView* listView;
-        QTableView* tableView;
-        QToolBar* toolBar;
-        QStandardItemModel* listModel;
-        QStandardItemModel* tableModel;
+        QToolBar* toolBar{};
+        QStackedWidget* stackedWidget{};
+        QVector<QPushButton*> buttons{};
     };
 
     class MainWindow : public QMainWindow
@@ -43,7 +48,7 @@ namespace Tina
         void on_actionSave_triggered();
 
     private:
-        Ui_MainWindow ui;
+        Ui_MainWindow *ui;
     };
 } // Tina
 
