@@ -1,6 +1,6 @@
 /**
  * @file exceptions.hpp
- * @brief TinaKit 异常类定义
+ * @brief TinaKit exception class definitions
  * @author TinaKit Team
  * @date 2024-12-16
  */
@@ -15,59 +15,72 @@ namespace tinakit {
 
 /**
  * @class TinaKitException
- * @brief TinaKit 基础异常类
- * 
- * 所有 TinaKit 特定异常的基类，提供统一的错误处理接口。
+ * @brief Base exception class for TinaKit
+ *
+ * Base class for all TinaKit-specific exceptions, providing unified error handling interface.
  */
 class TinaKitException : public std::exception {
 public:
     /**
-     * @brief 构造函数
-     * @param message 错误消息
-     * @param context 错误上下文信息
+     * @brief Constructor
+     * @param message Error message
+     * @param context Error context information
      */
-    explicit TinaKitException(std::string message, std::string context = "");
-    
+    explicit TinaKitException(std::string message, std::string context = "")
+        : message_(std::move(message)), context_(std::move(context)) {}
+
     /**
-     * @brief 获取错误消息
-     * @return 错误消息字符串
+     * @brief Get error message
+     * @return Error message string
      */
-    const char* what() const noexcept override;
-    
+    const char* what() const noexcept override {
+        return message_.c_str();
+    }
+
     /**
-     * @brief 获取错误上下文
-     * @return 错误上下文字符串
+     * @brief Get error context
+     * @return Error context string
      */
-    const std::string& context() const noexcept;
-    
+    const std::string& context() const noexcept {
+        return context_;
+    }
+
     /**
-     * @brief 获取完整错误信息
-     * @return 包含消息和上下文的完整错误信息
+     * @brief Get full error information
+     * @return Complete error information including message and context
      */
-    std::string full_message() const;
+    std::string full_message() const {
+        if (context_.empty()) {
+            return message_;
+        }
+        return message_ + " (Context: " + context_ + ")";
+    }
 
 private:
-    std::string message_;   ///< 错误消息
-    std::string context_;   ///< 错误上下文
+    std::string message_;   ///< Error message
+    std::string context_;   ///< Error context
 };
 
 /**
  * @class FileNotFoundException
- * @brief 文件未找到异常
+ * @brief File not found exception
  */
 class FileNotFoundException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param path 文件路径
+     * @brief Constructor
+     * @param path File path
      */
-    explicit FileNotFoundException(const std::filesystem::path& path);
-    
+    explicit FileNotFoundException(const std::filesystem::path& path)
+        : TinaKitException("File not found: " + path.string()), path_(path) {}
+
     /**
-     * @brief 获取文件路径
-     * @return 文件路径
+     * @brief Get file path
+     * @return File path
      */
-    const std::filesystem::path& file_path() const noexcept;
+    const std::filesystem::path& file_path() const noexcept {
+        return path_;
+    }
 
 private:
     std::filesystem::path path_;
@@ -75,23 +88,28 @@ private:
 
 /**
  * @class CorruptedFileException
- * @brief 文件损坏异常
+ * @brief Corrupted file exception
  */
 class CorruptedFileException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param path 文件路径
-     * @param reason 损坏原因
+     * @brief Constructor
+     * @param path File path
+     * @param reason Corruption reason
      */
-    CorruptedFileException(const std::filesystem::path& path, 
-                          const std::string& reason = "");
-    
+    CorruptedFileException(const std::filesystem::path& path,
+                          const std::string& reason = "")
+        : TinaKitException("Corrupted file: " + path.string() +
+                          (reason.empty() ? "" : " (" + reason + ")")),
+          path_(path) {}
+
     /**
-     * @brief 获取文件路径
-     * @return 文件路径
+     * @brief Get file path
+     * @return File path
      */
-    const std::filesystem::path& file_path() const noexcept;
+    const std::filesystem::path& file_path() const noexcept {
+        return path_;
+    }
 
 private:
     std::filesystem::path path_;
@@ -99,37 +117,46 @@ private:
 
 /**
  * @class ParseException
- * @brief 解析异常
+ * @brief Parse exception
  */
 class ParseException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param message 错误消息
-     * @param line 错误行号（从 1 开始）
-     * @param column 错误列号（从 1 开始）
+     * @brief Constructor
+     * @param message Error message
+     * @param line Error line number (1-based)
+     * @param column Error column number (1-based)
      */
-    ParseException(const std::string& message, 
-                   std::size_t line = 0, 
-                   std::size_t column = 0);
-    
+    ParseException(const std::string& message,
+                   std::size_t line = 0,
+                   std::size_t column = 0)
+        : TinaKitException(message + (line > 0 ? " at line " + std::to_string(line) : "") +
+                          (column > 0 ? ", column " + std::to_string(column) : "")),
+          line_(line), column_(column) {}
+
     /**
-     * @brief 获取错误位置
-     * @return 行号和列号的对
+     * @brief Get error location
+     * @return Pair of line and column numbers
      */
-    std::pair<std::size_t, std::size_t> location() const noexcept;
-    
+    std::pair<std::size_t, std::size_t> location() const noexcept {
+        return {line_, column_};
+    }
+
     /**
-     * @brief 获取错误行号
-     * @return 行号（从 1 开始）
+     * @brief Get error line number
+     * @return Line number (1-based)
      */
-    std::size_t line() const noexcept;
-    
+    std::size_t line() const noexcept {
+        return line_;
+    }
+
     /**
-     * @brief 获取错误列号
-     * @return 列号（从 1 开始）
+     * @brief Get error column number
+     * @return Column number (1-based)
      */
-    std::size_t column() const noexcept;
+    std::size_t column() const noexcept {
+        return column_;
+    }
 
 private:
     std::size_t line_;
@@ -138,23 +165,27 @@ private:
 
 /**
  * @class IOException
- * @brief I/O 异常
+ * @brief I/O exception
  */
 class IOException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param message 错误消息
-     * @param path 相关文件路径
+     * @brief Constructor
+     * @param message Error message
+     * @param path Related file path
      */
-    IOException(const std::string& message, 
-                const std::filesystem::path& path = {});
-    
+    IOException(const std::string& message,
+                const std::filesystem::path& path = {})
+        : TinaKitException(message + (path.empty() ? "" : " (File: " + path.string() + ")")),
+          path_(path) {}
+
     /**
-     * @brief 获取文件路径
-     * @return 文件路径
+     * @brief Get file path
+     * @return File path
      */
-    const std::filesystem::path& file_path() const noexcept;
+    const std::filesystem::path& file_path() const noexcept {
+        return path_;
+    }
 
 private:
     std::filesystem::path path_;
@@ -162,21 +193,24 @@ private:
 
 /**
  * @class UnsupportedFormatException
- * @brief 不支持的格式异常
+ * @brief Unsupported format exception
  */
 class UnsupportedFormatException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param format 不支持的格式
+     * @brief Constructor
+     * @param format Unsupported format
      */
-    explicit UnsupportedFormatException(const std::string& format);
-    
+    explicit UnsupportedFormatException(const std::string& format)
+        : TinaKitException("Unsupported format: " + format), format_(format) {}
+
     /**
-     * @brief 获取格式名称
-     * @return 格式名称
+     * @brief Get format name
+     * @return Format name
      */
-    const std::string& format() const noexcept;
+    const std::string& format() const noexcept {
+        return format_;
+    }
 
 private:
     std::string format_;
@@ -184,37 +218,46 @@ private:
 
 /**
  * @class TypeConversionException
- * @brief 类型转换异常
+ * @brief Type conversion exception
  */
 class TypeConversionException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param from_type 源类型名称
-     * @param to_type 目标类型名称
-     * @param value 转换失败的值
+     * @brief Constructor
+     * @param from_type Source type name
+     * @param to_type Target type name
+     * @param value Value that failed to convert
      */
     TypeConversionException(const std::string& from_type,
                            const std::string& to_type,
-                           const std::string& value = "");
-    
+                           const std::string& value = "")
+        : TinaKitException("Cannot convert from " + from_type + " to " + to_type +
+                          (value.empty() ? "" : " (value: " + value + ")")),
+          from_type_(from_type), to_type_(to_type), value_(value) {}
+
     /**
-     * @brief 获取源类型
-     * @return 源类型名称
+     * @brief Get source type
+     * @return Source type name
      */
-    const std::string& from_type() const noexcept;
-    
+    const std::string& from_type() const noexcept {
+        return from_type_;
+    }
+
     /**
-     * @brief 获取目标类型
-     * @return 目标类型名称
+     * @brief Get target type
+     * @return Target type name
      */
-    const std::string& to_type() const noexcept;
-    
+    const std::string& to_type() const noexcept {
+        return to_type_;
+    }
+
     /**
-     * @brief 获取转换失败的值
-     * @return 值的字符串表示
+     * @brief Get value that failed to convert
+     * @return String representation of the value
      */
-    const std::string& value() const noexcept;
+    const std::string& value() const noexcept {
+        return value_;
+    }
 
 private:
     std::string from_type_;
@@ -224,21 +267,24 @@ private:
 
 /**
  * @class WorksheetNotFoundException
- * @brief 工作表未找到异常
+ * @brief Worksheet not found exception
  */
 class WorksheetNotFoundException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param name 工作表名称
+     * @brief Constructor
+     * @param name Worksheet name
      */
-    explicit WorksheetNotFoundException(const std::string& name);
-    
+    explicit WorksheetNotFoundException(const std::string& name)
+        : TinaKitException("Worksheet not found: " + name), name_(name) {}
+
     /**
-     * @brief 获取工作表名称
-     * @return 工作表名称
+     * @brief Get worksheet name
+     * @return Worksheet name
      */
-    const std::string& worksheet_name() const noexcept;
+    const std::string& worksheet_name() const noexcept {
+        return name_;
+    }
 
 private:
     std::string name_;
@@ -246,21 +292,24 @@ private:
 
 /**
  * @class DuplicateWorksheetNameException
- * @brief 重复工作表名称异常
+ * @brief Duplicate worksheet name exception
  */
 class DuplicateWorksheetNameException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param name 重复的工作表名称
+     * @brief Constructor
+     * @param name Duplicate worksheet name
      */
-    explicit DuplicateWorksheetNameException(const std::string& name);
-    
+    explicit DuplicateWorksheetNameException(const std::string& name)
+        : TinaKitException("Duplicate worksheet name: " + name), name_(name) {}
+
     /**
-     * @brief 获取工作表名称
-     * @return 工作表名称
+     * @brief Get worksheet name
+     * @return Worksheet name
      */
-    const std::string& worksheet_name() const noexcept;
+    const std::string& worksheet_name() const noexcept {
+        return name_;
+    }
 
 private:
     std::string name_;
@@ -268,33 +317,37 @@ private:
 
 /**
  * @class CannotDeleteLastWorksheetException
- * @brief 不能删除最后一个工作表异常
+ * @brief Cannot delete last worksheet exception
  */
 class CannotDeleteLastWorksheetException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
+     * @brief Constructor
      */
-    CannotDeleteLastWorksheetException();
+    CannotDeleteLastWorksheetException()
+        : TinaKitException("Cannot delete the last worksheet") {}
 };
 
 /**
  * @class InvalidCellAddressException
- * @brief 无效单元格地址异常
+ * @brief Invalid cell address exception
  */
 class InvalidCellAddressException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param address 无效的地址字符串
+     * @brief Constructor
+     * @param address Invalid address string
      */
-    explicit InvalidCellAddressException(const std::string& address);
-    
+    explicit InvalidCellAddressException(const std::string& address)
+        : TinaKitException("Invalid cell address: " + address), address_(address) {}
+
     /**
-     * @brief 获取无效地址
-     * @return 地址字符串
+     * @brief Get invalid address
+     * @return Address string
      */
-    const std::string& address() const noexcept;
+    const std::string& address() const noexcept {
+        return address_;
+    }
 
 private:
     std::string address_;
@@ -302,35 +355,40 @@ private:
 
 /**
  * @class InvalidRowIndexException
- * @brief 无效行索引异常
+ * @brief Invalid row index exception
  */
 class InvalidRowIndexException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param message 错误消息
+     * @brief Constructor
+     * @param message Error message
      */
-    explicit InvalidRowIndexException(const std::string& message);
+    explicit InvalidRowIndexException(const std::string& message)
+        : TinaKitException(message) {}
 };
 
 /**
  * @class FormulaException
- * @brief 公式异常
+ * @brief Formula exception
  */
 class FormulaException : public TinaKitException {
 public:
     /**
-     * @brief 构造函数
-     * @param formula 出错的公式
-     * @param reason 错误原因
+     * @brief Constructor
+     * @param formula Formula that caused the error
+     * @param reason Error reason
      */
-    FormulaException(const std::string& formula, const std::string& reason);
-    
+    FormulaException(const std::string& formula, const std::string& reason)
+        : TinaKitException("Formula error: " + reason + " (Formula: " + formula + ")"),
+          formula_(formula) {}
+
     /**
-     * @brief 获取公式
-     * @return 公式字符串
+     * @brief Get formula
+     * @return Formula string
      */
-    const std::string& formula() const noexcept;
+    const std::string& formula() const noexcept {
+        return formula_;
+    }
 
 private:
     std::string formula_;
@@ -340,28 +398,28 @@ private:
 
 /**
  * @example exception_handling.cpp
- * 异常处理示例：
+ * Exception handling example:
  * @code
  * #include <tinakit/core/exceptions.hpp>
  * #include <tinakit/tinakit.hpp>
- * 
+ *
  * void exception_example() {
  *     using namespace tinakit;
- *     
+ *
  *     try {
  *         auto workbook = Excel::open("nonexistent.xlsx");
  *     } catch (const FileNotFoundException& e) {
- *         std::cerr << "文件未找到: " << e.file_path() << std::endl;
+ *         std::cerr << "File not found: " << e.file_path() << std::endl;
  *     } catch (const CorruptedFileException& e) {
- *         std::cerr << "文件损坏: " << e.file_path() 
+ *         std::cerr << "File corrupted: " << e.file_path()
  *                   << " - " << e.what() << std::endl;
  *     } catch (const ParseException& e) {
- *         std::cerr << "解析错误: " << e.what() 
- *                   << " 位置: " << e.line() << ":" << e.column() << std::endl;
+ *         std::cerr << "Parse error: " << e.what()
+ *                   << " at " << e.line() << ":" << e.column() << std::endl;
  *     } catch (const TinaKitException& e) {
- *         std::cerr << "TinaKit 错误: " << e.full_message() << std::endl;
+ *         std::cerr << "TinaKit error: " << e.full_message() << std::endl;
  *     } catch (const std::exception& e) {
- *         std::cerr << "系统错误: " << e.what() << std::endl;
+ *         std::cerr << "System error: " << e.what() << std::endl;
  *     }
  * }
  * @endcode
