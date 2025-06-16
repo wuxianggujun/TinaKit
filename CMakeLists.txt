@@ -1,113 +1,45 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(TinaKit LANGUAGES CXX)
+project(TinaKit VERSION 1.0.0 LANGUAGES CXX)
 
-set(TINAKIT_MAJOR 1)
-set(TINAKIT_MINOR 0)
-set(TINAKIE_PATCH 0)
-
-set(PROJECT_VERSION ${TINAKIT_MAJOR}.${TINAKIT_MINOR}.${TINAKIT_PATCH})
-
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
-set(CMAKE_CXX_STANDARD 17)
+# 设置 C++20 标准
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-#set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(CMAKE_AUTOUIC_SEARCH_PATHS ${PROJECT_SOURCE_DIR}/ui)
+# 项目选项
+option(TINAKIT_BUILD_TESTS "Build TinaKit tests" OFF)
 
-set(PROJECT_LIBRARIES)
-set(PROJECT_SOURCES)
+# 添加第三方库
+add_subdirectory(third_party/libstudxml)
 
-# option
-option(BUILD_ASSETS "Build assets" ON)
-option(BUILD_TINAKIT "Build tinakit" ON)
-option(BUILD_TESTS "Build tests" ON)
+# 配置zlib-ng选项
+set(ZLIB_COMPAT ON CACHE BOOL "Compile with zlib compatible API" FORCE)
+set(ZLIB_ENABLE_TESTS OFF CACHE BOOL "Build test binaries" FORCE)
+set(ZLIBNG_ENABLE_TESTS OFF CACHE BOOL "Test zlib-ng specific API" FORCE)
+set(WITH_GTEST OFF CACHE BOOL "Build gtest_zlib" FORCE)
+set(WITH_BENCHMARKS OFF CACHE BOOL "Build test/benchmarks" FORCE)
+set(WITH_FUZZERS OFF CACHE BOOL "Build test/fuzz" FORCE)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+add_subdirectory(third_party/zlib-ng)
 
-message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
+# 配置minizip-ng选项 - 只启用必要的压缩格式
+set(MZ_ZLIB ON CACHE BOOL "Enables ZLIB compression" FORCE)
+set(MZ_BZIP2 OFF CACHE BOOL "Enables BZIP2 compression" FORCE)
+set(MZ_LZMA OFF CACHE BOOL "Enables LZMA & XZ compression" FORCE)
+set(MZ_ZSTD OFF CACHE BOOL "Enables ZSTD compression" FORCE)
+set(MZ_FETCH_LIBS OFF CACHE BOOL "Disable fetching third-party libraries" FORCE)
+set(MZ_COMPAT ON CACHE BOOL "Enables compatibility layer" FORCE)
 
-# Resources
-set(TINAKIT_RESOURCE_FILES 
-    "assets/test.txt"
-    "assets/images/icons/error.png"
-    "assets/images/icons/success.png"
-)
+add_subdirectory(third_party/minizip-ng)
 
+# 添加源代码目录
+add_subdirectory(src)
 
-# find_package(skia REQUIRED)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network)
+# 添加示例
+add_subdirectory(examples)
 
-list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Core)
-list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Widgets)
-list(APPEND PROJECT_LIBRARIES Qt${QT_VERSION_MAJOR}::Network)
-list(APPEND PROJECT_LIBRARIES QXlsx::QXlsx)
-list(APPEND PROJECT_LIBRARIES tinyxml2::tinyxml2)
-
-add_subdirectory(${PROJECT_SOURCE_DIR}/dependencies)
-
-file(GLOB_RECURSE RC_FILES  ${PROJECT_SOURCE_DIR}/resource/*.rc)
-file(GLOB_RECURSE UI_FILES  ${PROJECT_SOURCE_DIR}/ui/*.ui)
-file(GLOB_RECURSE HEADER_FILES ${PROJECT_SOURCE_DIR}/include/*.h**)
-
-aux_source_directory(${PROJECT_SOURCE_DIR}/src SOURCE_FILES)
-
-list(APPEND PROJECT_SOURCES ${HEADER_FILES} ${SOURCE_FILES} ${RC_FILES} ${UI_FILES} ${RESOURCES})
-
-if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(TinaKit
-        MANUAL_FINALIZATION
-        ${PROJECT_SOURCES}
-    )
-else()
-    if(ANDROID)
-        add_library(TinaKit SHARED
-            ${PROJECT_SOURCES}
-        )
-    else()
-        add_executable(TinaKit
-            ${PROJECT_SOURCES}
-        )
-    endif()
+# 构建测试
+if(TINAKIT_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
 endif()
-
-
-qt_add_resources(TinaKit "TINAKIT" PREFIX "/" BASE "assets" FILES ${TINAKIT_RESOURCE_FILES})
-
-target_compile_definitions(TinaKit PRIVATE NOMINMAX)
-target_include_directories(TinaKit PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(TinaKit PRIVATE ${PROJECT_LIBRARIES})
-
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
-if(${QT_VERSION} VERSION_LESS 6.1.0)
-  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.TinaKit)
-endif()
-set_target_properties(TinaKit PROPERTIES
-    ${BUNDLE_ID_OPTION}
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
-)
-
-include(GNUInstallDirs)
-install(TARGETS TinaKit
-    BUNDLE DESTINATION .
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(TinaKit)
-endif()
-
-
-
-
