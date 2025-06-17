@@ -3,17 +3,8 @@
  * @brief TinaKit - 现代化的 OpenXML 文件处理 C++ 库
  * @version 1.0.0
  * @author TinaKit Team
- * @date 2024-12-16
+ * @date 2025-6-16
  * 
- * TinaKit 是一个专为现代 C++ 设计的高性能 OpenXML 文件处理库，
- * 专注于 Excel (.xlsx)、Word (.docx) 等 Office 文档的读取和写入操作。
- * 
- * 核心特性：
- * - 现代 C++20 设计
- * - 直观的 API 接口
- * - 高性能异步处理
- * - 强类型安全
- * - 可扩展插件系统
  */
 
 #pragma once
@@ -21,25 +12,29 @@
 #include "core/types.hpp"
 #include "core/exceptions.hpp"
 #include "core/task.hpp"
-#include "excel/workbook.hpp"
-#include "excel/worksheet.hpp"
+#include "core/async.hpp"
+#include "excel/io/xml_parser.hpp"
+#include "excel/io/xlsx_archiver.hpp"
+
+// #include "excel/workbook.hpp"
+/*#include "excel/worksheet.hpp"
 #include "excel/cell.hpp"
 #include "excel/range.hpp"
 #include "excel/row.hpp"
 #include "word/document.hpp"
 #include "formatting/style.hpp"
-#include "plugins/plugin_manager.hpp"
+#include "plugins/plugin_manager.hpp"*/
 
-/**
+/*/**
  * @namespace tinakit
  * @brief TinaKit 库的主命名空间
- */
+ #1#
 namespace tinakit {
 
 /**
  * @brief 获取 TinaKit 库版本信息
  * @return 版本字符串，格式为 "major.minor.patch"
- */
+ #1#
 constexpr std::string_view version() noexcept {
     return "1.0.0";
 }
@@ -47,14 +42,14 @@ constexpr std::string_view version() noexcept {
 /**
  * @brief 获取支持的文件格式列表
  * @return 支持的文件扩展名列表
- */
+ #1#
 std::vector<std::string> supported_formats();
 
 /**
  * @brief 注册自定义文件格式处理器
  * @tparam FormatHandler 格式处理器类型
  * @param extension 文件扩展名（包含点号，如 ".xlsx"）
- */
+ #1#
 template<typename FormatHandler>
 void register_format(std::string_view extension);
 
@@ -65,20 +60,20 @@ void register_format(std::string_view extension);
  * @throws FileNotFoundException 文件不存在
  * @throws CorruptedFileException 文件损坏
  * @throws UnsupportedFormatException 不支持的文件格式
- */
+ #1#
 std::unique_ptr<Document> open(const std::filesystem::path& path);
 
 /**
  * @brief 异步打开文件
  * @param path 文件路径
  * @return 返回文档对象的 Task
- */
+ #1#
 Task<std::unique_ptr<Document>> open_async(const std::filesystem::path& path);
 
 /**
  * @namespace tinakit::Excel
  * @brief Excel 文件处理相关功能
- */
+ #1#
 namespace Excel {
     /**
      * @brief 打开 Excel 文件
@@ -86,27 +81,27 @@ namespace Excel {
      * @return Workbook 对象
      * @throws FileNotFoundException 文件不存在
      * @throws CorruptedFileException 文件损坏
-     */
+     #1#
     Workbook open(const std::filesystem::path& path);
     
     /**
      * @brief 异步打开 Excel 文件
      * @param path 文件路径
      * @return 返回 Workbook 的 Task
-     */
+     #1#
     Task<Workbook> open_async(const std::filesystem::path& path);
     
     /**
      * @brief 创建新的 Excel 文件
      * @return 新的 Workbook 对象
-     */
+     #1#
     Workbook create();
     
     /**
      * @brief 注册自定义 Excel 函数
      * @param name 函数名称
      * @param function 函数实现
-     */
+     #1#
     void register_function(std::string_view name, 
                           std::function<double(const std::vector<double>&)> function);
 }
@@ -114,7 +109,7 @@ namespace Excel {
 /**
  * @namespace tinakit::Word
  * @brief Word 文档处理相关功能
- */
+ #1#
 namespace Word {
     /**
      * @brief 打开 Word 文档
@@ -122,47 +117,47 @@ namespace Word {
      * @return Document 对象
      * @throws FileNotFoundException 文件不存在
      * @throws CorruptedFileException 文件损坏
-     */
+     #1#
     Document open(const std::filesystem::path& path);
     
     /**
      * @brief 异步打开 Word 文档
      * @param path 文件路径
      * @return 返回 Document 的 Task
-     */
+     #1#
     Task<Document> open_async(const std::filesystem::path& path);
     
     /**
      * @brief 创建新的 Word 文档
      * @return 新的 Document 对象
-     */
+     #1#
     Document create();
 }
 
 /**
  * @namespace tinakit::TinaKit
  * @brief 核心库管理功能
- */
+ #1#
 namespace TinaKit {
     /**
      * @brief 初始化 TinaKit 库
      * @param config 配置选项
-     */
+     #1#
     void initialize(const Config& config = Config::default_config());
     
     /**
      * @brief 清理 TinaKit 库资源
-     */
+     #1#
     void cleanup();
     
     /**
      * @brief 获取插件管理器
      * @return 插件管理器引用
-     */
+     #1#
     PluginManager& plugin_manager();
 }
 
-} // namespace tinakit
+} // namespace tinakit*/
 
 /**
  * @example basic_usage.cpp

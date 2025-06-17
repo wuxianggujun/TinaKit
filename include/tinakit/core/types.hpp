@@ -2,7 +2,7 @@
  * @file types.hpp
  * @brief TinaKit core type definitions
  * @author TinaKit Team
- * @date 2024-12-16
+ * @date 2025-6-16
  */
 
 #pragma once

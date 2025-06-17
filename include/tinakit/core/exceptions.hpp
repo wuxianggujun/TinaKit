@@ -2,7 +2,7 @@
  * @file exceptions.hpp
  * @brief TinaKit exception class definitions
  * @author TinaKit Team
- * @date 2024-12-16
+ * @date 2025-6-16
  */
 
 #pragma once
