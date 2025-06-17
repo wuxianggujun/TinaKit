@@ -85,12 +85,21 @@ target_link_libraries(debug_xlsx_test PRIVATE tinakit)
 add_executable(minizip_direct_test minizip_direct_test.cpp)
 target_link_libraries(minizip_direct_test PRIVATE minizip zlib)
 
+# 流式读写演示程序
+add_executable(stream_demo stream_demo.cpp)
+target_link_libraries(stream_demo PRIVATE tinakit)
+
 set_target_properties(debug_xlsx_test
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
 )
 
 set_target_properties(minizip_direct_test
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+)
+
+set_target_properties(stream_demo
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
 )
@@ -105,6 +114,11 @@ if(WIN32)
         PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
     )
+
+    set_target_properties(stream_demo
+        PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+    )
 endif()
 
 # 为所有示例程序应用 DLL 复制
@@ -113,6 +127,7 @@ copy_runtime_dependencies(xlsx_archiver_demo)
 copy_runtime_dependencies(xlsx_reader_test)
 copy_runtime_dependencies(debug_xlsx_test)
 copy_runtime_dependencies(minizip_direct_test)
+copy_runtime_dependencies(stream_demo)
 
 # 如果 CMake 版本支持，使用更现代的方法
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")

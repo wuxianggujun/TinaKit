@@ -12,6 +12,8 @@
 #include <map>
 #include <set>
 #include <span>
+#include <istream>
+#include <ostream>
 
 #include "tinakit/core/async.hpp"
 
@@ -61,6 +63,10 @@ namespace tinakit::core
         [[nodiscard]] async::Task<std::vector<std::byte>> read_file(const std::string& filename);
         async::Task<void> add_file(const std::string& filename, std::vector<std::byte> content);
         [[nodiscard]] async::Task<void> remove_file(const std::string& filename);
+
+        // 流式读写接口 - 用于大文件处理
+        async::Task<void> add_file_stream(const std::string& filename, std::istream& stream, size_t estimated_size = 0);
+        async::Task<void> read_file_stream(const std::string& filename, std::ostream& stream);
 
         async::Task<void> save_to_file(const std::string& path);
         async::Task<std::vector<std::byte>> save_to_memory();

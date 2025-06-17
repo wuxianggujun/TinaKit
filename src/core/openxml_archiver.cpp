@@ -3,10 +3,8 @@
 //
 
 #include "tinakit/core/openxml_archiver.hpp"
-
 #include "tinakit/core/io.hpp"
 #include "tinakit/core/exceptions.hpp"
-#include <ctime>
 #include <iostream>
 
 extern "C" {
@@ -156,8 +154,6 @@ namespace tinakit::core
 
     async::Task<std::vector<std::byte>> OpenXmlArchiver::read_file(const std::string& filename)
     {
-        co_await transition_to_writer_mode_if_needed();
-
         // 如果文件是新添加且尚未保存的，则从待处理映射中读取
         if (auto it = pending_new_files_.find(filename); it != pending_new_files_.end())
         {
@@ -211,6 +207,121 @@ namespace tinakit::core
         co_return;
     }
 
+    async::Task<void> OpenXmlArchiver::add_file_stream(const std::string& filename, std::istream& stream, size_t estimated_size)
+    {
+        // 只有在没有写入器的情况下才需要转换模式
+        if (!writer_handle_) {
+            co_await transition_to_writer_mode_if_needed();
+        }
+
+        // 读取流内容到缓冲区
+        std::vector<std::byte> content;
+        if (estimated_size > 0) {
+            content.reserve(estimated_size);
+        }
+
+        // 分块读取流内容
+        constexpr size_t chunk_size = 64 * 1024; // 64KB 块
+        std::vector<char> buffer(chunk_size);
+
+        while (stream.good()) {
+            stream.read(buffer.data(), chunk_size);
+            std::streamsize bytes_read = stream.gcount();
+            if (bytes_read > 0) {
+                const auto* byte_data = reinterpret_cast<const std::byte*>(buffer.data());
+                content.insert(content.end(), byte_data, byte_data + bytes_read);
+            }
+        }
+
+        // 使用现有的 add_file 方法
+        pending_new_files_[filename] = std::move(content);
+        current_files_.insert(filename);
+        files_to_remove_.erase(filename);
+
+        co_return;
+    }
+
+    async::Task<void> OpenXmlArchiver::read_file_stream(const std::string& filename, std::ostream& stream)
+    {
+        // 如果文件是新添加且尚未保存的，则从待处理映射中读取
+        if (auto it = pending_new_files_.find(filename); it != pending_new_files_.end())
+        {
+            const auto& content = it->second;
+            const auto* char_data = reinterpret_cast<const char*>(content.data());
+            stream.write(char_data, static_cast<std::streamsize>(content.size()));
+            co_return;
+        }
+
+        // 无法从写入器句柄读取
+        if (writer_handle_)
+        {
+            throw TinaKitException("Cannot read file content after archive has been modified.",
+                                   "OpenXmlArchiver.read_file_stream");
+        }
+
+        if (!reader_handle_)
+        {
+            throw TinaKitException("Archive is not open for reading.", "OpenXmlArchiver.read_file_stream");
+        }
+
+        if (int32_t status = mz_zip_reader_locate_entry(reader_handle_.get(), filename.c_str(), 0); status != MZ_OK)
+        {
+            throw TinaKitException("File not found in archive: " + filename, "OpenXmlArchiver.read_file_stream");
+        }
+
+        mz_zip_file* file_info = nullptr;
+        if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) != MZ_OK || !file_info) {
+            throw TinaKitException("Failed to get file info for: " + filename, "OpenXmlArchiver.read_file_stream");
+        }
+
+        // 打开条目进行读取
+        if (int32_t status = mz_zip_reader_entry_open(reader_handle_.get()); status != MZ_OK) {
+            throw TinaKitException("Failed to open entry for reading: " + filename + ". Status: " + std::to_string(status), "OpenXmlArchiver.read_file_stream");
+        }
+
+        try {
+            // 分块读取并写入流
+            constexpr size_t chunk_size = 64 * 1024; // 64KB 块
+            std::vector<std::byte> buffer(chunk_size);
+
+            size_t total_read = 0;
+            size_t remaining = file_info->uncompressed_size;
+
+            while (remaining > 0) {
+                size_t to_read = std::min(chunk_size, remaining);
+
+                int32_t bytes_read = mz_zip_reader_entry_read(reader_handle_.get(), buffer.data(), static_cast<int32_t>(to_read));
+                if (bytes_read < 0) {
+                    throw TinaKitException(
+                        "Failed to read file content for: " + filename + ". Status: " + std::to_string(bytes_read),
+                        "OpenXmlArchiver.read_file_stream");
+                }
+
+                if (bytes_read == 0) {
+                    break; // 文件结束
+                }
+
+                // 写入到输出流
+                const auto* char_data = reinterpret_cast<const char*>(buffer.data());
+                stream.write(char_data, bytes_read);
+
+                total_read += bytes_read;
+                remaining -= bytes_read;
+            }
+        } catch (...) {
+            // 确保关闭条目
+            mz_zip_reader_entry_close(reader_handle_.get());
+            throw;
+        }
+
+        // 关闭条目
+        if (int32_t status = mz_zip_reader_entry_close(reader_handle_.get()); status != MZ_OK) {
+            throw TinaKitException("Failed to close entry after reading: " + filename + ". Status: " + std::to_string(status), "OpenXmlArchiver.read_file_stream");
+        }
+
+        co_return;
+    }
+
     async::Task<void> OpenXmlArchiver::remove_file(const std::string& filename)
     {
         if (current_files_.empty())
@@ -248,74 +359,46 @@ namespace tinakit::core
 
         co_await transition_to_writer_mode_if_needed();
 
-        std::cout << "DEBUG: Starting to add " << pending_new_files_.size() << " files to archive" << std::endl;
-        std::cout << "DEBUG: Writer handle: " << writer_handle_.get() << std::endl;
-        std::cout << "DEBUG: Memory stream handle: " << memory_stream_handle_.get() << std::endl;
-
         // 检查写入器状态
         if (!writer_handle_) {
-            std::cout << "ERROR: Writer handle is null!" << std::endl;
             throw TinaKitException("Writer handle is null", "OpenXmlArchiver.save_to_memory");
         }
 
         if (!memory_stream_handle_) {
-            std::cout << "ERROR: Memory stream handle is null!" << std::endl;
             throw TinaKitException("Memory stream handle is null", "OpenXmlArchiver.save_to_memory");
         }
 
         for (auto const& [filename, content] : pending_new_files_) {
-            std::cout << "DEBUG: Adding file '" << filename << "' with " << content.size() << " bytes" << std::endl;
-
-            // 使用最简单的方式：只设置必要的字段
+            // 设置文件信息
             mz_zip_file file_info = {};
-
-            // 只设置最基本的信息
             file_info.filename = filename.c_str();
             file_info.uncompressed_size = static_cast<uint64_t>(content.size());
-
-            // 智能选择压缩方法：先尝试 DEFLATE，失败则使用 STORE
             file_info.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
-
-            std::cout << "DEBUG: Calling mz_zip_writer_entry_open for '" << filename << "'" << std::endl;
-            std::cout << "DEBUG: Writer handle: " << writer_handle_.get() << std::endl;
-            std::cout << "DEBUG: File info - filename: " << file_info.filename << std::endl;
-            std::cout << "DEBUG: File info - size: " << file_info.uncompressed_size << std::endl;
-            std::cout << "DEBUG: File info - compression: " << file_info.compression_method << std::endl;
 
             int32_t status = mz_zip_writer_entry_open(writer_handle_.get(), &file_info);
             if (status != MZ_OK) {
                 if (status == -109 && file_info.compression_method == MZ_COMPRESS_METHOD_DEFLATE) {
                     // DEFLATE 不支持，回退到 STORE 模式
-                    std::cout << "DEBUG: DEFLATE compression not supported, falling back to STORE mode" << std::endl;
                     file_info.compression_method = MZ_COMPRESS_METHOD_STORE;
                     status = mz_zip_writer_entry_open(writer_handle_.get(), &file_info);
                 }
 
                 if (status != MZ_OK) {
-                    std::cout << "ERROR: mz_zip_writer_entry_open failed with status: " << status << std::endl;
                     throw TinaKitException("Failed to open entry for file '" + filename + "'. Status: " + std::to_string(status), "OpenXmlArchiver.save_to_memory");
                 }
             }
 
-            std::cout << "DEBUG: Entry opened successfully, writing content..." << std::endl;
-
-            // 修复：mz_zip_writer_entry_write 返回写入的字节数，不是状态码
+            // 写入文件内容
             int32_t bytes_written = mz_zip_writer_entry_write(writer_handle_.get(), content.data(), static_cast<int32_t>(content.size()));
             if (bytes_written < 0) {
-                std::cout << "ERROR: mz_zip_writer_entry_write failed with status: " << bytes_written << std::endl;
                 mz_zip_writer_entry_close(writer_handle_.get());
                 throw TinaKitException("Failed to write content for file '" + filename + "'. Status: " + std::to_string(bytes_written), "OpenXmlArchiver.save_to_memory");
             }
-            std::cout << "DEBUG: Successfully wrote " << bytes_written << " bytes" << std::endl;
 
-            std::cout << "DEBUG: Content written successfully, closing entry..." << std::endl;
-
-            if (int32_t status = mz_zip_writer_entry_close(writer_handle_.get()); status != MZ_OK) {
-                std::cout << "ERROR: mz_zip_writer_entry_close failed with status: " << status << std::endl;
-                throw TinaKitException("Failed to close entry for file '" + filename + "'. Status: " + std::to_string(status), "OpenXmlArchiver.save_to_memory");
+            // 关闭文件条目
+            if (int32_t close_status = mz_zip_writer_entry_close(writer_handle_.get()); close_status != MZ_OK) {
+                throw TinaKitException("Failed to close entry for file '" + filename + "'. Status: " + std::to_string(close_status), "OpenXmlArchiver.save_to_memory");
             }
-
-            std::cout << "DEBUG: File '" << filename << "' added successfully" << std::endl;
         }
         pending_new_files_.clear();
         
