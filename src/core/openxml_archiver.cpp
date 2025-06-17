@@ -4,7 +4,7 @@
 
 #include "tinakit/core/openxml_archiver.hpp"
 
-#include "../../include/tinakit/core/io.hpp"
+#include "tinakit/core/io.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include <ctime>
 #include <iostream>
@@ -35,17 +35,15 @@ namespace tinakit::core
 
         archiver.source_buffer_ = co_await core::read_file_binary(path);
 
-        void* stream = mz_stream_mem_create();
-        mz_stream_mem_set_buffer(stream, archiver.source_buffer_.data(), archiver.source_buffer_.size());
-
-        if (int32_t status = mz_zip_reader_open(archiver.reader_handle_.get(), stream); status != MZ_OK)
+        // 使用 mz_zip_reader_open_buffer 而不是创建临时流
+        if (int32_t status = mz_zip_reader_open_buffer(archiver.reader_handle_.get(),
+                                                       reinterpret_cast<uint8_t*>(archiver.source_buffer_.data()),
+                                                       static_cast<int32_t>(archiver.source_buffer_.size()), 0);
+            status != MZ_OK)
         {
-            mz_stream_mem_delete(&stream);
-            throw TinaKitException("Failed to open zip archive from file stream. Status: " + std::to_string(status),
-                                   "OpenXmlArchiver");
+            throw TinaKitException("Failed to open zip archive from buffer. Status: " + std::to_string(status),
+                                   "OpenXmlArchiver::open_from_file");
         }
-
-        mz_stream_mem_delete(&stream);
 
         co_await archiver.list_files();
         co_return archiver;
@@ -66,19 +64,15 @@ namespace tinakit::core
             throw TinaKitException("Failed to create zip reader handle.", "OpenXmlArchiver::open_from_memory");
         }
 
-        void* stream = mz_stream_mem_create();
-
-        mz_stream_mem_set_buffer(stream, archiver.source_buffer_.data(), archiver.source_buffer_.size());
-
-        if (int32_t status = mz_zip_reader_open(archiver.reader_handle_.get(), stream); status != MZ_OK)
+        // 使用 mz_zip_reader_open_buffer 而不是创建临时流
+        if (int32_t status = mz_zip_reader_open_buffer(archiver.reader_handle_.get(),
+                                                       reinterpret_cast<uint8_t*>(archiver.source_buffer_.data()),
+                                                       static_cast<int32_t>(archiver.source_buffer_.size()), 0);
+            status != MZ_OK)
         {
-            mz_stream_mem_delete(&stream);
-            throw TinaKitException("Failed to open zip archive from memory stream. Status: " + std::to_string(status),
-                                   "OpenXmlArchiver");
+            throw TinaKitException("Failed to open zip archive from buffer. Status: " + std::to_string(status),
+                                   "OpenXmlArchiver::open_from_memory");
         }
-
-        mz_stream_mem_delete(&stream);
-        mz_stream_set_base(stream, nullptr);
         async::sync_wait(archiver.list_files());
 
         return archiver;

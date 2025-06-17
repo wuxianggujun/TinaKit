@@ -19,7 +19,7 @@
 
 #include "tinakit/core/openxml_archiver.hpp"
 #include "tinakit/core/async.hpp"
-#include "../include/tinakit/core/io.hpp"
+#include "tinakit/core/io.hpp"
 
 using namespace tinakit::core;
 using namespace tinakit::async;
@@ -104,11 +104,14 @@ Task<void> create_sample_xlsx(const std::string& filename) {
 // 示例1：读取并列出 xlsx 文件内容
 Task<void> demo_list_files(const std::string& filename) {
     std::cout << "\n=== 示例1: 列出 XLSX 文件内容 ===" << std::endl;
-    
+
     try {
+        std::cout << "DEBUG: 正在打开文件: " << filename << std::endl;
         auto archiver = co_await OpenXmlArchiver::open_from_file(filename);
+        std::cout << "DEBUG: 文件打开成功，正在列出文件..." << std::endl;
         auto files = co_await archiver.list_files();
-        
+        std::cout << "DEBUG: 文件列表获取成功" << std::endl;
+
         std::cout << "文件包含 " << files.size() << " 个条目:" << std::endl;
         for (const auto& file : files) {
             std::cout << "  - " << file << std::endl;
