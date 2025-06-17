@@ -394,6 +394,56 @@ private:
     std::string formula_;
 };
 
+/**
+ * @class OperationCanceledException
+ * @brief Operation canceled exception (for async operations)
+ */
+class OperationCanceledException : public TinaKitException {
+public:
+    /**
+     * @brief Constructor
+     */
+    OperationCanceledException()
+        : TinaKitException("Operation was canceled", "Async") {}
+
+    /**
+     * @brief Constructor with custom message
+     * @param message Custom error message
+     */
+    explicit OperationCanceledException(const std::string& message)
+        : TinaKitException(message, "Async") {}
+};
+
+/**
+ * @class TimeoutException
+ * @brief Timeout exception (for async operations)
+ */
+class TimeoutException : public TinaKitException {
+public:
+    /**
+     * @brief Constructor
+     * @param timeout_duration Timeout duration description
+     */
+    explicit TimeoutException(const std::string& timeout_duration = "")
+        : TinaKitException("Operation timed out" +
+                          (timeout_duration.empty() ? "" : " after " + timeout_duration),
+                          "Async") {}
+};
+
+/**
+ * @class ExecutorException
+ * @brief Executor exception (for async operations)
+ */
+class ExecutorException : public TinaKitException {
+public:
+    /**
+     * @brief Constructor
+     * @param message Error message
+     */
+    explicit ExecutorException(const std::string& message)
+        : TinaKitException(message, "Async::Executor") {}
+};
+
 } // namespace tinakit
 
 /**

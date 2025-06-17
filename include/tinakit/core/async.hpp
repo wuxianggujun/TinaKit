@@ -37,6 +37,9 @@
 #include <memory_resource>
 #endif
 
+// 包含 TinaKit 异常定义
+#include "tinakit/core/exceptions.hpp"
+
 namespace tinakit::async
 {
     // 前向声明
@@ -115,7 +118,7 @@ namespace detail {
             {
                 if (!std::has_single_bit(capacity))
                 {
-                    throw std::invalid_argument("MpmcRingBufferQueue capacity must be a power of 2.");
+                    throw ExecutorException("MpmcRingBufferQueue capacity must be a power of 2.");
                 }
                 for (size_t i = 0; i < capacity; ++i)
                 {
@@ -266,13 +269,9 @@ namespace detail {
     // 3. 取消机制
     //==================================================================================================
 
-    class OperationCanceledException : public std::runtime_error
-    {
-    public:
-        OperationCanceledException() : std::runtime_error("Operation was canceled")
-        {
-        }
-    };
+    // 使用 TinaKit 异常体系中的异常类
+    using OperationCanceledException = ::tinakit::OperationCanceledException;
+    using ExecutorException = ::tinakit::ExecutorException;
 
     class CancellationState
     {
