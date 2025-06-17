@@ -756,9 +756,42 @@ namespace detail {
         );
     }
 
+    // sync_wait 的 void 特化版本
+    inline void sync_wait(Task<void>&& task)
+    {
+        std::binary_semaphore sem{0};
+
+        auto final_task_runner = [](Task<void> t, auto& s) -> Task<void>
+        {
+            try
+            {
+                co_await std::move(t);
+            }
+            catch (...)
+            {
+                s.release();
+                throw;
+            }
+            s.release();
+        };
+
+        // 从Task中提取协程句柄，但保持Task的生命周期
+        auto task_with_signal = final_task_runner(std::move(task), sem);
+        auto awaiter = task_with_signal.operator co_await();
+        auto handle = awaiter.await_suspend(std::noop_coroutine());
+
+        handle.resume();
+        sem.acquire();
+
+        awaiter.await_resume();
+    }
+
+    // sync_wait 的非 void 版本
     template <typename T>
     T sync_wait(Task<T>&& task)
     {
+        static_assert(!std::is_void_v<T>, "Use sync_wait(Task<void>&&) for void tasks");
+
         std::binary_semaphore sem{0};
 
         auto final_task_runner = [](Task<T> t, auto& s) -> Task<std::optional<T>>
@@ -766,14 +799,7 @@ namespace detail {
             std::optional<T> result;
             try
             {
-                if constexpr (std::is_void_v<T>)
-                {
-                    co_await std::move(t);
-                }
-                else
-                {
-                    result = co_await std::move(t);
-                }
+                result = co_await std::move(t);
             }
             catch (...)
             {
@@ -792,13 +818,6 @@ namespace detail {
         handle.resume();
         sem.acquire();
 
-        if constexpr (std::is_void_v<T>)
-        {
-            awaiter.await_resume();
-        }
-        else
-        {
-            return *awaiter.await_resume();
-        }
+        return *awaiter.await_resume();
     }
 } // namespace tinakit::async
