@@ -1,5 +1,18 @@
 #pragma once
 
+//==================================================================================================
+// TinaKit Async: C++20 Coroutine Library
+// File: async.hpp
+//
+// Description:
+// This is a high-performance C++20 coroutine library header file that integrates the following core features:
+// 1. **Lock-free thread pool executor**: Based on MPMC (Multi-Producer Multi-Consumer) lock-free queue
+// 2. **Timeout and cancellation mechanism**: Efficient background timer wheel for coroutine task timeout
+// 3. **Optional memory pool**: Enable high-performance memory pool via TINAKIT_ENABLE_MEMORY_POOL macro
+//
+// This library is designed as a single header file for easy integration and use.
+//==================================================================================================
+
 #include <coroutine>
 #include <exception>
 #include <optional>
@@ -89,6 +102,8 @@ namespace detail {
          * @brief 一个有界的、无锁的、多生产者多消费者（MPMC）环形缓冲区队列。
          */
         template <typename T>
+        #pragma warning(push)
+        #pragma warning(disable: 4324) // structure was padded due to alignment specifier
         class MpmcRingBufferQueue
         {
             static_assert(std::is_nothrow_move_assignable_v<T> && std::is_nothrow_move_constructible_v<T>,
@@ -154,6 +169,7 @@ namespace detail {
             const size_t mask_;
             std::vector<Slot> buffer_;
         };
+        #pragma warning(pop)
     } // namespace detail
 
 
@@ -567,6 +583,7 @@ namespace detail {
         }
 
         auto operator co_await() & noexcept;
+        auto operator co_await() && noexcept;
 
         Task<T> with_cancellation(CancellationToken token) &&
         {
@@ -620,7 +637,7 @@ namespace detail {
                 return handle_;
             }
 
-            T await_resume() {
+            auto await_resume() {
                 if constexpr (std::is_void_v<T>) {
                     handle_.promise().result();
                 } else {
@@ -643,6 +660,11 @@ namespace detail {
 
     template<typename T>
     auto Task<T>::operator co_await() & noexcept {
+        return detail::TaskAwaiter<T>{handle_};
+    }
+
+    template<typename T>
+    auto Task<T>::operator co_await() && noexcept {
         return detail::TaskAwaiter<T>{handle_};
     }
 

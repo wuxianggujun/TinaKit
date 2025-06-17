@@ -43,8 +43,8 @@ namespace tinakit::io
 
         XlsxArchiver(const XlsxArchiver&) = delete;
         XlsxArchiver& operator=(const XlsxArchiver&) = delete;
-        XlsxArchiver(XlsxArchiver&&) = delete;
-        XlsxArchiver& operator=(XlsxArchiver&&) = delete;
+        XlsxArchiver(XlsxArchiver&&) = default;
+        XlsxArchiver& operator=(XlsxArchiver&&) = default;
 
         static async::Task<XlsxArchiver> open_from_file(const std::string& path);
         static XlsxArchiver open_from_memory(std::vector<std::byte> buffer);
@@ -54,7 +54,7 @@ namespace tinakit::io
         [[nodiscard]] async::Task<bool> has_file(const std::string& filename) const;
         
         [[nodiscard]] async::Task<std::vector<std::byte>> read_file(const std::string& filename);
-        [[nodiscard]] async::Task<std::vector<void>> add_file(const std::string& filename, std::vector<std::byte> content);
+        async::Task<void> add_file(const std::string& filename, std::vector<std::byte> content);
         [[nodiscard]] async::Task<void> remove_file(const std::string& filename);
 
         async::Task<void> save_to_file(const std::string& path);

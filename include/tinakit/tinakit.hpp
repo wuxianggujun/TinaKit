@@ -1,10 +1,10 @@
 /**
  * @file tinakit.hpp
- * @brief TinaKit - 现代化的 OpenXML 文件处理 C++ 库
+ * @brief TinaKit - Modern OpenXML File Processing C++ Library
  * @version 1.0.0
  * @author TinaKit Team
  * @date 2025-6-16
- * 
+ *
  */
 
 #pragma once

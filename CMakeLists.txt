@@ -6,6 +6,17 @@ project(TinaKit VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 设置编译器选项
+if(MSVC)
+    # 设置 UTF-8 编码
+    add_compile_options(/utf-8)
+    # 设置警告级别
+    add_compile_options(/W4)
+else()
+    # GCC/Clang 编译选项
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
 # 项目选项
 option(TINAKIT_BUILD_TESTS "Build TinaKit tests" OFF)
 

@@ -8,13 +8,13 @@
 #include "tinakit/excel/io/io.hpp"
 #include "tinakit/core/exceptions.hpp"
 
-// extern "C" {
-#include <mz_zip_rw.h>
+extern "C" {
+#include <mz.h>
+#include <mz_zip.h>
 #include <mz_strm.h>
 #include <mz_strm_mem.h>
-#include <mz_zip.h>
-#include <mz.h>
-// }
+#include <mz_zip_rw.h>
+}
 
 namespace tinakit::io
 {
@@ -32,8 +32,7 @@ namespace tinakit::io
             throw TinaKitException("Failed to create zip reader handle.", "XlsxArchiver::open_from_file");
         }
 
-        auto buffer = co_await io::read_file_binary(path);
-        archiver.source_buffer_ = std::move(buffer);
+        archiver.source_buffer_ = co_await io::read_file_binary(path);
 
         void* stream = mz_stream_mem_create();
         mz_stream_mem_set_buffer(stream, archiver.source_buffer_.data(), archiver.source_buffer_.size());
@@ -131,7 +130,7 @@ namespace tinakit::io
             {
                 mz_zip_file* file_info = nullptr;
 
-                if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) == MZ_OK)
+                if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) == MZ_OK && file_info)
                 {
                     files.insert(file_info->filename);
                 }
@@ -180,10 +179,12 @@ namespace tinakit::io
         }
 
         mz_zip_file* file_info = nullptr;
-        mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info);
+        if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) != MZ_OK || !file_info) {
+            throw TinaKitException("Failed to get file info for: " + filename, "XlsxArchiver.read_file");
+        }
 
         std::vector<std::byte> buffer(file_info->uncompressed_size);
-        if (int32_t status = mz_zip_reader_entry_read(reader_handle_.get(), buffer.data(), buffer.size()); status < 0)
+        if (int32_t status = mz_zip_reader_entry_read(reader_handle_.get(), buffer.data(), static_cast<int32_t>(buffer.size())); status < 0)
         {
             throw TinaKitException(
                 "Failed to read file content for: " + filename + ". Status: " + std::to_string(status),
@@ -193,13 +194,14 @@ namespace tinakit::io
         co_return buffer;
     }
 
-    async::Task<std::vector<void>> XlsxArchiver::add_file(const std::string& filename, std::vector<std::byte> content)
+    async::Task<void> XlsxArchiver::add_file(const std::string& filename, std::vector<std::byte> content)
     {
         co_await transition_to_writer_mode_if_needed();
 
         pending_new_files_[filename] = std::move(content);
         current_files_.insert(filename);
         files_to_remove_.erase(filename);
+        co_return;
     }
 
     async::Task<void> XlsxArchiver::remove_file(const std::string& filename)
@@ -215,6 +217,7 @@ namespace tinakit::io
             current_files_.erase(filename);
             pending_new_files_.erase(filename);
         }
+        co_return;
     }
 
     async::Task<void> XlsxArchiver::save_to_file(const std::string& path)
@@ -241,12 +244,16 @@ namespace tinakit::io
         for (auto const& [filename, content] : pending_new_files_) {
             mz_zip_file file_info = {0};
             file_info.filename = filename.c_str();
-            file_info.uncompressed_size = content.size();
+            file_info.uncompressed_size = static_cast<uint64_t>(content.size());
             file_info.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
             file_info.flag = MZ_ZIP_FLAG_UTF8;
 
-            if (int32_t status = mz_zip_writer_add_buffer(writer_handle_.get(), (void*)content.data(), content.size(), &file_info); status != MZ_OK) {
-                throw TinaKitException("Failed to add file '" + filename + "' to archive. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+            // 使用 add_buffer 方式添加文件
+            if (int32_t status = mz_zip_writer_add_buffer(writer_handle_.get(),
+                                                         const_cast<void*>(static_cast<const void*>(content.data())),
+                                                         static_cast<int32_t>(content.size()),
+                                                         &file_info); status != MZ_OK) {
+                throw TinaKitException("Failed to add file '" + filename + "'. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
             }
         }
         pending_new_files_.clear();
@@ -256,9 +263,10 @@ namespace tinakit::io
         }
         
         // 现在，从内存流句柄中提取最终的存档。
-        void* buffer_ptr = nullptr;
+        const void* buffer_ptr = nullptr;
         mz_stream_mem_get_buffer(memory_stream_handle_.get(), &buffer_ptr);
-        int32_t buffer_len; = mz_stream_mem_get_buffer_length(memory_stream_handle_.get());
+        int32_t buffer_len = 0;
+        mz_stream_mem_get_buffer_length(memory_stream_handle_.get(), &buffer_len);
 
         if (!buffer_ptr || buffer_len < 0) {
             throw TinaKitException("Failed to retrieve buffer from memory stream after saving.", "XlsxArchiver.save_to_memory");
@@ -331,7 +339,9 @@ namespace tinakit::io
                 do
                 {
                     mz_zip_file* file_info = nullptr;
-                    mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info);
+                    if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) != MZ_OK || !file_info) {
+                        continue;
+                    }
                     if (files_to_remove_.find(file_info->filename) == files_to_remove_.end())
                     {
                         if (int32_t copy_status = mz_zip_writer_copy_from_reader(
