@@ -11,323 +11,616 @@
 #include <functional>
 #include <vector>
 #include <thread>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
+#include <semaphore>          // For std::counting_semaphore in lock-free executor
+#include <numeric>            // For std::has_single_bit
+#include <chrono>             // For timeout mechanism
+#include <list>               // For timer implementation
+#include <unordered_map>      // For timer implementation
+#include <mutex>              // For timer implementation
+#include <condition_variable> // For timer implementation
 
-namespace tinakit::async {
+#if defined(TINAKIT_ENABLE_MEMORY_POOL)
+#include <memory_resource>
+#endif
 
-// Forward declarations
-template<typename T>
-class Task;
-class Executor;
-class CancellationToken;
-class CancellationTokenSource;
-class ThreadPoolExecutor;
+namespace tinakit::async
+{
+    // 前向声明
+    template <typename T>
+    class Task;
+    class Executor;
+    class CancellationToken;
+    class CancellationTokenSource;
+    class ThreadPoolExecutor;
 
-//==================================================================================================
-// 1. Executor Model
-// Defines the "where" and "how" of coroutine execution.
-//==================================================================================================
+    template <typename T, typename Rep, typename Period>
+    Task<T> with_timeout(Task<T>&& task, std::chrono::duration<Rep, Period> timeout);
 
-/**
- * @brief Abstract base class for execution contexts.
- *
- * An Executor is responsible for scheduling a coroutine handle for resumption.
- * This allows controlling on which thread or in what manner a piece of work continues.
- */
-class Executor {
-public:
-    virtual ~Executor() = default;
-    virtual void execute(std::coroutine_handle<> handle) = 0;
-};
+    //==================================================================================================
+    // 1. 内存池实现 (条件编译)
+    //==================================================================================================
 
-/**
- * @brief An executor that runs the coroutine inline on the current thread.
- */
-class InlineExecutor final : public Executor {
-public:
-    void execute(std::coroutine_handle<> handle) override {
-        handle.resume();
-    }
-};
-
-/**
- * @brief A simple thread pool executor for running tasks on background threads.
- */
-class ThreadPoolExecutor final : public Executor {
-public:
-    explicit ThreadPoolExecutor(size_t thread_count = std::thread::hardware_concurrency()) {
-        if (thread_count == 0) thread_count = 1;
-        for (size_t i = 0; i < thread_count; ++i) {
-            threads_.emplace_back([this] { worker_thread(); });
-        }
-    }
-
-    ~ThreadPoolExecutor() override
-    {
-        shutdown_ = true;
-        cv_.notify_all();
-        for (auto& thread : threads_) {
-            if (thread.joinable()) {
-                thread.join();
-            }
-        }
-    }
-
-    ThreadPoolExecutor(const ThreadPoolExecutor&) = delete;
-    ThreadPoolExecutor& operator=(const ThreadPoolExecutor&) = delete;
-
-    void execute(std::coroutine_handle<> handle) override {
-        if (!handle) return;
-        {
-            std::lock_guard lock(mutex_);
-            tasks_.push(handle);
-        }
-        cv_.notify_one();
-    }
-
-private:
-    void worker_thread() {
-        while (true) {
-            std::coroutine_handle<> handle;
-            {
-                std::unique_lock lock(mutex_);
-                cv_.wait(lock, [this] { return shutdown_ || !tasks_.empty(); });
-                if (shutdown_ && tasks_.empty()) {
-                    return;
-                }
-                handle = tasks_.front();
-                tasks_.pop();
-            }
-            handle.resume();
-        }
-    }
-
-    std::vector<std::thread> threads_;
-    std::queue<std::coroutine_handle<>> tasks_;
-    std::mutex mutex_;
-    std::condition_variable cv_;
-    std::atomic<bool> shutdown_{false};
-};
-
-/**
- * @brief Creates an awaitable that schedules the coroutine on the specified executor.
- *
- * Usage: `co_await fcoro::schedule_on(my_executor);`
- */
-auto schedule_on(Executor& executor) noexcept {
-    struct Awaiter {
-        Executor& executor_;
-        bool await_ready() const noexcept { return false; }
-        void await_suspend(std::coroutine_handle<> handle) const noexcept {
-            executor_.execute(handle);
-        }
-        void await_resume() const noexcept {}
-    };
-    return Awaiter{executor};
-}
-
-
-//==================================================================================================
-// 2. Cancellation Mechanism
-//==================================================================================================
-
-class OperationCanceledException : public std::runtime_error {
-public:
-    OperationCanceledException() : std::runtime_error("Operation was canceled") {}
-};
-
-class CancellationState {
-public:
-    void cancel() noexcept { canceled_.store(true, std::memory_order_release); }
-    bool is_cancellation_requested() const noexcept { return canceled_.load(std::memory_order_acquire); }
-private:
-    std::atomic<bool> canceled_{false};
-};
-
-/**
- * @brief Represents a token that can be checked for a cancellation request.
- */
-class CancellationToken {
-public:
-    CancellationToken() = default;
-    explicit CancellationToken(std::shared_ptr<CancellationState> state) : state_(std::move(state)) {}
-
-    bool is_cancellation_requested() const noexcept {
-        return state_ && state_->is_cancellation_requested();
-    }
-
-    void throwIfCancellationRequested() const {
-        if (is_cancellation_requested()) {
-            throw OperationCanceledException();
-        }
-    }
-
-private:
-    std::shared_ptr<CancellationState> state_;
-};
-
-/**
- * @brief Creates and manages a CancellationToken.
- */
-class CancellationTokenSource {
-public:
-    CancellationTokenSource() : state_(std::make_shared<CancellationState>()) {}
-
-    void cancel() noexcept {
-        if (state_) {
-            state_->cancel();
-        }
-    }
-
-    CancellationToken token() const noexcept {
-        return CancellationToken(state_);
-    }
-
-private:
-    std::shared_ptr<CancellationState> state_;
-};
-
-
-//==================================================================================================
-// 3. Core Task Implementation
-//==================================================================================================
-
+#if defined(TINAKIT_ENABLE_MEMORY_POOL)
 namespace detail {
-    template<typename T>
-    struct Promise;
-
-    // Awaiter for the final suspend point of a Task.
-    // This is responsible for resuming the waiting coroutine (the continuation).
-    struct FinalAwaiter {
-        bool await_ready() const noexcept { return false; }
-
-        template<typename PromiseType>
-        std::coroutine_handle<> await_suspend(std::coroutine_handle<PromiseType> h) noexcept {
-            // Resume the continuation. If no one is awaiting, this is a no-op handle.
-            // If an executor is specified, resume via the executor.
-            auto& promise = h.promise();
-            if (promise.executor_ && promise.continuation_) {
-                 promise.executor_->execute(promise.continuation_);
-                 return std::noop_coroutine();
-            }
-            return promise.continuation_ ? promise.continuation_ : std::noop_coroutine();
+    class CoroutineMemoryPoolManager {
+    public:
+        static CoroutineMemoryPoolManager& get_instance() {
+            static CoroutineMemoryPoolManager instance;
+            return instance;
         }
-        void await_resume() noexcept {}
-    };
-
-    // Base promise type with common logic for cancellation and continuation.
-    struct PromiseBase {
-        std::coroutine_handle<> continuation_ = nullptr;
-        std::exception_ptr exception_ = nullptr;
-        CancellationToken cancellation_token_;
-        Executor* executor_ = nullptr; // Optional executor for scheduling the continuation
-
-        // A coroutine is always "lazy", starting only when awaited.
-        std::suspend_always initial_suspend() const noexcept { return {}; }
-        FinalAwaiter final_suspend() const noexcept { return {}; }
-
-        void unhandled_exception() noexcept {
-            exception_ = std::current_exception();
+        std::pmr::memory_resource* get_resource() {
+            return &pool_resource_;
         }
-
-        void set_cancellation_token(CancellationToken token) {
-            cancellation_token_ = std::move(token);
-        }
-    };
-
-    // Promise specialization for Tasks that return a value.
-    template<typename T>
-    struct Promise final : PromiseBase {
-        std::optional<T> result_;
-
-        Task<T> get_return_object();
-
-        template<typename U>
-        void return_value(U&& value) noexcept(std::is_nothrow_constructible_v<T, U&&>) {
-            result_.emplace(std::forward<U>(value));
-        }
-
-        T& result() & {
-            if (exception_) std::rethrow_exception(exception_);
-            return *result_;
-        }
-        
-        T&& result() && {
-            if (exception_) std::rethrow_exception(exception_);
-            return std::move(*result_);
-        }
-    };
-
-    // Promise specialization for Task<void>.
-    template<>
-    struct Promise<void> final : PromiseBase {
-        Task<void> get_return_object();
-        void return_void() noexcept {}
-
-        void result() {
-            if (exception_) std::rethrow_exception(exception_);
-        }
+        CoroutineMemoryPoolManager(const CoroutineMemoryPoolManager&) = delete;
+        CoroutineMemoryPoolManager& operator=(const CoroutineMemoryPoolManager&) = delete;
+    private:
+        CoroutineMemoryPoolManager() = default;
+        ~CoroutineMemoryPoolManager() = default;
+        std::pmr::synchronized_pool_resource pool_resource_;
     };
 } // namespace detail
+#endif // TINAKIT_ENABLE_MEMORY_POOL
 
 
-/**
- * @brief Represents an asynchronous operation that may produce a result.
- *
- * A Task is lazy (cold-started) and only executes when `co_await`ed.
- * It is a move-only type, representing unique ownership of the async operation.
- */
-template<typename T = void>
-class Task {
-public:
-    using promise_type = detail::Promise<T>;
-    friend struct detail::Promise<T>;
-    friend struct detail::Promise<void>;
+    //==================================================================================================
+    // 2. 执行器模型与无锁实现
+    //==================================================================================================
 
-    Task(const Task&) = delete;
-    Task& operator=(const Task&) = delete;
+    class Executor
+    {
+    public:
+        virtual ~Executor() = default;
+        virtual void execute(std::coroutine_handle<> handle) = 0;
+    };
 
-    Task(Task&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-    
-    Task& operator=(Task&& other) noexcept {
-        if (this != &other) {
+    class InlineExecutor final : public Executor
+    {
+    public:
+        void execute(std::coroutine_handle<> handle) override
+        {
+            handle.resume();
+        }
+    };
+
+    namespace detail
+    {
+        /**
+         * @brief 一个有界的、无锁的、多生产者多消费者（MPMC）环形缓冲区队列。
+         */
+        template <typename T>
+        class MpmcRingBufferQueue
+        {
+            static_assert(std::is_nothrow_move_assignable_v<T> && std::is_nothrow_move_constructible_v<T>,
+                          "T must be nothrow move constructible and assignable");
+
+        public:
+            explicit MpmcRingBufferQueue(size_t capacity)
+                : capacity_(capacity), mask_(capacity - 1), buffer_(capacity)
+            {
+                if (!std::has_single_bit(capacity))
+                {
+                    throw std::invalid_argument("MpmcRingBufferQueue capacity must be a power of 2.");
+                }
+                for (size_t i = 0; i < capacity; ++i)
+                {
+                    buffer_[i].seq.store(i, std::memory_order_relaxed);
+                }
+            }
+
+            MpmcRingBufferQueue(const MpmcRingBufferQueue&) = delete;
+            MpmcRingBufferQueue& operator=(const MpmcRingBufferQueue&) = delete;
+
+            void push(T&& item)
+            {
+                size_t head = head_seq_.fetch_add(1, std::memory_order_relaxed);
+                Slot& slot = buffer_[head & mask_];
+                while (slot.seq.load(std::memory_order_acquire) != head)
+                {
+                    std::this_thread::yield();
+                }
+                slot.data = std::move(item);
+                slot.seq.store(head + 1, std::memory_order_release);
+            }
+
+            bool try_pop(T& item)
+            {
+                size_t tail = tail_seq_.load(std::memory_order_relaxed);
+                Slot& slot = buffer_[tail & mask_];
+                if (slot.seq.load(std::memory_order_acquire) != tail + 1)
+                {
+                    return false;
+                }
+                if (tail_seq_.compare_exchange_weak(tail, tail + 1, std::memory_order_relaxed))
+                {
+                    item = std::move(slot.data);
+                    slot.seq.store(tail + capacity_, std::memory_order_release);
+                    return true;
+                }
+                return false;
+            }
+
+        private:
+            struct Slot
+            {
+                alignas(std::hardware_destructive_interference_size) std::atomic<size_t> seq;
+                T data;
+            };
+
+            alignas(std::hardware_destructive_interference_size) std::atomic<size_t> head_seq_{0};
+            alignas(std::hardware_destructive_interference_size) std::atomic<size_t> tail_seq_{0};
+
+            const size_t capacity_;
+            const size_t mask_;
+            std::vector<Slot> buffer_;
+        };
+    } // namespace detail
+
+
+    /**
+     * @brief 高性能、无锁的线程池执行器。
+     */
+    class ThreadPoolExecutor final : public Executor
+    {
+    public:
+        explicit ThreadPoolExecutor(size_t thread_count = 0, size_t queue_capacity = 256)
+            : queue_(queue_capacity)
+        {
+            if (thread_count == 0)
+            {
+                thread_count = std::thread::hardware_concurrency();
+                if (thread_count == 0) thread_count = 1;
+            }
+
+            threads_.reserve(thread_count);
+            for (size_t i = 0; i < thread_count; ++i)
+            {
+                threads_.emplace_back([this](std::stop_token stoken)
+                {
+                    worker_loop(std::move(stoken));
+                });
+            }
+        }
+
+        ~ThreadPoolExecutor()
+        {
+            for (auto& thread : threads_)
+            {
+                thread.request_stop();
+            }
+            semaphore_.release(threads_.size());
+        }
+
+        ThreadPoolExecutor(const ThreadPoolExecutor&) = delete;
+        ThreadPoolExecutor& operator=(const ThreadPoolExecutor&) = delete;
+
+        void execute(std::coroutine_handle<> handle) override
+        {
+            if (!handle) return;
+            queue_.push(std::move(handle));
+            semaphore_.release();
+        }
+
+    private:
+        void worker_loop(std::stop_token stop_token)
+        {
+            std::coroutine_handle<> handle;
+            while (!stop_token.stop_requested())
+            {
+                if (queue_.try_pop(handle))
+                {
+                    handle.resume();
+                    continue;
+                }
+                semaphore_.acquire();
+                if (queue_.try_pop(handle))
+                {
+                    handle.resume();
+                }
+            }
+        }
+
+        detail::MpmcRingBufferQueue<std::coroutine_handle<>> queue_;
+        std::counting_semaphore<> semaphore_{0};
+        std::vector<std::jthread> threads_;
+    };
+
+
+    auto schedule_on(Executor& executor) noexcept
+    {
+        struct Awaiter
+        {
+            Executor& executor_;
+            bool await_ready() const noexcept { return false; }
+
+            void await_suspend(std::coroutine_handle<> handle) const noexcept
+            {
+                executor_.execute(handle);
+            }
+
+            void await_resume() const noexcept
+            {
+            }
+        };
+        return Awaiter{executor};
+    }
+
+
+    //==================================================================================================
+    // 3. 取消机制
+    //==================================================================================================
+
+    class OperationCanceledException : public std::runtime_error
+    {
+    public:
+        OperationCanceledException() : std::runtime_error("Operation was canceled")
+        {
+        }
+    };
+
+    class CancellationState
+    {
+    public:
+        void cancel() noexcept { canceled_.store(true, std::memory_order_release); }
+        bool is_cancellation_requested() const noexcept { return canceled_.load(std::memory_order_acquire); }
+
+    private:
+        std::atomic<bool> canceled_{false};
+    };
+
+    class CancellationToken
+    {
+    public:
+        CancellationToken() = default;
+
+        explicit CancellationToken(std::shared_ptr<CancellationState> state) : state_(std::move(state))
+        {
+        }
+
+        bool is_cancellation_requested() const noexcept
+        {
+            return state_ && state_->is_cancellation_requested();
+        }
+
+        void throwIfCancellationRequested() const
+        {
+            if (is_cancellation_requested())
+            {
+                throw OperationCanceledException();
+            }
+        }
+
+    private:
+        std::shared_ptr<CancellationState> state_;
+    };
+
+    class CancellationTokenSource
+    {
+    public:
+        CancellationTokenSource() : state_(std::make_shared<CancellationState>())
+        {
+        }
+
+        void cancel() noexcept { if (state_) state_->cancel(); }
+        CancellationToken token() const noexcept { return CancellationToken(state_); }
+
+    private:
+        std::shared_ptr<CancellationState> state_;
+    };
+
+
+    //==================================================================================================
+    // 4. 超时与定时器实现
+    //==================================================================================================
+    namespace detail
+    {
+        /**
+         * @brief 高效的时间轮定时器，用于管理大量定时事件。
+         */
+        class TimerWheel
+        {
+        public:
+            using TimerId = uint64_t;
+            using Callback = std::function<void()>;
+
+            TimerWheel() = default;
+            TimerWheel(const TimerWheel&) = delete;
+            TimerWheel& operator=(const TimerWheel&) = delete;
+
+            template <typename Rep, typename Period>
+            TimerId add_timer(std::chrono::duration<Rep, Period> timeout, Callback callback)
+            {
+                auto expires_at = std::chrono::steady_clock::now() + timeout;
+                std::lock_guard lock(mutex_);
+                TimerId id = next_timer_id_++;
+                auto it = timers_.emplace(timers_.end(), id, expires_at, std::move(callback));
+                timers_map_[id] = it;
+                return id;
+            }
+
+            void remove_timer(TimerId id)
+            {
+                std::lock_guard lock(mutex_);
+                auto it = timers_map_.find(id);
+                if (it != timers_map_.end())
+                {
+                    timers_.erase(it->second);
+                    timers_map_.erase(it);
+                }
+            }
+
+            void tick()
+            {
+                auto now = std::chrono::steady_clock::now();
+                std::vector<Callback> expired_callbacks;
+                {
+                    std::lock_guard lock(mutex_);
+                    for (auto it = timers_.begin(); it != timers_.end();)
+                    {
+                        if (it->expires_at <= now)
+                        {
+                            expired_callbacks.push_back(std::move(it->callback));
+                            timers_map_.erase(it->id);
+                            it = timers_.erase(it);
+                        }
+                        else
+                        {
+                            ++it;
+                        }
+                    }
+                }
+                for (auto& cb : expired_callbacks)
+                {
+                    cb();
+                }
+            }
+
+        private:
+            struct TimerNode
+            {
+                TimerId id;
+                std::chrono::steady_clock::time_point expires_at;
+                Callback callback;
+            };
+
+            std::mutex mutex_;
+            std::list<TimerNode> timers_;
+            std::unordered_map<TimerId, std::list<TimerNode>::iterator> timers_map_;
+            std::atomic<TimerId> next_timer_id_{1};
+        };
+
+        /**
+         * @brief 定时器管理器的单例。
+         */
+        class TimerManager
+        {
+        public:
+            static TimerManager& get_instance()
+            {
+                static TimerManager instance;
+                return instance;
+            }
+
+            TimerManager(const TimerManager&) = delete;
+            TimerManager& operator=(const TimerManager&) = delete;
+
+            template <typename Rep, typename Period>
+            TimerWheel::TimerId add_timer(std::chrono::duration<Rep, Period> timeout, TimerWheel::Callback callback)
+            {
+                return timer_wheel_.add_timer(timeout, std::move(callback));
+            }
+
+            void remove_timer(TimerWheel::TimerId id)
+            {
+                timer_wheel_.remove_timer(id);
+            }
+
+        private:
+            TimerManager() : worker_([this](std::stop_token st) { timer_loop(st); })
+            {
+            }
+
+            ~TimerManager()
+            {
+                worker_.request_stop();
+                cv_.notify_one();
+            }
+
+            void timer_loop(std::stop_token stoken)
+            {
+                while (!stoken.stop_requested())
+                {
+                    timer_wheel_.tick();
+                    std::unique_lock lock(mutex_);
+                    cv_.wait_for(lock, TIMER_RESOLUTION, [&stoken] { return stoken.stop_requested(); });
+                }
+            }
+
+            static constexpr std::chrono::milliseconds TIMER_RESOLUTION{10};
+            TimerWheel timer_wheel_;
+            std::jthread worker_;
+            std::mutex mutex_;
+            std::condition_variable cv_;
+        };
+    } // namespace detail
+
+
+    //==================================================================================================
+    // 5. 核心Task实现
+    //==================================================================================================
+
+    namespace detail
+    {
+        template <typename T>
+        struct Promise;
+
+        struct FinalAwaiter
+        {
+            bool await_ready() const noexcept { return false; }
+
+            template <typename PromiseType>
+            std::coroutine_handle<> await_suspend(std::coroutine_handle<PromiseType> h) noexcept
+            {
+                auto& promise = h.promise();
+                if (promise.executor_ && promise.continuation_)
+                {
+                    promise.executor_->execute(promise.continuation_);
+                    return std::noop_coroutine();
+                }
+                return promise.continuation_ ? promise.continuation_ : std::noop_coroutine();
+            }
+
+            void await_resume() noexcept
+            {
+            }
+        };
+
+        struct PromiseBase
+        {
+            std::coroutine_handle<> continuation_ = nullptr;
+            std::exception_ptr exception_ = nullptr;
+            CancellationToken cancellation_token_;
+            Executor* executor_ = nullptr;
+
+#if defined(TINAKIT_ENABLE_MEMORY_POOL)
+        static void* operator new(std::size_t size) {
+            return detail::CoroutineMemoryPoolManager::get_instance().get_resource()->allocate(size);
+        }
+        static void operator delete(void* ptr, std::size_t size) noexcept {
+            detail::CoroutineMemoryPoolManager::get_instance().get_resource()->deallocate(ptr, size);
+        }
+#endif
+
+            std::suspend_always initial_suspend() const noexcept { return {}; }
+            FinalAwaiter final_suspend() const noexcept { return {}; }
+            void unhandled_exception() noexcept { exception_ = std::current_exception(); }
+            void set_cancellation_token(CancellationToken token) { cancellation_token_ = std::move(token); }
+            const CancellationToken& get_cancellation_token() const { return cancellation_token_; }
+        };
+
+        template <typename T>
+        struct Promise final : PromiseBase
+        {
+            std::optional<T> result_;
+            Task<T> get_return_object();
+
+            template <typename U>
+            void return_value(U&& value) noexcept(std::is_nothrow_constructible_v<T, U&&>)
+            {
+                result_.emplace(std::forward<U>(value));
+            }
+
+            T& result() &
+            {
+                if (exception_) std::rethrow_exception(exception_);
+                return *result_;
+            }
+
+            T&& result() &&
+            {
+                if (exception_) std::rethrow_exception(exception_);
+                return std::move(*result_);
+            }
+        };
+
+        template <>
+        struct Promise<void> final : PromiseBase
+        {
+            Task<void> get_return_object();
+
+            void return_void() noexcept
+            {
+            }
+
+            void result() { if (exception_) std::rethrow_exception(exception_); }
+        };
+    }
+
+    template <typename T = void>
+    class Task
+    {
+    public:
+        using promise_type = detail::Promise<T>;
+        friend struct detail::Promise<T>;
+        friend struct detail::Promise<void>;
+
+        Task(const Task&) = delete;
+        Task& operator=(const Task&) = delete;
+
+        Task(Task&& other) noexcept : handle_(std::exchange(other.handle_, nullptr))
+        {
+        }
+
+        Task& operator=(Task&& other) noexcept
+        {
+            if (this != &other)
+            {
+                if (handle_) handle_.destroy();
+                handle_ = std::exchange(other.handle_, nullptr);
+            }
+            return *this;
+        }
+
+        ~Task()
+        {
             if (handle_) handle_.destroy();
-            handle_ = std::exchange(other.handle_, nullptr);
         }
-        return *this;
-    }
 
-    ~Task() {
-        if (handle_) {
-            handle_.destroy();
+        auto operator co_await() & noexcept;
+
+        Task<T> with_cancellation(CancellationToken token) &&
+        {
+            handle_.promise().set_cancellation_token(std::move(token));
+            return std::move(*this);
         }
-    }
 
-    // Awaiter implementation for `co_await my_task;`
-    auto operator co_await() & noexcept {
-        struct Awaiter {
-            std::coroutine_handle<promise_type> handle_;
+        Task<T> via(Executor& executor) &&
+        {
+            handle_.promise().executor_ = &executor;
+            return std::move(*this);
+        }
+
+        template <typename Rep, typename Period>
+        Task<T> with_timeout(std::chrono::duration<Rep, Period> timeout) &&
+        {
+            return tinakit::async::with_timeout(std::move(*this), timeout);
+        }
+
+    private:
+        explicit Task(std::coroutine_handle<promise_type> handle) noexcept : handle_(handle)
+        {
+        }
+
+        std::coroutine_handle<promise_type> handle_;
+    };
+
+    // Task Awaiter 实现 - 移到类外部以支持模板成员函数
+    namespace detail {
+        template<typename T>
+        struct TaskAwaiter {
+            std::coroutine_handle<typename Task<T>::promise_type> handle_;
 
             bool await_ready() const noexcept {
-                // If the handle is done, we can get the result immediately.
                 return !handle_ || handle_.done();
             }
 
-            std::coroutine_handle<> await_suspend(std::coroutine_handle<> awaiting_coro) noexcept {
-                // Store the waiting coroutine's handle as the continuation.
-                // It will be resumed in FinalAwaiter.
+            template<typename AwaitingPromise>
+            std::coroutine_handle<> await_suspend(std::coroutine_handle<AwaitingPromise> awaiting_coro) noexcept {
                 handle_.promise().continuation_ = awaiting_coro;
-                
-                // Return the task's handle to transfer execution to it.
+                if constexpr (requires { awaiting_coro.promise().get_cancellation_token(); }) {
+                    if (!handle_.promise().get_cancellation_token().is_cancellation_requested()) {
+                       handle_.promise().set_cancellation_token(awaiting_coro.promise().get_cancellation_token());
+                    }
+                }
+                return handle_;
+            }
+
+            std::coroutine_handle<> await_suspend(std::coroutine_handle<> awaiting_coro) noexcept {
+                handle_.promise().continuation_ = awaiting_coro;
                 return handle_;
             }
 
             T await_resume() {
-                // This is called after the task is complete.
-                // The result() method will rethrow exceptions if any.
                 if constexpr (std::is_void_v<T>) {
                     handle_.promise().result();
                 } else {
@@ -335,155 +628,155 @@ public:
                 }
             }
         };
-        return Awaiter{handle_};
-    }
 
-    // Configure task with a cancellation token.
-    Task<T> with_cancellation(CancellationToken token) && {
-        handle_.promise().set_cancellation_token(std::move(token));
-        return std::move(*this);
-    }
-    
-    // Configure task to schedule its continuation on a specific executor.
-    Task<T> via(Executor& executor) && {
-        handle_.promise().executor_ = &executor;
-        return std::move(*this);
-    }
-
-private:
-    explicit Task(std::coroutine_handle<promise_type> handle) noexcept : handle_(handle) {}
-    std::coroutine_handle<promise_type> handle_;
-};
-
-// Connect promise types back to the Task class
-namespace detail {
-    template<typename T>
-    Task<T> Promise<T>::get_return_object() {
-        return Task<T>{std::coroutine_handle<Promise<T>>::from_promise(*this)};
-    }
-    inline Task<void> Promise<void>::get_return_object() {
-        return Task<void>{std::coroutine_handle<Promise<void>>::from_promise(*this)};
-    }
-} // namespace detail
-
-
-//==================================================================================================
-// 4. Concurrency Combinators (`when_all`)
-//==================================================================================================
-namespace detail {
-    // Helper to get the result type T from a Task<T>.
-    // For Task<void>, we use a placeholder type `void_result` because tuples cannot contain `void`.
-    struct void_result {};
-    
-    template<typename T> struct task_result_impl { using type = T; };
-    template<> struct task_result_impl<void> { using type = void_result; };
-    template<typename T> using task_result_t = typename task_result_impl<T>::type;
-
-    template<typename T> struct task_value_type;
-    template<typename T> struct task_value_type<Task<T>> { using type = T; };
-    template<typename T> using task_value_t = typename task_value_type<T>::type;
-
-
-    // Implementation of when_all using compile-time index sequences.
-    template <typename Tuple, std::size_t... Is>
-    auto when_all_impl(Tuple&& tasks, std::index_sequence<Is...>) -> 
-        Task<std::tuple<task_result_t<task_value_t<std::decay_t<decltype(std::get<Is>(tasks))>>>...>> 
-    {
-        // Use a fold expression with the comma operator to `co_await` all tasks concurrently.
-        // The results are then collected into a tuple.
-        co_return std::make_tuple((co_await std::get<Is>(std::forward<Tuple>(tasks)))...);
-    }
-} // namespace detail
-
-/**
- * @brief Concurrently awaits multiple tasks and returns a task whose result is a tuple of all individual task results.
- *
- * For any `Task<void>` inputs, the corresponding tuple element will be of type `fcoro::detail::void_result`.
- *
- * @param tasks A parameter pack of `Task` objects to await.
- * @return A new `Task` that completes when all input tasks are complete.
- */
-template <typename... Tasks>
-auto when_all(Tasks&&... tasks) {
-    return detail::when_all_impl(
-        std::make_tuple(std::forward<Tasks>(tasks)...),
-        std::index_sequence_for<Tasks...>{}
-    );
-}
-
-//==================================================================================================
-// 5. Utility Functions (`sync_wait`)
-//==================================================================================================
-
-/**
- * @brief Blocks the current thread until the task is complete and returns its result.
- * 
- * This is primarily useful for bridging the async world with a blocking context,
- * such as in a `main` function or in unit tests.
- * 
- * @warning Do not use this within a coroutine; it will lead to deadlocks.
- *
- * @param task The task to wait for.
- * @return The result of the task.
- */
-template <typename T>
-T sync_wait(Task<T>&& task) {
-    auto task_runner = [](Task<T> t) -> Task<std::optional<T>> {
-        // co_await the task and capture its result
-        if constexpr (std::is_void_v<T>) {
-            co_await std::move(t);
-            co_return std::nullopt; // Placeholder for void
-        } else {
-            co_return co_await std::move(t);
-        }
-    };
-    
-    auto wrapper_task = task_runner(std::move(task));
-    
-    // Manually start the wrapper task and block until it completes
-    std::mutex m;
-    std::condition_variable cv;
-    bool done = false;
-
-    // Use a final action lambda to signal completion
-    auto final_action = [&]() -> Task<> {
-        // This code will run when wrapper_task completes
+        template <typename T>
+        Task<T> Promise<T>::get_return_object()
         {
-            std::lock_guard lock(m);
-            done = true;
+            return Task<T>{std::coroutine_handle<Promise<T>>::from_promise(*this)};
         }
-        cv.notify_one();
-        co_return;
-    };
-    
-    // Chain the signaling task to the end of our task
-    auto final_task_runner = [](Task<std::optional<T>> t, auto final_act) -> Task<std::optional<T>> {
-        auto result = co_await std::move(t);
-        co_await final_act();
-        co_return result;
-    };
 
-    auto task_with_signal = final_task_runner(std::move(wrapper_task), final_action);
-
-    // This is the only place we manually resume. 
-    // We create a coroutine from the task but don't await it.
-    // Instead, we resume it to kick it off.
-    auto handle = std::get<0>(task_with_signal.operator co_await().await_suspend(std::noop_coroutine()));
-    handle.resume();
-
-    // Block until the task is done
-    std::unique_lock lock(m);
-    cv.wait(lock, [&done] { return done; });
-
-    // Retrieve and return the result
-    if constexpr (std::is_void_v<T>) {
-        // In the void case, we already know it completed.
-        // We just need to check for exceptions.
-        task_with_signal.operator co_await().await_resume();
-        return;
-    } else {
-        return *task_with_signal.operator co_await().await_resume();
+        inline Task<void> Promise<void>::get_return_object()
+        {
+            return Task<void>{std::coroutine_handle<Promise<void>>::from_promise(*this)};
+        }
     }
-}
 
-} // namespace fcoro
+    template<typename T>
+    auto Task<T>::operator co_await() & noexcept {
+        return detail::TaskAwaiter<T>{handle_};
+    }
+
+
+    /**
+     * @brief 为一个任务附加超时功能。
+     */
+    template <typename T, typename Rep, typename Period>
+    Task<T> with_timeout(Task<T>&& task, std::chrono::duration<Rep, Period> timeout)
+    {
+        auto cts_ptr = std::make_shared<CancellationTokenSource>();
+
+        auto timer_id = detail::TimerManager::get_instance().add_timer(timeout, [cts_ptr]
+        {
+            cts_ptr->cancel();
+        });
+
+        try
+        {
+            if constexpr (std::is_void_v<T>)
+            {
+                co_await std::move(task).with_cancellation(cts_ptr->token());
+                detail::TimerManager::get_instance().remove_timer(timer_id);
+            }
+            else
+            {
+                T result = co_await std::move(task).with_cancellation(cts_ptr->token());
+                detail::TimerManager::get_instance().remove_timer(timer_id);
+                co_return result;
+            }
+        }
+        catch (...)
+        {
+            detail::TimerManager::get_instance().remove_timer(timer_id);
+            throw;
+        }
+    }
+
+
+    //==================================================================================================
+    // 6. 并发组合器与工具函数
+    //==================================================================================================
+    namespace detail
+    {
+        struct void_result
+        {
+        };
+
+        template <typename T>
+        struct task_result_impl
+        {
+            using type = T;
+        };
+
+        template <>
+        struct task_result_impl<void>
+        {
+            using type = void_result;
+        };
+
+        template <typename T>
+        using task_result_t = typename task_result_impl<T>::type;
+        template <typename T>
+        struct task_value_type;
+
+        template <typename T>
+        struct task_value_type<Task<T>>
+        {
+            using type = T;
+        };
+
+        template <typename T>
+        using task_value_t = typename task_value_type<T>::type;
+
+        template <typename Tuple, std::size_t... Is>
+        auto when_all_impl(Tuple&& tasks, std::index_sequence<Is...>) ->
+            Task<std::tuple<task_result_t<task_value_t<std::decay_t<decltype(std::get<Is>(tasks))>>>...>>
+        {
+            co_return std::make_tuple((co_await std::get<Is>(std::forward<Tuple>(tasks)))...);
+        }
+    }
+
+    template <typename... Tasks>
+    auto when_all(Tasks&&... tasks)
+    {
+        return detail::when_all_impl(
+            std::make_tuple(std::forward<Tasks>(tasks)...),
+            std::index_sequence_for<Tasks...>{}
+        );
+    }
+
+    template <typename T>
+    T sync_wait(Task<T>&& task)
+    {
+        std::binary_semaphore sem{0};
+
+        auto final_task_runner = [](Task<T> t, auto& s) -> Task<std::optional<T>>
+        {
+            std::optional<T> result;
+            try
+            {
+                if constexpr (std::is_void_v<T>)
+                {
+                    co_await std::move(t);
+                }
+                else
+                {
+                    result = co_await std::move(t);
+                }
+            }
+            catch (...)
+            {
+                s.release();
+                throw;
+            }
+            s.release();
+            co_return result;
+        };
+
+        // 从Task中提取协程句柄，但保持Task的生命周期
+        auto task_with_signal = final_task_runner(std::move(task), sem);
+        auto awaiter = task_with_signal.operator co_await();
+        auto handle = awaiter.await_suspend(std::noop_coroutine());
+
+        handle.resume();
+        sem.acquire();
+
+        if constexpr (std::is_void_v<T>)
+        {
+            awaiter.await_resume();
+        }
+        else
+        {
+            return *awaiter.await_resume();
+        }
+    }
+} // namespace tinakit::async
