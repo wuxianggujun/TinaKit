@@ -9,7 +9,7 @@
 #include <vector>
 #include <cstddef>
 
-namespace tinakit::io
+namespace tinakit::core
 {
     async::Task<void> write_file_binary(const std::string& path, const std::vector<std::byte>& data);
 

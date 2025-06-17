@@ -2,10 +2,10 @@
 // Created by wuxianggujun on 2025/6/17.
 //
 
-#include "tinakit/excel/io/io.hpp"
+#include "tinakit/core/io.hpp"
 #include <fstream>
 
-tinakit::async::Task<void> tinakit::io::write_file_binary(const std::string& path, const std::vector<std::byte>& data)
+tinakit::async::Task<void> tinakit::core::write_file_binary(const std::string& path, const std::vector<std::byte>& data)
 {
     std::ofstream file(path, std::ios::binary);
 
@@ -22,7 +22,7 @@ tinakit::async::Task<void> tinakit::io::write_file_binary(const std::string& pat
     co_return;
 }
 
-tinakit::async::Task<std::vector<std::byte>> tinakit::io::read_file_binary(const std::string& path)
+tinakit::async::Task<std::vector<std::byte>> tinakit::core::read_file_binary(const std::string& path)
 {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {

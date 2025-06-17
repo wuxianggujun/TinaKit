@@ -20,35 +20,40 @@ struct mz_zip_writer_s;
 struct mz_stream_s;
 
 
-namespace tinakit::io
+namespace tinakit::core
 {
     /**
-  * @brief Manages reading from and writing to XLSX/ZIP archives, encapsulating minizip-ng.
-  *
-  * This class provides a high-level C++ interface for manipulating ZIP archives either in memory
-  * or from the filesystem. It adheres to the design principles of minizip-ng's read/write API,
-  * handling the transition from read-only to write mode transparently.
-  *
-  * In read-only mode, it uses a reader handle to access archive contents. When a modification
-  * (`add_file` or `remove_file`) is requested, it seamlessly transitions to write mode. This
-  * involves creating a new in-memory archive and copying all existing entries (excluding those
-  * marked for deletion) from the original reader to the new writer. Subsequent modifications
-  * operate on this new in-memory writer.
-  */
-    class XlsxArchiver
+     * @brief Manages reading from and writing to OpenXML archives, encapsulating minizip-ng.
+     *
+     * This class provides a high-level C++ interface for manipulating OpenXML format files
+     * (XLSX, DOCX, PPTX, etc.) which are essentially ZIP archives containing XML files and resources.
+     * It supports both in-memory and filesystem operations with seamless async/await integration.
+     *
+     * Supported formats:
+     * - Excel: .xlsx, .xlsm, .xltx, .xltm
+     * - Word: .docx, .docm, .dotx, .dotm
+     * - PowerPoint: .pptx, .pptm, .potx, .potm
+     * - Any other OpenXML-based format
+     *
+     * The class handles the transition from read-only to write mode transparently.
+     * In read-only mode, it uses a reader handle to access archive contents. When a modification
+     * is requested, it seamlessly transitions to write mode by creating a new in-memory archive
+     * and copying existing entries (excluding those marked for deletion).
+     */
+    class OpenXmlArchiver
     {
     public:
-        XlsxArchiver() = default;
-        ~XlsxArchiver();
+        OpenXmlArchiver() = default;
+        ~OpenXmlArchiver();
 
-        XlsxArchiver(const XlsxArchiver&) = delete;
-        XlsxArchiver& operator=(const XlsxArchiver&) = delete;
-        XlsxArchiver(XlsxArchiver&&) = default;
-        XlsxArchiver& operator=(XlsxArchiver&&) = default;
+        OpenXmlArchiver(const OpenXmlArchiver&) = delete;
+        OpenXmlArchiver& operator=(const OpenXmlArchiver&) = delete;
+        OpenXmlArchiver(OpenXmlArchiver&&) = default;
+        OpenXmlArchiver& operator=(OpenXmlArchiver&&) = default;
 
-        static async::Task<XlsxArchiver> open_from_file(const std::string& path);
-        static XlsxArchiver open_from_memory(std::vector<std::byte> buffer);
-        static XlsxArchiver create_in_memory_writer();
+        static async::Task<OpenXmlArchiver> open_from_file(const std::string& path);
+        static OpenXmlArchiver open_from_memory(std::vector<std::byte> buffer);
+        static OpenXmlArchiver create_in_memory_writer();
 
         [[nodiscard]] async::Task<std::vector<std::string>> list_files() const;
         [[nodiscard]] async::Task<bool> has_file(const std::string& filename) const;

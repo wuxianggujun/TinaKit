@@ -2,9 +2,9 @@
 // Created by wuxianggujun on 2025/6/17.
 //
 
-#include "tinakit/excel/io/xlsx_archiver.hpp"
+#include "tinakit/core/openxml_archiver.hpp"
 
-#include "tinakit/excel/io/io.hpp"
+#include "../../include/tinakit/core/io.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include <ctime>
 #include <iostream>
@@ -17,23 +17,23 @@ extern "C" {
 #include <mz_zip_rw.h>
 }
 
-namespace tinakit::io
+namespace tinakit::core
 {
-    XlsxArchiver::~XlsxArchiver()
+    OpenXmlArchiver::~OpenXmlArchiver()
     {
         close_handles();
     }
 
-    async::Task<XlsxArchiver> XlsxArchiver::open_from_file(const std::string& path)
+    async::Task<OpenXmlArchiver> OpenXmlArchiver::open_from_file(const std::string& path)
     {
-        XlsxArchiver archiver;
+        OpenXmlArchiver archiver;
         archiver.reader_handle_.reset(mz_zip_reader_create());
         if (!archiver.reader_handle_)
         {
-            throw TinaKitException("Failed to create zip reader handle.", "XlsxArchiver::open_from_file");
+            throw TinaKitException("Failed to create zip reader handle.", "OpenXmlArchiver::open_from_file");
         }
 
-        archiver.source_buffer_ = co_await io::read_file_binary(path);
+        archiver.source_buffer_ = co_await core::read_file_binary(path);
 
         void* stream = mz_stream_mem_create();
         mz_stream_mem_set_buffer(stream, archiver.source_buffer_.data(), archiver.source_buffer_.size());
@@ -42,7 +42,7 @@ namespace tinakit::io
         {
             mz_stream_mem_delete(&stream);
             throw TinaKitException("Failed to open zip archive from file stream. Status: " + std::to_string(status),
-                                   "XlsxArchiver");
+                                   "OpenXmlArchiver");
         }
 
         mz_stream_mem_delete(&stream);
@@ -51,9 +51,9 @@ namespace tinakit::io
         co_return archiver;
     }
 
-    XlsxArchiver XlsxArchiver::open_from_memory(std::vector<std::byte> buffer)
+    OpenXmlArchiver OpenXmlArchiver::open_from_memory(std::vector<std::byte> buffer)
     {
-        XlsxArchiver archiver;
+        OpenXmlArchiver archiver;
         archiver.source_buffer_ = std::move(buffer);
         if (archiver.source_buffer_.empty())
         {
@@ -63,7 +63,7 @@ namespace tinakit::io
         archiver.reader_handle_.reset(mz_zip_reader_create());
         if (!archiver.reader_handle_)
         {
-            throw TinaKitException("Failed to create zip reader handle.", "XlsxArchiver::open_from_memory");
+            throw TinaKitException("Failed to create zip reader handle.", "OpenXmlArchiver::open_from_memory");
         }
 
         void* stream = mz_stream_mem_create();
@@ -74,7 +74,7 @@ namespace tinakit::io
         {
             mz_stream_mem_delete(&stream);
             throw TinaKitException("Failed to open zip archive from memory stream. Status: " + std::to_string(status),
-                                   "XlsxArchiver");
+                                   "OpenXmlArchiver");
         }
 
         mz_stream_mem_delete(&stream);
@@ -84,20 +84,20 @@ namespace tinakit::io
         return archiver;
     }
 
-    XlsxArchiver XlsxArchiver::create_in_memory_writer()
+    OpenXmlArchiver OpenXmlArchiver::create_in_memory_writer()
     {
-        XlsxArchiver archiver;
+        OpenXmlArchiver archiver;
         archiver.writer_handle_.reset(mz_zip_writer_create());
         if (!archiver.writer_handle_)
         {
-            throw TinaKitException("Failed to create zip writer handle.", "XlsxArchiver::create_in_memory_writer");
+            throw TinaKitException("Failed to create zip writer handle.", "OpenXmlArchiver::create_in_memory_writer");
         }
 
         archiver.memory_stream_handle_.reset(mz_stream_mem_create());
         if (!archiver.memory_stream_handle_)
         {
             throw TinaKitException("Failed to create memory stream for writer.",
-                                   "XlsxArchiver::create_in_memory_writer");
+                                   "OpenXmlArchiver::create_in_memory_writer");
         }
 
         // 关键修复：先打开内存流
@@ -105,20 +105,20 @@ namespace tinakit::io
             status != MZ_OK)
         {
             throw TinaKitException("Failed to open memory stream. Status: " + std::to_string(status),
-                                   "XlsxArchiver::create_in_memory_writer");
+                                   "OpenXmlArchiver::create_in_memory_writer");
         }
 
         if (int32_t status = mz_zip_writer_open(archiver.writer_handle_.get(), archiver.memory_stream_handle_.get(), 0);
             status != MZ_OK)
         {
             throw TinaKitException("Failed to open zip writer on memory stream. Status: " + std::to_string(status),
-                                   "XlsxArchiver::create_in_memory_writer");
+                                   "OpenXmlArchiver::create_in_memory_writer");
         }
 
         return archiver;
     }
 
-    async::Task<std::vector<std::string>> XlsxArchiver::list_files() const
+    async::Task<std::vector<std::string>> OpenXmlArchiver::list_files() const
     {
         if (writer_handle_ || !files_to_remove_.empty() || !pending_new_files_.empty())
         {
@@ -147,11 +147,11 @@ namespace tinakit::io
             while (mz_zip_reader_goto_next_entry(reader_handle_.get()) == MZ_OK);
         }
 
-        const_cast<XlsxArchiver*>(this)->current_files_ = files;
+        const_cast<OpenXmlArchiver*>(this)->current_files_ = files;
         co_return std::vector<std::string>(files.begin(), files.end());
     }
 
-    async::Task<bool> XlsxArchiver::has_file(const std::string& filename) const
+    async::Task<bool> OpenXmlArchiver::has_file(const std::string& filename) const
     {
         if (current_files_.empty())
         {
@@ -160,7 +160,7 @@ namespace tinakit::io
         co_return current_files_.count(filename) > 0;
     }
 
-    async::Task<std::vector<std::byte>> XlsxArchiver::read_file(const std::string& filename)
+    async::Task<std::vector<std::byte>> OpenXmlArchiver::read_file(const std::string& filename)
     {
         co_await transition_to_writer_mode_if_needed();
 
@@ -174,22 +174,22 @@ namespace tinakit::io
         if (writer_handle_)
         {
             throw TinaKitException("Cannot read file content after archive has been modified.",
-                                   "XlsxArchiver.read_file");
+                                   "OpenXmlArchiver.read_file");
         }
 
         if (!reader_handle_)
         {
-            throw TinaKitException("Archive is not open for reading.", "XlsxArchiver.read_file");
+            throw TinaKitException("Archive is not open for reading.", "OpenXmlArchiver.read_file");
         }
 
         if (int32_t status = mz_zip_reader_locate_entry(reader_handle_.get(), filename.c_str(), 0); status != MZ_OK)
         {
-            throw TinaKitException("File not found in archive: " + filename, "XlsxArchiver.read_file");
+            throw TinaKitException("File not found in archive: " + filename, "OpenXmlArchiver.read_file");
         }
 
         mz_zip_file* file_info = nullptr;
         if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) != MZ_OK || !file_info) {
-            throw TinaKitException("Failed to get file info for: " + filename, "XlsxArchiver.read_file");
+            throw TinaKitException("Failed to get file info for: " + filename, "OpenXmlArchiver.read_file");
         }
 
         std::vector<std::byte> buffer(file_info->uncompressed_size);
@@ -197,13 +197,13 @@ namespace tinakit::io
         {
             throw TinaKitException(
                 "Failed to read file content for: " + filename + ". Status: " + std::to_string(status),
-                "XlsxArchiver.read_file");
+                "OpenXmlArchiver.read_file");
         }
 
         co_return buffer;
     }
 
-    async::Task<void> XlsxArchiver::add_file(const std::string& filename, std::vector<std::byte> content)
+    async::Task<void> OpenXmlArchiver::add_file(const std::string& filename, std::vector<std::byte> content)
     {
         // 只有在没有写入器的情况下才需要转换模式
         // 如果已经有写入器（比如通过 create_in_memory_writer 创建），就不要重新创建
@@ -217,7 +217,7 @@ namespace tinakit::io
         co_return;
     }
 
-    async::Task<void> XlsxArchiver::remove_file(const std::string& filename)
+    async::Task<void> OpenXmlArchiver::remove_file(const std::string& filename)
     {
         if (current_files_.empty())
         {
@@ -233,15 +233,15 @@ namespace tinakit::io
         co_return;
     }
 
-    async::Task<void> XlsxArchiver::save_to_file(const std::string& path)
+    async::Task<void> OpenXmlArchiver::save_to_file(const std::string& path)
     {
         auto memory_buffer = co_await save_to_memory();
         
-        co_await io::write_file_binary(path, memory_buffer);
+        co_await core::write_file_binary(path, memory_buffer);
     }
 
 
-    async::Task<std::vector<std::byte>> XlsxArchiver::save_to_memory()
+    async::Task<std::vector<std::byte>> OpenXmlArchiver::save_to_memory()
     {
         if (!writer_handle_ && pending_new_files_.empty() && files_to_remove_.empty())
         {
@@ -261,12 +261,12 @@ namespace tinakit::io
         // 检查写入器状态
         if (!writer_handle_) {
             std::cout << "ERROR: Writer handle is null!" << std::endl;
-            throw TinaKitException("Writer handle is null", "XlsxArchiver.save_to_memory");
+            throw TinaKitException("Writer handle is null", "OpenXmlArchiver.save_to_memory");
         }
 
         if (!memory_stream_handle_) {
             std::cout << "ERROR: Memory stream handle is null!" << std::endl;
-            throw TinaKitException("Memory stream handle is null", "XlsxArchiver.save_to_memory");
+            throw TinaKitException("Memory stream handle is null", "OpenXmlArchiver.save_to_memory");
         }
 
         for (auto const& [filename, content] : pending_new_files_) {
@@ -299,7 +299,7 @@ namespace tinakit::io
 
                 if (status != MZ_OK) {
                     std::cout << "ERROR: mz_zip_writer_entry_open failed with status: " << status << std::endl;
-                    throw TinaKitException("Failed to open entry for file '" + filename + "'. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+                    throw TinaKitException("Failed to open entry for file '" + filename + "'. Status: " + std::to_string(status), "OpenXmlArchiver.save_to_memory");
                 }
             }
 
@@ -310,7 +310,7 @@ namespace tinakit::io
             if (bytes_written < 0) {
                 std::cout << "ERROR: mz_zip_writer_entry_write failed with status: " << bytes_written << std::endl;
                 mz_zip_writer_entry_close(writer_handle_.get());
-                throw TinaKitException("Failed to write content for file '" + filename + "'. Status: " + std::to_string(bytes_written), "XlsxArchiver.save_to_memory");
+                throw TinaKitException("Failed to write content for file '" + filename + "'. Status: " + std::to_string(bytes_written), "OpenXmlArchiver.save_to_memory");
             }
             std::cout << "DEBUG: Successfully wrote " << bytes_written << " bytes" << std::endl;
 
@@ -318,7 +318,7 @@ namespace tinakit::io
 
             if (int32_t status = mz_zip_writer_entry_close(writer_handle_.get()); status != MZ_OK) {
                 std::cout << "ERROR: mz_zip_writer_entry_close failed with status: " << status << std::endl;
-                throw TinaKitException("Failed to close entry for file '" + filename + "'. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+                throw TinaKitException("Failed to close entry for file '" + filename + "'. Status: " + std::to_string(status), "OpenXmlArchiver.save_to_memory");
             }
 
             std::cout << "DEBUG: File '" << filename << "' added successfully" << std::endl;
@@ -326,9 +326,9 @@ namespace tinakit::io
         pending_new_files_.clear();
         
         if (int32_t status = mz_zip_writer_close(writer_handle_.get()); status != MZ_OK) {
-            throw TinaKitException("Failed to close zip writer. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+            throw TinaKitException("Failed to close zip writer. Status: " + std::to_string(status), "OpenXmlArchiver.save_to_memory");
         }
-        
+
         // 现在，从内存流句柄中提取最终的存档。
         const void* buffer_ptr = nullptr;
         mz_stream_mem_get_buffer(memory_stream_handle_.get(), &buffer_ptr);
@@ -336,7 +336,7 @@ namespace tinakit::io
         mz_stream_mem_get_buffer_length(memory_stream_handle_.get(), &buffer_len);
 
         if (!buffer_ptr || buffer_len < 0) {
-            throw TinaKitException("Failed to retrieve buffer from memory stream after saving.", "XlsxArchiver.save_to_memory");
+            throw TinaKitException("Failed to retrieve buffer from memory stream after saving.", "OpenXmlArchiver.save_to_memory");
         }
 
         const auto* byte_ptr = static_cast<const std::byte*>(buffer_ptr);
@@ -347,7 +347,7 @@ namespace tinakit::io
         
     }
 
-    void XlsxArchiver::ZipReaderDeleter::operator()(void* handle) const
+    void OpenXmlArchiver::ZipReaderDeleter::operator()(void* handle) const
     {
         if (handle)
         {
@@ -355,7 +355,7 @@ namespace tinakit::io
         }
     }
 
-    void XlsxArchiver::ZipWriterDeleter::operator()(void* handle) const
+    void OpenXmlArchiver::ZipWriterDeleter::operator()(void* handle) const
     {
         if (handle)
         {
@@ -363,7 +363,7 @@ namespace tinakit::io
         }
     }
 
-    void XlsxArchiver::StreamDeleter::operator()(void* handle) const
+    void OpenXmlArchiver::StreamDeleter::operator()(void* handle) const
     {
         if (handle)
         {
@@ -371,7 +371,7 @@ namespace tinakit::io
         }
     }
 
-    async::Task<void> XlsxArchiver::transition_to_writer_mode_if_needed()
+    async::Task<void> OpenXmlArchiver::transition_to_writer_mode_if_needed()
     {
         if (writer_handle_)
         {
@@ -382,14 +382,14 @@ namespace tinakit::io
         if (!writer_handle_)
         {
             throw TinaKitException("Failed to create zip writer handle for transition.",
-                                   "XlsxArchiver.transition_to_writer_mode_if_needed");
+                                   "OpenXmlArchiver.transition_to_writer_mode_if_needed");
         }
 
         memory_stream_handle_.reset(mz_stream_mem_create());
         if (!memory_stream_handle_)
         {
             throw TinaKitException("Failed to create memory stream for writer for transition.",
-                                   "XlsxArchiver.transition_to_writer_mode_if_needed");
+                                   "OpenXmlArchiver.transition_to_writer_mode_if_needed");
         }
 
         // 关键修复：先打开内存流
@@ -397,14 +397,14 @@ namespace tinakit::io
             status != MZ_OK)
         {
             throw TinaKitException("Failed to open memory stream for transition. Status: " + std::to_string(status),
-                                   "XlsxArchiver.transition_to_writer_mode_if_needed");
+                                   "OpenXmlArchiver.transition_to_writer_mode_if_needed");
         }
 
         if (int32_t status = mz_zip_writer_open(writer_handle_.get(), memory_stream_handle_.get(), 0); status != MZ_OK)
         {
             throw TinaKitException(
                 "Failed to open zip writer on memory stream for transition. Status: " + std::to_string(status),
-                "XlsxArchiver.transition_to_writer_mode_if_needed");
+                "OpenXmlArchiver.transition_to_writer_mode_if_needed");
         }
 
         if (reader_handle_)
@@ -424,7 +424,7 @@ namespace tinakit::io
                         {
                             throw TinaKitException(
                                 "Failed to copy entry '" + std::string(file_info->filename) + "' during transition.",
-                                "XlsxArchiver.transition_to_writer_mode_if_needed");
+                                "OpenXmlArchiver.transition_to_writer_mode_if_needed");
                         }
                     }
                 }
@@ -440,7 +440,7 @@ namespace tinakit::io
         co_return;
     }
 
-    void XlsxArchiver::close_handles()
+    void OpenXmlArchiver::close_handles()
     {
         writer_handle_.reset(nullptr);
         reader_handle_.reset(nullptr);
