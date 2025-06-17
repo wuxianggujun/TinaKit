@@ -53,6 +53,7 @@
 #define MZ_OPEN_MODE_APPEND    (0x04)
 #define MZ_OPEN_MODE_CREATE    (0x08)
 #define MZ_OPEN_MODE_EXISTING  (0x10)
+#define MZ_OPEN_MODE_NOFOLLOW  (0x20)
 
 /* MZ_SEEK */
 #define MZ_SEEK_SET (0)

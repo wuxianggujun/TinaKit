@@ -46,6 +46,8 @@
 #if defined(HAVE_ICONV)
 char *mz_os_utf8_string_create(const char *string, int32_t encoding) {
     iconv_t cd;
+    /// up to CP2147483647
+    char string_encoding[13];
     const char *from_encoding = NULL;
     size_t result = 0;
     size_t string_length = 0;
@@ -59,8 +61,6 @@ char *mz_os_utf8_string_create(const char *string, int32_t encoding) {
     if (encoding == MZ_ENCODING_UTF8)
         from_encoding = "UTF-8";
     else {
-        /// up to CP2147483647
-        char string_encoding[13];
         snprintf(string_encoding, sizeof(string_encoding), "CP%03" PRId32, encoding);
         from_encoding = string_encoding;
     }

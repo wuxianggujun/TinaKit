@@ -171,77 +171,59 @@ if(MZ_LIBCOMP)
 endif()
 
 if(MZ_ZLIB)
-    # Check if we have a local zlib-ng target (from parent project)
-    if(TARGET zlib)
-        message(STATUS "Using local zlib-ng target")
+    # Check if zlib is present
+    if(NOT MZ_FORCE_FETCH_LIBS)
+        find_package(ZLIBNG QUIET)
+        find_package(ZLIB QUIET)
+        set(ZLIB_VERSION ${ZLIB_VERSION_STRING})
+    endif()
 
-        # Use the local zlib-ng target
-        list(APPEND MINIZIP_DEP zlib)
+    if(ZLIBNG_FOUND AND NOT MZ_FORCE_FETCH_LIBS)
+        message(STATUS "Using ZLIBNG")
 
-        # Get the include directories from the target
-        get_target_property(ZLIB_INCLUDE_DIRS zlib INTERFACE_INCLUDE_DIRECTORIES)
-        if(ZLIB_INCLUDE_DIRS)
-            list(APPEND MINIZIP_INC ${ZLIB_INCLUDE_DIRS})
-        endif()
+        list(APPEND MINIZIP_INC ${ZLIBNG_INCLUDE_DIRS})
+        list(APPEND MINIZIP_LIB ${ZLIBNG_LIBRARIES})
+        list(APPEND MINIZIP_LBD ${ZLIBNG_LIBRARY_DIRS})
 
-        # Since we're using zlib-ng in compatibility mode, set ZLIB_COMPAT
-        set(ZLIB_COMPAT ON)
+        set(PC_PRIVATE_DEPS "zlib-ng")
+        set(ZLIB_COMPAT OFF)
+    elseif(ZLIB_FOUND AND NOT MZ_FORCE_FETCH_LIBS)
+        message(STATUS "Using ZLIB ${ZLIB_VERSION}")
+
+        list(APPEND MINIZIP_INC ${ZLIB_INCLUDE_DIRS})
+        list(APPEND MINIZIP_LIB ${ZLIB_LIBRARIES})
+        list(APPEND MINIZIP_LBD ${ZLIB_LIBRARY_DIRS})
+
         set(PC_PRIVATE_DEPS "zlib")
-    else()
-        # Check if zlib is present
-        if(NOT MZ_FORCE_FETCH_LIBS)
-            find_package(ZLIBNG QUIET)
-            find_package(ZLIB QUIET)
-            set(ZLIB_VERSION ${ZLIB_VERSION_STRING})
-        endif()
+        set(ZLIB_COMPAT ON)
+    elseif(MZ_FETCH_LIBS)
+        set(ZLIB_ENABLE_TESTS OFF CACHE BOOL "Build zlib-ng tests" FORCE)
 
-        if(ZLIBNG_FOUND AND NOT MZ_FORCE_FETCH_LIBS)
-            message(STATUS "Using ZLIBNG")
+        clone_repo(zlib https://github.com/zlib-ng/zlib-ng stable)
 
-            list(APPEND MINIZIP_INC ${ZLIBNG_INCLUDE_DIRS})
-            list(APPEND MINIZIP_LIB ${ZLIBNG_LIBRARIES})
-            list(APPEND MINIZIP_LBD ${ZLIBNG_LIBRARY_DIRS})
+        # Don't automatically add all targets to the solution
+        add_subdirectory(${ZLIB_SOURCE_DIR} ${ZLIB_BINARY_DIR} EXCLUDE_FROM_ALL)
 
-            set(PC_PRIVATE_DEPS "zlib-ng")
-            set(ZLIB_COMPAT OFF)
-        elseif(ZLIB_FOUND AND NOT MZ_FORCE_FETCH_LIBS)
-            message(STATUS "Using ZLIB ${ZLIB_VERSION}")
+        list(APPEND MINIZIP_INC ${ZLIB_SOURCE_DIR})
+        list(APPEND MINIZIP_INC ${ZLIB_BINARY_DIR})
 
-            list(APPEND MINIZIP_INC ${ZLIB_INCLUDE_DIRS})
-            list(APPEND MINIZIP_LIB ${ZLIB_LIBRARIES})
-            list(APPEND MINIZIP_LBD ${ZLIB_LIBRARY_DIRS})
-
-            set(PC_PRIVATE_DEPS "zlib")
-            set(ZLIB_COMPAT ON)
-        elseif(MZ_FETCH_LIBS)
-            set(ZLIB_ENABLE_TESTS OFF CACHE BOOL "Build zlib-ng tests" FORCE)
-
-            clone_repo(zlib https://github.com/zlib-ng/zlib-ng stable)
-
-            # Don't automatically add all targets to the solution
-            add_subdirectory(${ZLIB_SOURCE_DIR} ${ZLIB_BINARY_DIR} EXCLUDE_FROM_ALL)
-
-            list(APPEND MINIZIP_INC ${ZLIB_SOURCE_DIR})
-            list(APPEND MINIZIP_INC ${ZLIB_BINARY_DIR})
-
-            # Have to add zlib to install targets
-            if(ZLIB_COMPAT AND (NOT DEFINED BUILD_SHARED_LIBS OR NOT BUILD_SHARED_LIBS))
-                list(APPEND MINIZIP_DEP zlibstatic)
-            else()
-                list(APPEND MINIZIP_DEP zlib)
-            endif()
-
-            if(EXISTS "${ZLIB_BINARY_DIR}/zlib-ng.h")
-                message(STATUS "ZLIB repository detected as ZLIBNG")
-                set(ZLIB_COMPAT OFF)
-            else()
-                set(ZLIB_COMPAT ON)
-            endif()
+        # Have to add zlib to install targets
+        if(ZLIB_COMPAT AND (NOT DEFINED BUILD_SHARED_LIBS OR NOT BUILD_SHARED_LIBS))
+            list(APPEND MINIZIP_DEP zlibstatic)
         else()
-            message(STATUS "ZLIB library not found")
-
-            set(MZ_ZLIB OFF)
+            list(APPEND MINIZIP_DEP zlib)
         endif()
+
+        if(EXISTS "${ZLIB_BINARY_DIR}/zlib-ng.h")
+            message(STATUS "ZLIB repository detected as ZLIBNG")
+            set(ZLIB_COMPAT OFF)
+        else()
+            set(ZLIB_COMPAT ON)
+        endif()
+    else()
+        message(STATUS "ZLIB library not found")
+
+        set(MZ_ZLIB OFF)
     endif()
 
     if(MZ_ZLIB)
@@ -483,6 +465,11 @@ if(WIN32)
 else()
     list(APPEND STDLIB_DEF -D_POSIX_C_SOURCE=200809L -D_BSD_SOURCE -D_DEFAULT_SOURCE)
     list(APPEND MINIZIP_SRC mz_os_posix.c mz_strm_os_posix.c)
+
+    if(APPLE)
+        # Despite being part of POSIX 2008, macOS thinks that O_NOFOLLOW is still a non-standard extension
+        list(APPEND STDLIB_DEF -D_DARWIN_C_SOURCE)
+    endif()
 
     if(MZ_PKCRYPT OR MZ_WZAES)
         if(MZ_OPENSSL)

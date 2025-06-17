@@ -236,6 +236,9 @@ void mz_zip_writer_set_compress_level(void *handle, int16_t compress_level);
 void mz_zip_writer_set_follow_links(void *handle, uint8_t follow_links);
 /* Follow symbolic links when traversing directories and files to add */
 
+int32_t mz_zip_writer_get_follow_links(void *handle, uint8_t *follow_links);
+/* Gets whether to follow symbolic links when traversing directories and files to add */
+
 void mz_zip_writer_set_store_links(void *handle, uint8_t store_links);
 /* Store symbolic links in zip file */
 

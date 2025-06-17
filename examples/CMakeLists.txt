@@ -77,10 +77,42 @@ function(copy_runtime_dependencies target_name)
     endif()
 endfunction()
 
+# 调试测试程序
+add_executable(debug_xlsx_test debug_xlsx_test.cpp)
+target_link_libraries(debug_xlsx_test PRIVATE tinakit)
+
+# 直接测试 minizip-ng API
+add_executable(minizip_direct_test minizip_direct_test.cpp)
+target_link_libraries(minizip_direct_test PRIVATE minizip zlib)
+
+set_target_properties(debug_xlsx_test
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+)
+
+set_target_properties(minizip_direct_test
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+)
+
+if(WIN32)
+    set_target_properties(debug_xlsx_test
+        PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+    )
+
+    set_target_properties(minizip_direct_test
+        PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+    )
+endif()
+
 # 为所有示例程序应用 DLL 复制
 copy_runtime_dependencies(tinakit_xml_parser_example)
 copy_runtime_dependencies(xlsx_archiver_demo)
 copy_runtime_dependencies(xlsx_reader_test)
+copy_runtime_dependencies(debug_xlsx_test)
+copy_runtime_dependencies(minizip_direct_test)
 
 # 如果 CMake 版本支持，使用更现代的方法
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")

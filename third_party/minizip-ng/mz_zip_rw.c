@@ -1614,10 +1614,13 @@ int32_t mz_zip_writer_add_file(void *handle, const char *path, const char *filen
         if (err == MZ_OK)
             file_info.linkname = link_path;
     } else if (mz_os_is_dir(path) != MZ_OK) {
+        uint32_t mode = MZ_OPEN_MODE_READ;
         stream = mz_stream_os_create();
         if (!stream)
             return MZ_STREAM_ERROR;
-        err = mz_stream_os_open(stream, path, MZ_OPEN_MODE_READ);
+        if (!writer->follow_links)
+            mode |= MZ_OPEN_MODE_NOFOLLOW;
+        err = mz_stream_os_open(stream, path, mode);
     }
 
     if (err == MZ_OK)
@@ -1817,6 +1820,14 @@ void mz_zip_writer_set_compress_level(void *handle, int16_t compress_level) {
 void mz_zip_writer_set_follow_links(void *handle, uint8_t follow_links) {
     mz_zip_writer *writer = (mz_zip_writer *)handle;
     writer->follow_links = follow_links;
+}
+
+int32_t mz_zip_writer_get_follow_links(void *handle, uint8_t *follow_links) {
+    mz_zip_writer *writer = (mz_zip_writer *)handle;
+    if (!follow_links)
+        return MZ_PARAM_ERROR;
+    *follow_links = writer->follow_links;
+    return MZ_OK;
 }
 
 void mz_zip_writer_set_store_links(void *handle, uint8_t store_links) {

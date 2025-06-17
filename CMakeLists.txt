@@ -33,13 +33,18 @@ set(WITH_FUZZERS OFF CACHE BOOL "Build test/fuzz" FORCE)
 
 add_subdirectory(third_party/zlib-ng)
 
-# 配置minizip-ng选项 - 只启用必要的压缩格式
+# 配置minizip-ng选项 - 确保找到我们的 zlib-ng
 set(MZ_ZLIB ON CACHE BOOL "Enables ZLIB compression" FORCE)
 set(MZ_BZIP2 OFF CACHE BOOL "Enables BZIP2 compression" FORCE)
 set(MZ_LZMA OFF CACHE BOOL "Enables LZMA & XZ compression" FORCE)
 set(MZ_ZSTD OFF CACHE BOOL "Enables ZSTD compression" FORCE)
 set(MZ_FETCH_LIBS OFF CACHE BOOL "Disable fetching third-party libraries" FORCE)
-set(MZ_COMPAT ON CACHE BOOL "Enables compatibility layer" FORCE)
+
+# 告诉 minizip-ng 使用我们构建的 zlib-ng
+set(ZLIB_ROOT ${CMAKE_BINARY_DIR}/third_party/zlib-ng CACHE PATH "ZLIB root directory" FORCE)
+set(ZLIB_INCLUDE_DIR ${CMAKE_BINARY_DIR}/third_party/zlib-ng CACHE PATH "ZLIB include directory" FORCE)
+set(ZLIB_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/third_party/zlib-ng/zlibd.lib CACHE FILEPATH "ZLIB debug library" FORCE)
+set(ZLIB_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/third_party/zlib-ng/zlib.lib CACHE FILEPATH "ZLIB release library" FORCE)
 
 add_subdirectory(third_party/minizip-ng)
 

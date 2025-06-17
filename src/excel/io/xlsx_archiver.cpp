@@ -4,9 +4,10 @@
 
 #include "tinakit/excel/io/xlsx_archiver.hpp"
 
-
 #include "tinakit/excel/io/io.hpp"
 #include "tinakit/core/exceptions.hpp"
+#include <ctime>
+#include <iostream>
 
 extern "C" {
 #include <mz.h>
@@ -96,6 +97,14 @@ namespace tinakit::io
         if (!archiver.memory_stream_handle_)
         {
             throw TinaKitException("Failed to create memory stream for writer.",
+                                   "XlsxArchiver::create_in_memory_writer");
+        }
+
+        // 关键修复：先打开内存流
+        if (int32_t status = mz_stream_mem_open(archiver.memory_stream_handle_.get(), nullptr, MZ_OPEN_MODE_CREATE);
+            status != MZ_OK)
+        {
+            throw TinaKitException("Failed to open memory stream. Status: " + std::to_string(status),
                                    "XlsxArchiver::create_in_memory_writer");
         }
 
@@ -196,7 +205,11 @@ namespace tinakit::io
 
     async::Task<void> XlsxArchiver::add_file(const std::string& filename, std::vector<std::byte> content)
     {
-        co_await transition_to_writer_mode_if_needed();
+        // 只有在没有写入器的情况下才需要转换模式
+        // 如果已经有写入器（比如通过 create_in_memory_writer 创建），就不要重新创建
+        if (!writer_handle_) {
+            co_await transition_to_writer_mode_if_needed();
+        }
 
         pending_new_files_[filename] = std::move(content);
         current_files_.insert(filename);
@@ -241,20 +254,74 @@ namespace tinakit::io
 
         co_await transition_to_writer_mode_if_needed();
 
+        std::cout << "DEBUG: Starting to add " << pending_new_files_.size() << " files to archive" << std::endl;
+        std::cout << "DEBUG: Writer handle: " << writer_handle_.get() << std::endl;
+        std::cout << "DEBUG: Memory stream handle: " << memory_stream_handle_.get() << std::endl;
+
+        // 检查写入器状态
+        if (!writer_handle_) {
+            std::cout << "ERROR: Writer handle is null!" << std::endl;
+            throw TinaKitException("Writer handle is null", "XlsxArchiver.save_to_memory");
+        }
+
+        if (!memory_stream_handle_) {
+            std::cout << "ERROR: Memory stream handle is null!" << std::endl;
+            throw TinaKitException("Memory stream handle is null", "XlsxArchiver.save_to_memory");
+        }
+
         for (auto const& [filename, content] : pending_new_files_) {
-            mz_zip_file file_info = {0};
+            std::cout << "DEBUG: Adding file '" << filename << "' with " << content.size() << " bytes" << std::endl;
+
+            // 使用最简单的方式：只设置必要的字段
+            mz_zip_file file_info = {};
+
+            // 只设置最基本的信息
             file_info.filename = filename.c_str();
             file_info.uncompressed_size = static_cast<uint64_t>(content.size());
-            file_info.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
-            file_info.flag = MZ_ZIP_FLAG_UTF8;
 
-            // 使用 add_buffer 方式添加文件
-            if (int32_t status = mz_zip_writer_add_buffer(writer_handle_.get(),
-                                                         const_cast<void*>(static_cast<const void*>(content.data())),
-                                                         static_cast<int32_t>(content.size()),
-                                                         &file_info); status != MZ_OK) {
-                throw TinaKitException("Failed to add file '" + filename + "'. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+            // 智能选择压缩方法：先尝试 DEFLATE，失败则使用 STORE
+            file_info.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
+
+            std::cout << "DEBUG: Calling mz_zip_writer_entry_open for '" << filename << "'" << std::endl;
+            std::cout << "DEBUG: Writer handle: " << writer_handle_.get() << std::endl;
+            std::cout << "DEBUG: File info - filename: " << file_info.filename << std::endl;
+            std::cout << "DEBUG: File info - size: " << file_info.uncompressed_size << std::endl;
+            std::cout << "DEBUG: File info - compression: " << file_info.compression_method << std::endl;
+
+            int32_t status = mz_zip_writer_entry_open(writer_handle_.get(), &file_info);
+            if (status != MZ_OK) {
+                if (status == -109 && file_info.compression_method == MZ_COMPRESS_METHOD_DEFLATE) {
+                    // DEFLATE 不支持，回退到 STORE 模式
+                    std::cout << "DEBUG: DEFLATE compression not supported, falling back to STORE mode" << std::endl;
+                    file_info.compression_method = MZ_COMPRESS_METHOD_STORE;
+                    status = mz_zip_writer_entry_open(writer_handle_.get(), &file_info);
+                }
+
+                if (status != MZ_OK) {
+                    std::cout << "ERROR: mz_zip_writer_entry_open failed with status: " << status << std::endl;
+                    throw TinaKitException("Failed to open entry for file '" + filename + "'. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+                }
             }
+
+            std::cout << "DEBUG: Entry opened successfully, writing content..." << std::endl;
+
+            // 修复：mz_zip_writer_entry_write 返回写入的字节数，不是状态码
+            int32_t bytes_written = mz_zip_writer_entry_write(writer_handle_.get(), content.data(), static_cast<int32_t>(content.size()));
+            if (bytes_written < 0) {
+                std::cout << "ERROR: mz_zip_writer_entry_write failed with status: " << bytes_written << std::endl;
+                mz_zip_writer_entry_close(writer_handle_.get());
+                throw TinaKitException("Failed to write content for file '" + filename + "'. Status: " + std::to_string(bytes_written), "XlsxArchiver.save_to_memory");
+            }
+            std::cout << "DEBUG: Successfully wrote " << bytes_written << " bytes" << std::endl;
+
+            std::cout << "DEBUG: Content written successfully, closing entry..." << std::endl;
+
+            if (int32_t status = mz_zip_writer_entry_close(writer_handle_.get()); status != MZ_OK) {
+                std::cout << "ERROR: mz_zip_writer_entry_close failed with status: " << status << std::endl;
+                throw TinaKitException("Failed to close entry for file '" + filename + "'. Status: " + std::to_string(status), "XlsxArchiver.save_to_memory");
+            }
+
+            std::cout << "DEBUG: File '" << filename << "' added successfully" << std::endl;
         }
         pending_new_files_.clear();
         
@@ -322,6 +389,14 @@ namespace tinakit::io
         if (!memory_stream_handle_)
         {
             throw TinaKitException("Failed to create memory stream for writer for transition.",
+                                   "XlsxArchiver.transition_to_writer_mode_if_needed");
+        }
+
+        // 关键修复：先打开内存流
+        if (int32_t status = mz_stream_mem_open(memory_stream_handle_.get(), nullptr, MZ_OPEN_MODE_CREATE);
+            status != MZ_OK)
+        {
+            throw TinaKitException("Failed to open memory stream for transition. Status: " + std::to_string(status),
                                    "XlsxArchiver.transition_to_writer_mode_if_needed");
         }
 
