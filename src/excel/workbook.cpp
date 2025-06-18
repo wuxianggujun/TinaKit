@@ -320,15 +320,186 @@ void Workbook::Impl::create_default_structure() {
 }
 
 void Workbook::Impl::parse_workbook_rels() {
-    // TODO: 解析 xl/_rels/workbook.xml.rels
+    try {
+        const std::string rels_path = "xl/_rels/workbook.xml.rels";
+        
+        // 使用 async 读取以提高性能
+        auto rels_data = async::sync_wait(archiver_->read_file(rels_path));
+        
+        // 使用流式解析，避免一次性加载整个文档到内存
+        std::istringstream stream(std::string(
+            reinterpret_cast<const char*>(rels_data.data()), 
+            rels_data.size()
+        ));
+        
+        core::XmlParser parser(stream, rels_path);
+        
+        // 清空之前的关系映射
+        rels_map_.clear();
+        
+        for (auto it = parser.begin(); it != parser.end(); ++it) {
+            if (it.is_start_element() && it.name() == "Relationship") {
+                // 提取属性，避免多次查找
+                auto id = it.attribute("Id");
+                auto target = it.attribute("Target");
+                auto type = it.attribute("Type");
+                
+                if (id && target) {
+                    // 直接移动字符串，避免拷贝
+                    rels_map_.emplace(std::move(*id), std::move(*target));
+                    
+                    // 识别工作表关系，为后续解析做准备
+                    if (type && type->find("worksheet") != std::string::npos) {
+                        // 记录工作表路径供后续使用
+                    }
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        throw ParseException("Failed to parse workbook relationships: " + std::string(e.what()));
+    }
 }
 
 void Workbook::Impl::parse_workbook_xml() {
-    // TODO: 解析 xl/workbook.xml
+    try {
+        const std::string workbook_path = "xl/workbook.xml";
+        
+        auto workbook_data = async::sync_wait(archiver_->read_file(workbook_path));
+        
+        std::istringstream stream(std::string(
+            reinterpret_cast<const char*>(workbook_data.data()), 
+            workbook_data.size()
+        ));
+        
+        core::XmlParser parser(stream, workbook_path);
+        
+        // 预分配工作表容器
+        worksheets_.reserve(10);  // 大多数 Excel 文件有少于 10 个工作表
+        
+        bool in_sheets = false;
+        std::size_t sheet_index = 0;
+        
+        for (auto it = parser.begin(); it != parser.end(); ++it) {
+            if (it.is_start_element()) {
+                if (it.name() == "sheets") {
+                    in_sheets = true;
+                } else if (in_sheets && it.name() == "sheet") {
+                    // 提取工作表信息
+                    auto name = it.attribute("name");
+                    auto sheet_id = it.attribute("sheetId");
+                    auto r_id = it.attribute("r:id");
+                    
+                    if (name && r_id) {
+                        // 从关系映射中获取实际路径
+                        auto rel_it = rels_map_.find(*r_id);
+                        if (rel_it != rels_map_.end()) {
+                            // 创建工作表对象（延迟加载内容）
+                            auto worksheet = Worksheet::create(*name);
+                            
+                            // 存储工作表
+                            worksheets_.push_back(worksheet);
+                            worksheet_by_name_[*name] = worksheet;
+                            
+                            // 更新最大行列数（实际数据将在需要时加载）
+                            if (sheet_index == 0) {
+                                active_sheet_index_ = 0;  // 第一个工作表为活动工作表
+                            }
+                            sheet_index++;
+                        }
+                    }
+                }
+            } else if (it.is_end_element() && it.name() == "sheets") {
+                in_sheets = false;
+            }
+        }
+        
+        // 如果没有工作表，这不是有效的 Excel 文件
+        if (worksheets_.empty()) {
+            throw ParseException("No worksheets found in workbook");
+        }
+        
+    } catch (const ParseException&) {
+        throw;  // 重新抛出解析异常
+    } catch (const std::exception& e) {
+        throw ParseException("Failed to parse workbook.xml: " + std::string(e.what()));
+    }
 }
 
 void Workbook::Impl::parse_shared_strings() {
-    // TODO: 解析 xl/sharedStrings.xml
+    try {
+        const std::string shared_strings_path = "xl/sharedStrings.xml";
+        
+        // 检查文件是否存在（共享字符串表是可选的）
+        if (!async::sync_wait(archiver_->has_file(shared_strings_path))) {
+            return;  // 没有共享字符串表，直接返回
+        }
+        
+        auto strings_data = async::sync_wait(archiver_->read_file(shared_strings_path));
+        
+        std::istringstream stream(std::string(
+            reinterpret_cast<const char*>(strings_data.data()), 
+            strings_data.size()
+        ));
+        
+        core::XmlParser parser(stream, shared_strings_path);
+        
+        // 预分配共享字符串容器
+        // 通过查找 uniqueCount 属性来优化内存分配
+        std::size_t unique_count = 0;
+        
+        for (auto it = parser.begin(); it != parser.end(); ++it) {
+            if (it.is_start_element() && it.name() == "sst") {
+                auto count_attr = it.attribute("uniqueCount");
+                if (count_attr) {
+                    try {
+                        unique_count = std::stoull(*count_attr);
+                        shared_strings_.reserve(unique_count);
+                    } catch (...) {
+                        // 如果解析失败，使用默认容量
+                        shared_strings_.reserve(1000);
+                    }
+                }
+                break;
+            }
+        }
+        
+        // 解析共享字符串
+        bool in_si = false;
+        bool in_t = false;
+        std::string current_string;
+        
+        for (auto it = parser.begin(); it != parser.end(); ++it) {
+            if (it.is_start_element()) {
+                if (it.name() == "si") {
+                    in_si = true;
+                    current_string.clear();
+                } else if (in_si && it.name() == "t") {
+                    in_t = true;
+                    // 获取文本内容
+                    ++it;
+                    if (it != parser.end()) {
+                        current_string = it.value();
+                    }
+                    in_t = false;
+                }
+            } else if (it.is_end_element()) {
+                if (it.name() == "si") {
+                    in_si = false;
+                    // 使用 move 语义避免字符串拷贝
+                    shared_strings_.emplace_back(std::move(current_string));
+                    current_string.clear();
+                }
+            }
+        }
+        
+        // 收缩容器以释放多余内存
+        shared_strings_.shrink_to_fit();
+        
+    } catch (const std::exception& e) {
+        // 共享字符串解析失败不应该阻止文件打开
+        // 记录错误但继续处理
+        report_error(ParseException("Warning: Failed to parse shared strings: " + std::string(e.what())));
+    }
 }
 
 void Workbook::Impl::regenerate_metadata_on_save() {
@@ -364,11 +535,70 @@ void Workbook::Impl::generate_content_types() {
 }
 
 void Workbook::Impl::generate_workbook_xml() {
-    // TODO: 生成 xl/workbook.xml
+    // 使用字符串流构建 XML，避免多次字符串拼接
+    std::ostringstream xml;
+    
+    // XML 声明和根元素
+    xml << R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>)" << '\n';
+    xml << R"(<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" )"
+        << R"(xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">)" << '\n';
+    
+    // 工作表列表
+    xml << "  <sheets>\n";
+    
+    for (std::size_t i = 0; i < worksheets_.size(); ++i) {
+        const auto& worksheet = worksheets_[i];
+        
+        // 生成关系 ID
+        std::string r_id = "rId" + std::to_string(i + 1);
+        
+        xml << "    <sheet name=\"" << worksheet->name() 
+            << "\" sheetId=\"" << (i + 1) 
+            << "\" r:id=\"" << r_id << "\"/>\n";
+    }
+    
+    xml << "  </sheets>\n";
+    xml << "</workbook>\n";
+    
+    // 转换为字节数组
+    const std::string& xml_str = xml.str();
+    std::vector<std::byte> xml_bytes(xml_str.size());
+    std::memcpy(xml_bytes.data(), xml_str.data(), xml_str.size());
+    
+    // 添加到归档
+    async::sync_wait(archiver_->add_file("xl/workbook.xml", std::move(xml_bytes)));
 }
 
 void Workbook::Impl::generate_workbook_rels() {
-    // TODO: 生成 xl/_rels/workbook.xml.rels
+    std::ostringstream xml;
+    
+    // XML 声明
+    xml << R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>)" << '\n';
+    xml << R"(<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">)" << '\n';
+    
+    // 为每个工作表生成关系
+    for (std::size_t i = 0; i < worksheets_.size(); ++i) {
+        xml << R"(  <Relationship Id="rId)" << (i + 1) 
+            << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet)"
+            << (i + 1) << R"(.xml"/>)" << '\n';
+    }
+    
+    // 共享字符串关系（如果有）
+    if (!shared_strings_.empty()) {
+        std::size_t shared_strings_id = worksheets_.size() + 1;
+        xml << R"(  <Relationship Id="rId)" << shared_strings_id
+            << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>)" << '\n';
+    }
+    
+    xml << "</Relationships>\n";
+    
+    // 转换为字节数组
+    const std::string& xml_str = xml.str();
+    std::vector<std::byte> xml_bytes(xml_str.size());
+    std::memcpy(xml_bytes.data(), xml_str.data(), xml_str.size());
+    
+    // 添加到归档
+    async::sync_wait(archiver_->add_file("xl/_rels/workbook.xml.rels", std::move(xml_bytes)));
 }
 
 void Workbook::Impl::generate_app_props() {
