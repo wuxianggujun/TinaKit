@@ -82,7 +82,12 @@ Task<void> test_create_workbook() {
         
         // 显示文件信息
         std::cout << "  - 工作表数量: " << workbook.sheet_count() << std::endl;
-        std::cout << "  - 文件大小: " << workbook.file_size() << " 字节" << std::endl;
+        
+        // 获取文件大小
+        if (std::filesystem::exists("test_workbook.xlsx")) {
+            auto file_size = std::filesystem::file_size("test_workbook.xlsx");
+            std::cout << "  - 文件大小: " << file_size << " 字节" << std::endl;
+        }
         
     } catch (const std::exception& e) {
         std::cout << "❌ 错误: " << e.what() << std::endl;
@@ -96,14 +101,17 @@ Task<void> test_read_workbook() {
     std::cout << "\n=== 测试读取 Excel 文件 ===" << std::endl;
     
     try {
+        // 确保文件路径是绝对路径
+        auto file_path = std::filesystem::current_path() / "test_workbook.xlsx";
+        
         // 检查文件是否存在
-        if (!std::filesystem::exists("test_workbook.xlsx")) {
+        if (!std::filesystem::exists(file_path)) {
             std::cout << "❌ 文件不存在，请先运行创建测试" << std::endl;
             co_return;
         }
         
         // 打开文件
-        auto workbook = co_await Workbook::open_async("test_workbook.xlsx");
+        auto workbook = co_await Workbook::open_async(file_path);
         std::cout << "✓ 文件打开成功" << std::endl;
         
         // 显示工作表信息

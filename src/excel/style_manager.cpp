@@ -351,56 +351,93 @@ std::string StyleManager::generate_xml() const {
     }
     xml << "  </borders>\n";
     
+    // 添加 cellStyleXfs（Excel 需要这个）
+    xml << R"(  <cellStyleXfs count="1">)" << '\n';
+    xml << R"(    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>)" << '\n';
+    xml << R"(  </cellStyleXfs>)" << '\n';
+    
     // 单元格样式格式（XF）
     xml << R"(  <cellXfs count=")" << cell_styles_.size() << R"(">)" << '\n';
     for (const auto& style : cell_styles_) {
         xml << "    <xf";
-        
-        if (style.number_format_id) {
-            xml << R"( numFmtId=")" << *style.number_format_id << R"(" applyNumberFormat="1")";
-        }
-        
-        if (style.font_id) {
-            xml << R"( fontId=")" << *style.font_id << R"(" applyFont="1")";
-        }
-        
-        if (style.fill_id) {
-            xml << R"( fillId=")" << *style.fill_id << R"(" applyFill="1")";
-        }
-        
-        if (style.border_id) {
-            xml << R"( borderId=")" << *style.border_id << R"(" applyBorder="1")";
-        }
-        
-        if (style.alignment) {
-            xml << R"( applyAlignment="1">)";
-            xml << "\n      <alignment";
-            
-            // 水平对齐
-            switch (style.alignment->horizontal) {
-                case Alignment::Horizontal::Left: xml << R"( horizontal="left")"; break;
-                case Alignment::Horizontal::Center: xml << R"( horizontal="center")"; break;
-                case Alignment::Horizontal::Right: xml << R"( horizontal="right")"; break;
-                // ... 其他对齐方式
-                default: break;
-            }
-            
-            // 垂直对齐
-            switch (style.alignment->vertical) {
-                case Alignment::Vertical::Top: xml << R"( vertical="top")"; break;
-                case Alignment::Vertical::Center: xml << R"( vertical="center")"; break;
-                case Alignment::Vertical::Bottom: xml << R"( vertical="bottom")"; break;
-                // ... 其他对齐方式
-                default: break;
-            }
-            
-            if (style.alignment->wrap_text) {
-                xml << R"( wrapText="1")";
-            }
-            
-            xml << "/>\n    </xf>\n";
+
+        // 对于默认样式（第一个），使用简化格式
+        bool is_default = &style == &cell_styles_[0];
+
+        if (is_default) {
+            // 默认样式：简单格式，不使用 apply 属性
+            xml << R"( numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>)" << '\n';
         } else {
-            xml << "/>\n";
+            // 非默认样式：完整格式
+            if (style.number_format_id) {
+                xml << R"( numFmtId=")" << *style.number_format_id << R"(")";
+                if (style.apply_number_format) {
+                    xml << R"( applyNumberFormat="1")";
+                }
+            } else {
+                xml << R"( numFmtId="0")";
+            }
+
+            if (style.font_id) {
+                xml << R"( fontId=")" << *style.font_id << R"(")";
+                if (style.apply_font) {
+                    xml << R"( applyFont="1")";
+                }
+            } else {
+                xml << R"( fontId="0")";
+            }
+
+            if (style.fill_id) {
+                xml << R"( fillId=")" << *style.fill_id << R"(")";
+                if (style.apply_fill) {
+                    xml << R"( applyFill="1")";
+                }
+            } else {
+                xml << R"( fillId="0")";
+            }
+
+            if (style.border_id) {
+                xml << R"( borderId=")" << *style.border_id << R"(")";
+                if (style.apply_border) {
+                    xml << R"( applyBorder="1")";
+                }
+            } else {
+                xml << R"( borderId="0")";
+            }
+
+            // 添加 xfId（对于 cellXfs，通常引用 cellStyleXfs 的索引）
+            xml << R"( xfId="0")";
+
+            if (style.alignment) {
+                xml << R"( applyAlignment="1">)";
+                xml << "\n      <alignment";
+
+                // 水平对齐
+                switch (style.alignment->horizontal) {
+                    case Alignment::Horizontal::Left: xml << R"( horizontal="left")"; break;
+                    case Alignment::Horizontal::Center: xml << R"( horizontal="center")"; break;
+                    case Alignment::Horizontal::Right: xml << R"( horizontal="right")"; break;
+                    // ... 其他对齐方式
+                    default: break;
+                }
+
+                // 垂直对齐
+                switch (style.alignment->vertical) {
+                    case Alignment::Vertical::Top: xml << R"( vertical="top")"; break;
+                    case Alignment::Vertical::Center: xml << R"( vertical="center")"; break;
+                    case Alignment::Vertical::Bottom: xml << R"( vertical="bottom")"; break;
+                    // ... 其他对齐方式
+                    default: break;
+                }
+
+                if (style.alignment->wrap_text) {
+                    xml << R"( wrapText="1")";
+                }
+
+                xml << "/>\n    </xf>\n";
+            } else {
+                xml << "/>\n";
+            }
         }
     }
     xml << "  </cellXfs>\n";

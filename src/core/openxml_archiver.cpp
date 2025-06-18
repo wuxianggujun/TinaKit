@@ -341,8 +341,35 @@ namespace tinakit::core
     async::Task<void> OpenXmlArchiver::save_to_file(const std::string& path)
     {
         auto memory_buffer = co_await save_to_memory();
-        
+
         co_await core::write_file_binary(path, memory_buffer);
+
+        // 保存后重新初始化 reader，以便继续读取
+        if (writer_handle_) {
+            // 释放 writer
+            writer_handle_.reset();
+
+            // 清空待处理文件映射，因为它们已经保存到文件中
+            pending_new_files_.clear();
+
+            // 使用刚保存的内容重新创建 reader
+            reader_handle_.reset(mz_zip_reader_create());
+            if (reader_handle_) {
+                source_buffer_ = std::move(memory_buffer);  // 更新源缓冲区
+
+                // 重新打开 reader
+                if (int32_t status = mz_zip_reader_open_buffer(reader_handle_.get(),
+                                                               reinterpret_cast<uint8_t*>(source_buffer_.data()),
+                                                               static_cast<int32_t>(source_buffer_.size()), 0);
+                    status != MZ_OK) {
+                    reader_handle_.reset();  // 失败时清理
+                    throw TinaKitException("Failed to reinitialize reader after save. Status: " + std::to_string(status),
+                                           "OpenXmlArchiver::save_to_file");
+                }
+            } else {
+                throw TinaKitException("Failed to create reader handle after save.", "OpenXmlArchiver::save_to_file");
+            }
+        }
     }
 
 

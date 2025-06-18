@@ -184,6 +184,12 @@ public:
     bool empty() const noexcept;
     
     /**
+     * @brief 获取单元格的原始值（variant）
+     * @return 单元格值的 variant
+     */
+    const CellValue& raw_value() const;
+    
+    /**
      * @brief 获取字符串表示
      * @return 单元格值的字符串表示
      */

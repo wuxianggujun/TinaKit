@@ -15,6 +15,8 @@
 #include <sstream>
 #include <algorithm>
 #include <format>
+#include <chrono>
+#include <iomanip>
 
 namespace tinakit::excel {
 
@@ -77,6 +79,7 @@ public:
     void regenerate_metadata_on_save();
     
     // OpenXML 结构生成
+    void generate_root_rels();
     void generate_content_types();
     void generate_workbook_xml();
     void generate_workbook_rels();
@@ -84,6 +87,7 @@ public:
     void generate_core_props();
     void generate_shared_strings();
     void generate_styles();
+    void generate_worksheet_xml(std::size_t index);
     
     void report_error(const std::exception& error);
 
@@ -501,12 +505,20 @@ void Workbook::Impl::parse_styles() {
 void Workbook::Impl::regenerate_metadata_on_save() {
     if (!is_modified_) return;
     
+    // 生成根关系文件
+    generate_root_rels();
+    
     // 重新生成所有元数据文件
     generate_content_types();
     generate_workbook_xml();
     generate_workbook_rels();
     generate_app_props();
     generate_core_props();
+    
+    // 生成每个工作表的 XML 文件
+    for (std::size_t i = 0; i < worksheets_.size(); ++i) {
+        generate_worksheet_xml(i);
+    }
     
     // 生成共享字符串文件（如果有）
     if (shared_strings_->count() > 0) {
@@ -515,6 +527,22 @@ void Workbook::Impl::regenerate_metadata_on_save() {
     
     // 生成样式文件
     generate_styles();
+}
+
+void Workbook::Impl::generate_root_rels() {
+    std::string root_rels = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>)";
+    
+    // 转换为字节数组
+    std::vector<std::byte> xml_bytes(root_rels.size());
+    std::memcpy(xml_bytes.data(), root_rels.data(), root_rels.size());
+    
+    // 添加到归档
+    async::sync_wait(archiver_->add_file("_rels/.rels", std::move(xml_bytes)));
 }
 
 void Workbook::Impl::generate_content_types() {
@@ -528,23 +556,48 @@ void Workbook::Impl::generate_content_types() {
         content_types += std::format(R"(
     <Override PartName="/xl/worksheets/sheet{}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>)", i + 1);
     }
-    
-    // 共享字符串内容类型（如果有）
-    if (shared_strings_->count() > 0) {
+
+    // 检查是否有字符串数据需要共享字符串表
+    bool has_string_data = false;
+    for (const auto& worksheet : worksheets_) {
+        for (std::size_t r = 1; r <= worksheet->max_row(); ++r) {
+            for (std::size_t c = 1; c <= worksheet->max_column(); ++c) {
+                try {
+                    auto& cell = worksheet->cell(r, c);
+                    if (!cell.empty()) {
+                        const auto& value_variant = cell.raw_value();
+                        if (std::holds_alternative<std::string>(value_variant)) {
+                            has_string_data = true;
+                            break;
+                        }
+                    }
+                } catch (...) {
+                    // 忽略空单元格
+                }
+            }
+            if (has_string_data) break;
+        }
+        if (has_string_data) break;
+    }
+
+    // 共享字符串内容类型（如果有字符串数据）
+    if (has_string_data) {
         content_types += R"(
     <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>)";
     }
-    
+
     // 样式内容类型
     content_types += R"(
-    <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>)";
+    <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+    <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+    <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>)";
 
     content_types += R"(
 </Types>)";
 
     auto content_bytes = std::vector<std::byte>(content_types.size());
     std::memcpy(content_bytes.data(), content_types.data(), content_types.size());
-    
+
     async::sync_wait(archiver_->add_file("[Content_Types].xml", std::move(content_bytes)));
 }
 
@@ -556,6 +609,17 @@ void Workbook::Impl::generate_workbook_xml() {
     xml << R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>)" << '\n';
     xml << R"(<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" )"
         << R"(xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">)" << '\n';
+    
+    // 添加 fileVersion（某些 Excel 版本需要）
+    xml << R"(  <fileVersion appName="TinaKit" lastEdited="1" lowestEdited="1" rupBuild="1"/>)" << '\n';
+    
+    // 添加 workbookPr
+    xml << R"(  <workbookPr/>)" << '\n';
+    
+    // 添加 bookViews
+    xml << R"(  <bookViews>)" << '\n';
+    xml << R"(    <workbookView windowWidth="16384" windowHeight="8192"/>)" << '\n';
+    xml << R"(  </bookViews>)" << '\n';
     
     // 工作表列表
     xml << "  <sheets>\n";
@@ -572,6 +636,10 @@ void Workbook::Impl::generate_workbook_xml() {
     }
     
     xml << "  </sheets>\n";
+    
+    // 添加 calcPr（计算属性）
+    xml << R"(  <calcPr calcId="0"/>)" << '\n';
+    
     xml << "</workbook>\n";
     
     // 转换为字节数组
@@ -585,47 +653,130 @@ void Workbook::Impl::generate_workbook_xml() {
 
 void Workbook::Impl::generate_workbook_rels() {
     std::ostringstream xml;
-    
+
     // XML 声明
     xml << R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>)" << '\n';
     xml << R"(<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">)" << '\n';
-    
+
     // 为每个工作表生成关系
     for (std::size_t i = 0; i < worksheets_.size(); ++i) {
-        xml << R"(  <Relationship Id="rId)" << (i + 1) 
+        xml << R"(  <Relationship Id="rId)" << (i + 1)
             << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet)"
             << (i + 1) << R"(.xml"/>)" << '\n';
     }
-    
-    // 共享字符串关系（如果有）
-    if (shared_strings_->count() > 0) {
+
+    // 检查是否有字符串数据需要共享字符串表
+    bool has_string_data = false;
+    for (const auto& worksheet : worksheets_) {
+        for (std::size_t r = 1; r <= worksheet->max_row(); ++r) {
+            for (std::size_t c = 1; c <= worksheet->max_column(); ++c) {
+                try {
+                    auto& cell = worksheet->cell(r, c);
+                    if (!cell.empty()) {
+                        const auto& value_variant = cell.raw_value();
+                        if (std::holds_alternative<std::string>(value_variant)) {
+                            has_string_data = true;
+                            break;
+                        }
+                    }
+                } catch (...) {
+                    // 忽略空单元格
+                }
+            }
+            if (has_string_data) break;
+        }
+        if (has_string_data) break;
+    }
+
+    // 共享字符串关系（如果有字符串数据）
+    if (has_string_data) {
         std::size_t shared_strings_id = worksheets_.size() + 1;
         xml << R"(  <Relationship Id="rId)" << shared_strings_id
             << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>)" << '\n';
     }
-    
+
     // 样式关系
-    std::size_t styles_id = worksheets_.size() + (shared_strings_->count() > 0 ? 2 : 1);
+    std::size_t styles_id = worksheets_.size() + (has_string_data ? 2 : 1);
     xml << R"(  <Relationship Id="rId)" << styles_id
         << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>)" << '\n';
-    
+
     xml << "</Relationships>\n";
-    
+
     // 转换为字节数组
     const std::string& xml_str = xml.str();
     std::vector<std::byte> xml_bytes(xml_str.size());
     std::memcpy(xml_bytes.data(), xml_str.data(), xml_str.size());
-    
+
     // 添加到归档
     async::sync_wait(archiver_->add_file("xl/_rels/workbook.xml.rels", std::move(xml_bytes)));
 }
 
 void Workbook::Impl::generate_app_props() {
-    // TODO: 生成 docProps/app.xml
+    std::string app_props = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>TinaKit</Application>
+  <DocSecurity>0</DocSecurity>
+  <ScaleCrop>false</ScaleCrop>
+  <HeadingPairs>
+    <vt:vector size="2" baseType="variant">
+      <vt:variant>
+        <vt:lpstr>Worksheets</vt:lpstr>
+      </vt:variant>
+      <vt:variant>
+        <vt:i4>)" + std::to_string(worksheets_.size()) + R"(</vt:i4>
+      </vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size=")" + std::to_string(worksheets_.size()) + R"(" baseType="lpstr">)";
+    
+    for (const auto& worksheet : worksheets_) {
+        app_props += R"(
+      <vt:lpstr>)" + worksheet->name() + R"(</vt:lpstr>)";
+    }
+    
+    app_props += R"(
+    </vt:vector>
+  </TitlesOfParts>
+  <Company></Company>
+  <LinksUpToDate>false</LinksUpToDate>
+  <SharedDoc>false</SharedDoc>
+  <HyperlinksChanged>false</HyperlinksChanged>
+  <AppVersion>1.0</AppVersion>
+</Properties>)";
+    
+    // 转换为字节数组
+    std::vector<std::byte> xml_bytes(app_props.size());
+    std::memcpy(xml_bytes.data(), app_props.data(), app_props.size());
+    
+    // 添加到归档
+    async::sync_wait(archiver_->add_file("docProps/app.xml", std::move(xml_bytes)));
 }
 
 void Workbook::Impl::generate_core_props() {
-    // TODO: 生成 docProps/core.xml
+    // 获取当前时间
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    
+    // 格式化为 ISO 8601 时间字符串
+    std::stringstream time_stream;
+    time_stream << std::put_time(std::gmtime(&time_t), "%Y-%m-%dT%H:%M:%SZ");
+    std::string timestamp = time_stream.str();
+    
+    std::string core_props = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:creator>TinaKit</dc:creator>
+  <cp:lastModifiedBy>TinaKit</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">)" + timestamp + R"(</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">)" + timestamp + R"(</dcterms:modified>
+</cp:coreProperties>)";
+    
+    // 转换为字节数组
+    std::vector<std::byte> xml_bytes(core_props.size());
+    std::memcpy(xml_bytes.data(), core_props.data(), core_props.size());
+    
+    // 添加到归档
+    async::sync_wait(archiver_->add_file("docProps/core.xml", std::move(xml_bytes)));
 }
 
 void Workbook::Impl::generate_shared_strings() {
@@ -658,6 +809,94 @@ void Workbook::Impl::generate_styles() {
     } catch (const std::exception& e) {
         throw IOException("Failed to generate styles: " + std::string(e.what()));
     }
+}
+
+void Workbook::Impl::generate_worksheet_xml(std::size_t index) {
+    if (index >= worksheets_.size()) return;
+    
+    auto& sheet = *worksheets_[index];
+    std::ostringstream xml;
+    
+    // XML 声明和工作表根元素
+    xml << R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>)" << '\n';
+    xml << R"(<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" )"
+        << R"(xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">)" << '\n';
+    
+    // 添加维度信息（Excel 需要这个来正确显示数据）
+    xml << R"(  <dimension ref="A1:)" 
+        << column_number_to_name(sheet.max_column()) 
+        << sheet.max_row() 
+        << R"("/>)" << '\n';
+    
+    // 添加 sheetViews（Excel 需要这个来正确显示）
+    xml << R"(  <sheetViews>)" << '\n';
+    if (index == 0) {
+        xml << R"(    <sheetView tabSelected="1" workbookViewId="0"/>)" << '\n';
+    } else {
+        xml << R"(    <sheetView workbookViewId="0"/>)" << '\n';
+    }
+    xml << R"(  </sheetViews>)" << '\n';
+    
+    // 添加 sheetFormatPr（设置默认行高和列宽）
+    xml << R"(  <sheetFormatPr defaultRowHeight="15"/>)" << '\n';
+    
+    // 工作表数据
+    xml << R"(  <sheetData>)" << '\n';
+    
+    // 遍历所有非空行
+    for (std::size_t r = 1; r <= sheet.max_row(); ++r) {
+        bool row_has_data = false;
+        std::ostringstream row_xml;
+        row_xml << R"(    <row r=")" << r << R"(">)" << '\n';
+        
+        // 遍历行中的所有单元格
+        for (std::size_t c = 1; c <= sheet.max_column(); ++c) {
+            try {
+                auto& cell = sheet.cell(r, c);
+                if (!cell.empty()) {
+                    row_has_data = true;
+                    row_xml << R"(      <c r=")" << cell.address() << R"(")";
+                    
+                    // 添加样式索引（使用默认样式 0）
+                    row_xml << R"( s="0")";
+                    
+                    // 处理不同类型的单元格值
+                    const auto& value_variant = cell.raw_value();
+                    if (std::holds_alternative<std::string>(value_variant)) {
+                        auto str_value = std::get<std::string>(value_variant);
+                        // 使用共享字符串
+                        auto ss_index = shared_strings_->add_string(str_value);
+                        row_xml << R"( t="s"><v>)" << ss_index << R"(</v></c>)" << '\n';
+                    } else if (std::holds_alternative<double>(value_variant)) {
+                        row_xml << R"(><v>)" << std::get<double>(value_variant) << R"(</v></c>)" << '\n';
+                    } else if (std::holds_alternative<int>(value_variant)) {
+                        row_xml << R"(><v>)" << std::get<int>(value_variant) << R"(</v></c>)" << '\n';
+                    } else if (std::holds_alternative<bool>(value_variant)) {
+                        row_xml << R"( t="b"><v>)" << (std::get<bool>(value_variant) ? 1 : 0) << R"(</v></c>)" << '\n';
+                    }
+                }
+            } catch (...) {
+                // 忽略空单元格
+            }
+        }
+        
+        if (row_has_data) {
+            row_xml << R"(    </row>)" << '\n';
+            xml << row_xml.str();
+        }
+    }
+    
+    xml << R"(  </sheetData>)" << '\n';
+    xml << R"(</worksheet>)" << '\n';
+    
+    // 转换为字节数组
+    const std::string& xml_str = xml.str();
+    std::vector<std::byte> xml_bytes(xml_str.size());
+    std::memcpy(xml_bytes.data(), xml_str.data(), xml_str.size());
+    
+    // 添加到归档
+    std::string sheet_path = "xl/worksheets/sheet" + std::to_string(index + 1) + ".xml";
+    async::sync_wait(archiver_->add_file(sheet_path, std::move(xml_bytes)));
 }
 
 void Workbook::Impl::report_error(const std::exception& error) {

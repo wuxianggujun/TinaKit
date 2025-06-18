@@ -336,6 +336,10 @@ bool Cell::empty() const noexcept {
     return impl_->is_empty();
 }
 
+const Cell::CellValue& Cell::raw_value() const {
+    return impl_->get_value();
+}
+
 std::string Cell::to_string() const {
     return as<std::string>();
 }
