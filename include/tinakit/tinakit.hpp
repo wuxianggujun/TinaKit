@@ -11,12 +11,16 @@
 
 #include "core/types.hpp"
 #include "core/exceptions.hpp"
-#include "core/task.hpp"
 #include "core/async.hpp"
 #include "core/xml_parser.hpp"
-#include "excel/io/xlsx_archiver.hpp"
+#include "core/openxml_archiver.hpp"
+#include "tinakit/excel/workbook.hpp"
+#include "tinakit/excel/worksheet.hpp"
+#include "tinakit/excel/cell.hpp"
+#include "tinakit/excel/row.hpp"
+#include <filesystem>
+#include <functional>
 
-// #include "excel/workbook.hpp"
 /*#include "excel/worksheet.hpp"
 #include "excel/cell.hpp"
 #include "excel/range.hpp"
@@ -233,3 +237,61 @@ namespace TinaKit {
  * }
  * @endcode
  */
+
+namespace tinakit {
+
+// 重新导出核心类型到 tinakit 命名空间
+using XmlParser = core::XmlParser;
+
+namespace Excel {
+    
+    /**
+     * @brief 打开 Excel 文件
+     * @param path 文件路径
+     * @return Workbook 对象
+     * @throws FileNotFoundException 文件不存在
+     * @throws CorruptedFileException 文件损坏
+     * @throws ParseException 解析错误
+     */
+    excel::Workbook open(const std::filesystem::path& path);
+    
+    /**
+     * @brief 异步打开 Excel 文件
+     * @param path 文件路径
+     * @return 返回 Workbook 的 Task
+     */
+    async::Task<excel::Workbook> open_async(const std::filesystem::path& path);
+    
+    /**
+     * @brief 创建新的工作簿
+     * @return 新的 Workbook 对象
+     */
+    excel::Workbook create();
+
+    /**
+     * @brief 注册自定义函数
+     * @param name 函数名称
+     * @param function 函数实现
+     */
+    void register_function(std::string_view name,
+                          std::function<double(const std::vector<double>&)> function);
+
+} // namespace Excel
+
+/**
+ * @namespace Word
+ * @brief Word 文档处理功能（TODO: 未来实现）
+ */
+namespace Word {
+    // TODO: Word 文档相关功能
+} // namespace Word
+
+/**
+ * @brief 注册自定义格式处理器
+ * @tparam FormatHandler 格式处理器类型
+ * @param extension 文件扩展名
+ */
+template<typename FormatHandler>
+void register_format(std::string_view extension);
+
+} // namespace tinakit

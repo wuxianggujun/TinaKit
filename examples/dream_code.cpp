@@ -3,7 +3,12 @@
  * 
  * 这个文件展示了我们希望 TinaKit 用户能够编写的最直观、最优雅的代码。
  * 不考虑实现细节，专注于用户体验和 API 设计。
+ * 
+ * 注意：这个文件包含了许多尚未实现的 API，仅作为设计参考。
+ * 如果需要编译，请在 CMakeLists.txt 中注释掉这个文件。
  */
+
+#if 0  // 禁用编译，因为包含未实现的 API
 
 #include <tinakit/tinakit.hpp>
 #include <iostream>
@@ -298,3 +303,5 @@ Task<void> save_to_database(const Row& row) {
     // 模拟数据库保存
     co_return;
 }
+
+#endif  // 结束 #if 0

@@ -131,13 +131,13 @@ namespace tinakit::core
             return std::nullopt;
         }
 
-        // libstudxml might return a pointer or a special value for missing attributes.
-        // Here we simulate checking for presence before getting the value.
-        if (parser_->impl_->parser->attribute_present(qname)) {
+        try {
+            // libstudxml 使用 attribute 方法获取属性，如果属性不存在会抛出异常
             return parser_->impl_->parser->attribute(qname);
+        } catch (const std::exception&) {
+            // 属性不存在时返回 nullopt
+            return std::nullopt;
         }
-    
-        return std::nullopt;
     }
 
     XmlParser::iterator::iterator(XmlParser* parser) : parser_(parser)

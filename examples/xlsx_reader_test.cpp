@@ -13,10 +13,12 @@
 #include <string>
 #include <vector>
 #include <iomanip>
+#include <filesystem>
+#include <sstream>
 
 #include "tinakit/tinakit.hpp"
 
-using namespace tinakit::io;
+using namespace tinakit::core;
 using namespace tinakit::async;
 
 // 辅助函数：将字节数组转换为字符串
@@ -54,7 +56,7 @@ Task<void> analyze_xlsx_structure(const std::string& xlsx_path) {
     
     try {
         // 打开文件
-        auto archiver = co_await XlsxArchiver::open_from_file(xlsx_path);
+        auto archiver = co_await OpenXmlArchiver::open_from_file(xlsx_path);
         std::cout << "✓ 文件打开成功" << std::endl;
         
         // 列出所有文件
@@ -122,10 +124,44 @@ Task<void> analyze_xlsx_structure(const std::string& xlsx_path) {
     }
 }
 
+// 简单的内存测试（从 debug_xlsx_test.cpp 合并）
+Task<void> simple_memory_test() {
+    std::cout << "\n=== 简单内存测试 ===" << std::endl;
+    
+    try {
+        std::cout << "1. 创建内存写入器..." << std::endl;
+        auto archiver = OpenXmlArchiver::create_in_memory_writer();
+        std::cout << "   ✓ 内存写入器创建成功" << std::endl;
+        
+        std::cout << "2. 准备测试内容..." << std::endl;
+        std::string simple_content = "Hello, World!";
+        std::vector<std::byte> content_bytes;
+        content_bytes.reserve(simple_content.size());
+        for (char c : simple_content) {
+            content_bytes.push_back(static_cast<std::byte>(c));
+        }
+        std::cout << "   ✓ 测试内容准备完成，大小: " << content_bytes.size() << " 字节" << std::endl;
+        
+        std::cout << "3. 添加文件到归档..." << std::endl;
+        co_await archiver.add_file("test.txt", std::move(content_bytes));
+        std::cout << "   ✓ 文件添加成功" << std::endl;
+        
+        std::cout << "4. 保存到内存..." << std::endl;
+        auto result = co_await archiver.save_to_memory();
+        std::cout << "   ✓ 保存成功，结果大小: " << result.size() << " 字节" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cout << "❌ 错误: " << e.what() << std::endl;
+    }
+}
+
 // 主函数
 Task<void> run_test() {
     std::cout << "TinaKit XLSX 文件读取测试" << std::endl;
     std::cout << "=========================" << std::endl;
+    
+    // 运行简单内存测试
+    co_await simple_memory_test();
     
     // 可以测试的文件路径
     std::vector<std::string> test_files = {

@@ -2,46 +2,48 @@
  * @file cell.hpp
  * @brief Excel 单元格类定义
  * @author TinaKit Team
- * @date 2024-12-16
+ * @date 2025-6-16
  */
 
 #pragma once
 
-#include "../core/types.hpp"
-#include "../formatting/style.hpp"
+#include "tinakit/core/types.hpp"
 #include <string>
+#include <memory>
 #include <optional>
 #include <variant>
-#include <chrono>
 
-namespace tinakit {
+namespace tinakit::excel {
+
+    class CellImpl;
 
 /**
  * @class Cell
  * @brief Excel 单元格类
  * 
- * 代表 Excel 工作表中的一个单元格，支持读取和设置值、格式、公式等。
- * 支持多种数据类型：字符串、数字、日期、布尔值等。
+ * 代表 Excel 工作表中的一个单元格，支持多种数据类型和样式设置。
+ * 提供类型安全的值访问和链式样式设置。
  */
 class Cell {
 public:
     /**
      * @brief 单元格值类型
      */
-    using CellValue = std::variant<
-        std::monostate,  // 空值
-        std::string,     // 文本
-        double,          // 数字
-        bool,            // 布尔值
-        std::chrono::system_clock::time_point  // 日期时间
-    >;
+    using CellValue = std::variant<std::string, double, int, bool>;
 
 public:
     /**
-     * @brief 构造函数
-     * @param impl 实现细节指针
+     * @brief 构造函数（内部使用）
      */
     explicit Cell(std::unique_ptr<CellImpl> impl);
+    
+    /**
+     * @brief 静态工厂方法（内部使用）
+     * @param row 行号
+     * @param column 列号
+     * @return 新的 Cell 对象
+     */
+    static std::unique_ptr<Cell> create(std::size_t row, std::size_t column);
     
     /**
      * @brief 析构函数
@@ -74,7 +76,7 @@ public:
     
     /**
      * @brief 获取单元格值
-     * @tparam T 期望的值类型
+     * @tparam T 目标类型
      * @return 转换后的值
      * @throws TypeConversionException 类型转换失败
      */
@@ -82,73 +84,28 @@ public:
     T as() const;
     
     /**
-     * @brief 尝试获取单元格值
-     * @tparam T 期望的值类型
-     * @return 如果转换成功返回值，否则返回空
+     * @brief 尝试获取单元格值（不抛出异常）
+     * @tparam T 目标类型
+     * @return 转换后的值，失败时返回 nullopt
      */
     template<typename T>
     std::optional<T> try_as() const noexcept;
-    
-    /**
-     * @brief 获取原始单元格值
-     * @return 单元格值的 variant
-     */
-    const CellValue& raw_value() const noexcept;
 
 public:
     /**
      * @brief 设置公式
-     * @param formula 公式字符串（不包含等号）
+     * @param formula 公式字符串
      * @return 自身引用，支持链式调用
      */
     Cell& formula(const std::string& formula);
     
     /**
      * @brief 获取公式
-     * @return 公式字符串，如果不是公式则返回空
+     * @return 公式字符串，如果没有公式返回 nullopt
      */
     std::optional<std::string> formula() const;
-    
-    /**
-     * @brief 检查是否为公式单元格
-     * @return 如果是公式返回 true
-     */
-    bool is_formula() const noexcept;
 
 public:
-    /**
-     * @brief 检查单元格是否为空
-     * @return 如果为空返回 true
-     */
-    bool empty() const noexcept;
-    
-    /**
-     * @brief 清空单元格内容
-     * @return 自身引用，支持链式调用
-     */
-    Cell& clear();
-    
-    /**
-     * @brief 获取单元格地址
-     * @return 单元格地址字符串（如 "A1"）
-     */
-    std::string address() const;
-    
-    /**
-     * @brief 获取行号
-     * @return 行号（从 1 开始）
-     */
-    std::size_t row() const noexcept;
-    
-    /**
-     * @brief 获取列号
-     * @return 列号（从 1 开始）
-     */
-    std::size_t column() const noexcept;
-
-public:
-    // 样式设置方法（链式调用）
-    
     /**
      * @brief 设置字体
      * @param font_name 字体名称
@@ -170,13 +127,6 @@ public:
      * @return 自身引用，支持链式调用
      */
     Cell& italic(bool italic = true);
-    
-    /**
-     * @brief 设置字体大小
-     * @param size 字体大小
-     * @return 自身引用，支持链式调用
-     */
-    Cell& font_size(double size);
     
     /**
      * @brief 设置字体颜色
@@ -206,60 +156,50 @@ public:
      * @return 自身引用，支持链式调用
      */
     Cell& border(BorderType border_type, BorderStyle style);
-    
-    /**
-     * @brief 设置数字格式
-     * @param format 格式字符串
-     * @return 自身引用，支持链式调用
-     */
-    Cell& number_format(const std::string& format);
 
 public:
     /**
-     * @brief 获取样式
-     * @return 单元格样式
+     * @brief 获取单元格地址
+     * @return 地址字符串（如 "A1"）
      */
-    const CellStyle& style() const;
+    std::string address() const;
     
     /**
-     * @brief 设置样式
-     * @param style 单元格样式
-     * @return 自身引用，支持链式调用
+     * @brief 获取行号
+     * @return 行号（1-based）
      */
-    Cell& style(const CellStyle& style);
-
-public:
+    std::size_t row() const noexcept;
+    
     /**
-     * @brief 转换为字符串（用于输出）
+     * @brief 获取列号
+     * @return 列号（1-based）
+     */
+    std::size_t column() const noexcept;
+    
+    /**
+     * @brief 检查是否为空
+     * @return 如果单元格为空返回 true
+     */
+    bool empty() const noexcept;
+    
+    /**
+     * @brief 获取字符串表示
      * @return 单元格值的字符串表示
      */
     std::string to_string() const;
-    
+
+public:
     /**
-     * @brief 流输出运算符
+     * @brief 输出流操作符
      */
     friend std::ostream& operator<<(std::ostream& os, const Cell& cell);
 
 private:
-    std::unique_ptr<CellImpl> impl_;  ///< 实现细节（PIMPL 模式）
+    std::unique_ptr<CellImpl> impl_;
+    friend class Worksheet;
 };
 
-// 模板方法的特化声明
-template<> Cell& Cell::value<std::string>(const std::string& value);
-template<> Cell& Cell::value<const char*>(const char* const& value);
-template<> Cell& Cell::value<double>(const double& value);
-template<> Cell& Cell::value<int>(const int& value);
-template<> Cell& Cell::value<bool>(const bool& value);
-template<> Cell& Cell::value<std::chrono::system_clock::time_point>(
-    const std::chrono::system_clock::time_point& value);
-
-template<> std::string Cell::as<std::string>() const;
-template<> double Cell::as<double>() const;
-template<> int Cell::as<int>() const;
-template<> bool Cell::as<bool>() const;
-template<> std::chrono::system_clock::time_point Cell::as<std::chrono::system_clock::time_point>() const;
-
-} // namespace tinakit
+} // namespace tinakit::excel
 
 /**
  * @example cell_usage.cpp
@@ -268,32 +208,33 @@ template<> std::chrono::system_clock::time_point Cell::as<std::chrono::system_cl
  * #include <tinakit/excel/cell.hpp>
  * 
  * void cell_example() {
- *     using namespace tinakit;
+ *     using namespace tinakit::excel;
  *     
  *     auto workbook = Excel::create();
- *     auto sheet = workbook.add_sheet("示例");
+ *     auto sheet = workbook.add_sheet("Example");
  *     
- *     // 设置值和样式（链式调用）
+ *     // 基本值设置
+ *     sheet["A1"].value("Hello");
+ *     sheet["B1"].value(42);
+ *     sheet["C1"].value(3.14);
+ *     sheet["D1"].value(true);
+ *     
+ *     // 链式样式设置
  *     sheet["A1"]
- *         .value("标题")
  *         .font("Arial", 14)
  *         .bold()
  *         .color(Color::Blue)
- *         .background_color(Color::LightGray)
- *         .align(Alignment::Center);
+ *         .background_color(Color::LightGray);
  *     
- *     // 设置数字
- *     sheet["B1"].value(123.45).number_format("¥#,##0.00");
- *     
- *     // 设置公式
- *     sheet["C1"].formula("SUM(A1:B1)");
+ *     // 公式设置
+ *     sheet["E1"].formula("=B1+C1");
  *     
  *     // 类型安全的值获取
- *     auto text = sheet["A1"].as<std::string>();
- *     auto number = sheet["B1"].try_as<double>();
+ *     auto str_val = sheet["A1"].as<std::string>();
+ *     auto int_val = sheet["B1"].try_as<int>();
  *     
- *     if (number) {
- *         std::cout << "数值: " << *number << std::endl;
+ *     if (int_val) {
+ *         std::cout << "B1 contains: " << *int_val << std::endl;
  *     }
  * }
  * @endcode

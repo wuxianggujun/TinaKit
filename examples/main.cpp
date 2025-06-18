@@ -29,7 +29,7 @@ void test_xml_parser_basic() {
         std::istringstream xml_stream(xml_content);
 
         // Test the XML parser
-        tinakit::io::XmlParser parser(xml_stream, "test_workbook.xml");
+        tinakit::XmlParser parser(xml_stream, "test_workbook.xml");
 
         std::cout << "✅ XML Parser created successfully" << std::endl;
 
@@ -103,7 +103,7 @@ void test_xml_parser_file() {
         std::cout << "✅ Test XML file created: " << test_file << std::endl;
 
         // Test parsing the file
-        tinakit::io::XmlParser parser(test_file);
+        tinakit::XmlParser parser(test_file);
 
         std::cout << "✅ XML Parser created from file" << std::endl;
 
@@ -160,7 +160,7 @@ void test_xml_parser_namespace() {
 </workbook>)";
 
         std::istringstream ns_stream(namespace_xml);
-        tinakit::io::XmlParser parser(ns_stream, "namespace_test.xml");
+        tinakit::XmlParser parser(ns_stream, "namespace_test.xml");
 
         std::cout << "✅ XML Parser with namespaces created successfully" << std::endl;
 
@@ -200,7 +200,7 @@ void test_xml_parser_error_handling() {
 </root>)";
 
         std::istringstream invalid_stream(invalid_xml);
-        tinakit::io::XmlParser parser(invalid_stream, "invalid_test.xml");
+        tinakit::XmlParser parser(invalid_stream, "invalid_test.xml");
 
         std::cout << "Testing with invalid XML..." << std::endl;
 
@@ -222,7 +222,7 @@ void test_xml_parser_error_handling() {
     try {
         // Test with non-existent file
         std::cout << "Testing with non-existent file..." << std::endl;
-        tinakit::io::XmlParser parser("non_existent_file.xml");
+        tinakit::XmlParser parser("non_existent_file.xml");
 
         std::cout << "⚠️  Non-existent file was opened without errors (unexpected)" << std::endl;
 

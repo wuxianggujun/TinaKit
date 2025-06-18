@@ -12,6 +12,7 @@
 #include <memory>
 #include <functional>
 #include <filesystem>
+#include "color.hpp"
 
 namespace tinakit {
 
@@ -39,71 +40,7 @@ struct Config {
     std::string temp_directory = "";    ///< Temporary directory path
 };
 
-/**
- * @brief Color class
- */
-class Color {
-public:
-    /**
-     * @brief Construct color from RGB values
-     * @param r Red component (0-255)
-     * @param g Green component (0-255)
-     * @param b Blue component (0-255)
-     * @param a Alpha component (0-255), default is 255 (opaque)
-     */
-    Color(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a = 255);
 
-    /**
-     * @brief Construct color from hex string
-     * @param hex Hex color string (e.g., "#FF0000" or "FF0000")
-     */
-    explicit Color(const std::string& hex);
-
-    /**
-     * @brief Get red component
-     */
-    std::uint8_t red() const noexcept { return r_; }
-
-    /**
-     * @brief Get green component
-     */
-    std::uint8_t green() const noexcept { return g_; }
-
-    /**
-     * @brief Get blue component
-     */
-    std::uint8_t blue() const noexcept { return b_; }
-
-    /**
-     * @brief Get alpha component
-     */
-    std::uint8_t alpha() const noexcept { return a_; }
-
-    /**
-     * @brief Convert to hex string
-     * @return Hex color string
-     */
-    std::string to_hex() const;
-
-public:
-    // Predefined colors
-    static const Color Black;
-    static const Color White;
-    static const Color Red;
-    static const Color Green;
-    static const Color Blue;
-    static const Color Yellow;
-    static const Color Cyan;
-    static const Color Magenta;
-    static const Color LightGray;
-    static const Color DarkGray;
-    static const Color LightBlue;
-    static const Color LightGreen;
-    static const Color LightRed;
-
-private:
-    std::uint8_t r_, g_, b_, a_;
-};
 
 /**
  * @brief Alignment enumeration
@@ -177,6 +114,24 @@ struct Position {
      * @return Position object
      */
     static Position after_paragraph(std::size_t paragraph_index);
+
+    /**
+     * @brief Equality operator
+     * @param other Other position
+     * @return True if positions are equal
+     */
+    bool operator==(const Position& other) const {
+        return row == other.row && column == other.column;
+    }
+
+    /**
+     * @brief Inequality operator
+     * @param other Other position
+     * @return True if positions are not equal
+     */
+    bool operator!=(const Position& other) const {
+        return !(*this == other);
+    }
 };
 
 /**

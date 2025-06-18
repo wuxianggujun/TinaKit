@@ -18,7 +18,7 @@
 
 namespace tinakit::excel {
 
-    class WorkSheet;
+    class Worksheet;
     
 /**
  * @class Workbook
@@ -30,13 +30,8 @@ namespace tinakit::excel {
  * @note 使用 RAII 原则管理资源，对象析构时自动释放相关资源
  */
 class Workbook {
+    class Impl;  // 前向声明移到这里
 public:
-    /**
-     * @brief 进度回调函数类型
-     * @param progress 进度值，范围 [0.0, 1.0]
-     */
-    using ProgressCallback = std::function<void(double progress)>;
-    
     /**
      * @brief 错误回调函数类型
      * @param error 错误信息
@@ -47,7 +42,7 @@ public:
     /**
      * @brief 构造函数（私有，通过静态方法创建）
      */
-    explicit Workbook(std::unique_ptr<WorkbookImpl> impl);
+    explicit Workbook(std::unique_ptr<Impl> impl);
     
     /**
      * @brief 析构函数
@@ -210,12 +205,6 @@ public:
 
 public:
     /**
-     * @brief 设置进度回调
-     * @param callback 进度回调函数
-     */
-    void on_progress(ProgressCallback callback);
-    
-    /**
      * @brief 设置错误回调
      * @param callback 错误回调函数
      */
@@ -239,19 +228,9 @@ public:
      */
     std::size_t file_size() const;
 
-public:
-    /**
-     * @brief 支持构建器模式的链式调用
-     * @param name 工作表名称
-     * @return 自身引用，支持链式调用
-     */
-    Workbook& add_sheet(const std::string& name) && {
-        add_sheet(name);
-        return *this;
-    }
+
 
 private:
-    class Impl;
     std::unique_ptr<Impl> impl_;  ///< 实现细节（PIMPL 模式）
     friend class Excel;
 };

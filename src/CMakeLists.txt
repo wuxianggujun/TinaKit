@@ -4,7 +4,14 @@ target_sources(tinakit PRIVATE
         core/async.cpp
         core/openxml_archiver.cpp
         core/io.cpp
-        excel/io/xml_parser.cpp
+        core/xml_parser.cpp
+        core/color.cpp
+        excel/excel.cpp
+        excel/workbook.cpp
+        excel/worksheet.cpp
+        excel/cell.cpp
+        excel/row.cpp
+        excel/range.cpp
 )
 
 target_include_directories(tinakit PUBLIC

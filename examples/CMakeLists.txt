@@ -77,22 +77,23 @@ function(copy_runtime_dependencies target_name)
     endif()
 endfunction()
 
-# 调试测试程序
-add_executable(debug_xlsx_test debug_xlsx_test.cpp)
-target_link_libraries(debug_xlsx_test PRIVATE tinakit)
+# debug_xlsx_test 已合并到 xlsx_reader_test
+# add_executable(debug_xlsx_test debug_xlsx_test.cpp)
+# target_link_libraries(debug_xlsx_test PRIVATE tinakit)
 
 # 直接测试 minizip-ng API
 add_executable(minizip_direct_test minizip_direct_test.cpp)
 target_link_libraries(minizip_direct_test PRIVATE minizip zlib)
 
+# Dream Code 示例（仅作为设计参考，不编译）
+# add_executable(dream_code dream_code.cpp)
+# target_link_libraries(dream_code PRIVATE tinakit)
+
 # 流式读写演示程序
 add_executable(stream_demo stream_demo.cpp)
 target_link_libraries(stream_demo PRIVATE tinakit)
 
-set_target_properties(debug_xlsx_test
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
+# debug_xlsx_test 已合并到 xlsx_reader_test
 
 set_target_properties(minizip_direct_test
     PROPERTIES
@@ -105,10 +106,7 @@ set_target_properties(stream_demo
 )
 
 if(WIN32)
-    set_target_properties(debug_xlsx_test
-        PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-    )
+    # debug_xlsx_test 已合并到 xlsx_reader_test
 
     set_target_properties(minizip_direct_test
         PROPERTIES
@@ -125,7 +123,7 @@ endif()
 copy_runtime_dependencies(tinakit_xml_parser_example)
 copy_runtime_dependencies(xlsx_archiver_demo)
 copy_runtime_dependencies(xlsx_reader_test)
-copy_runtime_dependencies(debug_xlsx_test)
+# copy_runtime_dependencies(debug_xlsx_test)  # 已合并
 copy_runtime_dependencies(minizip_direct_test)
 copy_runtime_dependencies(stream_demo)
 
