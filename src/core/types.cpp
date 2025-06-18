@@ -119,15 +119,6 @@ bool is_supported_format(const std::string& extension) {
     return get_document_type(extension) != DocumentType::Unknown;
 }
 
-// Config 实现
-Config Config::default_config() {
-    Config config;
-    config.enable_async = true;
-    config.thread_pool_size = 4;
-    config.max_memory_usage = 1024 * 1024 * 1024; // 1GB
-    config.enable_formula_calculation = true;
-    config.temp_directory = "";
-    return config;
-}
+// Config::default_config() 已经在头文件中内联定义，这里不需要重复实现
 
 } // namespace tinakit

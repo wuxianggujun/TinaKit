@@ -3,6 +3,27 @@
  * @brief TinaKit core type definitions
  * @author TinaKit Team
  * @date 2025-6-16
+ * 
+ * @section error_handling Error Handling Strategy
+ * 
+ * TinaKit follows these error handling principles:
+ * 
+ * 1. **Exceptions for Errors**: Operations that can fail throw exceptions
+ *    - File I/O errors throw IOException
+ *    - Invalid data throws ParseException
+ *    - Type conversions throw TypeConversionException
+ * 
+ * 2. **Optional for Missing Values**: Operations that may not have a result return std::optional
+ *    - Cell::try_as<T>() returns std::optional<T>
+ *    - Finding elements that may not exist
+ * 
+ * 3. **Noexcept for Query Operations**: Simple getters are noexcept
+ *    - Getting size, count, or status information
+ *    - Accessing already-validated data
+ * 
+ * 4. **RAII for Resource Management**: All resources are managed automatically
+ *    - No manual cleanup required
+ *    - Exception-safe by design
  */
 
 #pragma once
@@ -26,7 +47,9 @@ struct Config {
      * @brief Default configuration
      * @return Default configuration object
      */
-    static Config default_config();
+    static Config default_config() {
+        return Config{};
+    }
 
     bool enable_async = true;           ///< Enable async processing
     std::size_t thread_pool_size = 4;   ///< Thread pool size
@@ -78,17 +101,26 @@ enum class BorderStyle {
 
 /**
  * @brief Position class
+ * 
+ * @note This class uses 1-based indexing to match Excel's addressing convention.
+ *       Row 1 is the first row, Column 1 is column A.
+ *       Internal implementations should convert to 0-based indexing when necessary.
  */
 struct Position {
-    std::size_t row;     ///< Row number (1-based)
-    std::size_t column;  ///< Column number (1-based)
+    std::size_t row;     ///< Row number (1-based, starting from 1)
+    std::size_t column;  ///< Column number (1-based, 1=A, 2=B, etc.)
 
     /**
      * @brief Constructor
-     * @param r Row number
-     * @param c Column number
+     * @param r Row number (must be >= 1)
+     * @param c Column number (must be >= 1)
+     * @throws std::invalid_argument if r or c is 0
      */
-    Position(std::size_t r, std::size_t c) : row(r), column(c) {}
+    Position(std::size_t r, std::size_t c) : row(r), column(c) {
+        if (r == 0 || c == 0) {
+            throw std::invalid_argument("Position indices must be 1-based (row and column must be >= 1)");
+        }
+    }
 
     /**
      * @brief Create position from address string

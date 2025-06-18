@@ -19,7 +19,7 @@
 namespace tinakit::excel {
 
 /**
- * @class Impl
+ * @class Workbook::Impl
  * @brief Workbook 类的实现细节（PIMPL 模式）
  */
 class Workbook::Impl {
@@ -27,7 +27,7 @@ public:
     using WorksheetPtr = std::shared_ptr<Worksheet>;
     using ErrorCallback = std::function<void(const std::exception&)>;
 
-        public:
+public:
     explicit Impl(const std::filesystem::path& path);
     explicit Impl();
     ~Impl() = default;

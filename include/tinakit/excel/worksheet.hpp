@@ -21,10 +21,6 @@
 
 namespace tinakit::excel {
 
-    class Cell;
-    class Row;
-    class Range;
-
 /**
  * @class Worksheet
  * @brief Excel 工作表类

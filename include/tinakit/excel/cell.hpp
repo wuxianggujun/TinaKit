@@ -231,17 +231,29 @@ Cell& Cell::value(const T& val) {
     }
 }
 
-// as() 函数的声明
+// as() 函数的通用实现
+template<typename T>
+T Cell::as() const {
+    throw TypeConversionException("Cell", typeid(T).name(), "Unsupported type conversion");
+}
+
+// try_as() 函数的通用实现
+template<typename T>
+std::optional<T> Cell::try_as() const noexcept {
+    try {
+        return as<T>();
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
+// as() 函数的特化声明
 template<> std::string Cell::as<std::string>() const;
 template<> int Cell::as<int>() const;
 template<> double Cell::as<double>() const;
 template<> bool Cell::as<bool>() const;
 
-// try_as() 函数的声明
-template<> std::optional<std::string> Cell::try_as<std::string>() const noexcept;
-template<> std::optional<int> Cell::try_as<int>() const noexcept;
-template<> std::optional<double> Cell::try_as<double>() const noexcept;
-template<> std::optional<bool> Cell::try_as<bool>() const noexcept;
+
 
 } // namespace tinakit::excel
 

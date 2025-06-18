@@ -1,42 +1,40 @@
 /**
  * @file excel.cpp
- * @brief Excel 命名空间实现
+ * @brief Excel 命名空间函数实现
  * @author TinaKit Team
  * @date 2025-6-16
  */
 
 #include "tinakit/tinakit.hpp"
 #include "tinakit/excel/workbook.hpp"
+#include "tinakit/core/async.hpp"
 #include <unordered_map>
-#include <string>
-#include <functional>
+#include <mutex>
 
-namespace tinakit::Excel {
+namespace tinakit::excel {
 
-// 全局函数注册表
-static std::unordered_map<std::string, std::function<double(const std::vector<double>&)>> custom_functions_;
-
-excel::Workbook open(const std::filesystem::path& path) {
-    return excel::Workbook::open(path);
+namespace {
+    // 存储注册的自定义函数
+    std::unordered_map<std::string, std::function<double(const std::vector<double>&)>> g_custom_functions;
+    std::mutex g_functions_mutex;
 }
 
-async::Task<excel::Workbook> open_async(const std::filesystem::path& path) {
-    co_return co_await excel::Workbook::open_async(path);
+Workbook open(const std::filesystem::path& path) {
+    return Workbook::open(path);
 }
 
-excel::Workbook create() {
-    return excel::Workbook::create();
+async::Task<Workbook> open_async(const std::filesystem::path& path) {
+    return Workbook::open_async(path);
+}
+
+Workbook create() {
+    return Workbook::create();
 }
 
 void register_function(std::string_view name,
                       std::function<double(const std::vector<double>&)> function) {
-    custom_functions_[std::string(name)] = std::move(function);
+    std::lock_guard<std::mutex> lock(g_functions_mutex);
+    g_custom_functions[std::string(name)] = std::move(function);
 }
 
-// 获取已注册的函数（内部使用）
-const std::unordered_map<std::string, std::function<double(const std::vector<double>&)>>& 
-get_custom_functions() {
-    return custom_functions_;
-}
-
-} // namespace tinakit::Excel 
+} // namespace tinakit::excel

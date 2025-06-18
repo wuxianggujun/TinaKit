@@ -43,8 +43,15 @@ set(MZ_FETCH_LIBS OFF CACHE BOOL "Disable fetching third-party libraries" FORCE)
 # 告诉 minizip-ng 使用我们构建的 zlib-ng
 set(ZLIB_ROOT ${CMAKE_BINARY_DIR}/third_party/zlib-ng CACHE PATH "ZLIB root directory" FORCE)
 set(ZLIB_INCLUDE_DIR ${CMAKE_BINARY_DIR}/third_party/zlib-ng CACHE PATH "ZLIB include directory" FORCE)
-set(ZLIB_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/third_party/zlib-ng/zlibd.lib CACHE FILEPATH "ZLIB debug library" FORCE)
-set(ZLIB_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/third_party/zlib-ng/zlib.lib CACHE FILEPATH "ZLIB release library" FORCE)
+
+# 使用更通用的库名称配置
+if(WIN32)
+    set(ZLIB_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/third_party/zlib-ng/zlibd.lib CACHE FILEPATH "ZLIB debug library" FORCE)
+    set(ZLIB_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/third_party/zlib-ng/zlib.lib CACHE FILEPATH "ZLIB release library" FORCE)
+else()
+    set(ZLIB_LIBRARY_DEBUG ${CMAKE_BINARY_DIR}/third_party/zlib-ng/libzlibd.a CACHE FILEPATH "ZLIB debug library" FORCE)
+    set(ZLIB_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/third_party/zlib-ng/libzlib.a CACHE FILEPATH "ZLIB release library" FORCE)
+endif()
 
 add_subdirectory(third_party/minizip-ng)
 

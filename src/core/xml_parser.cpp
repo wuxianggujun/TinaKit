@@ -85,12 +85,7 @@ namespace tinakit::core
         return "";
     }
     
-    void XmlParser::set_features(int features)
-    {
-        // 注意：libstudxml 在构造时设置 features，不能在运行时修改
-        // 这个方法保留为将来可能的扩展
-        (void)features; // 避免未使用参数警告
-    }
+
 
 
     // -- XmlParser::iterator Implementation -- //

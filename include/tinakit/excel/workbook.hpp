@@ -9,7 +9,6 @@
 
 #include "tinakit/core/types.hpp"
 #include "tinakit/core/async.hpp"
-// #include "worksheet.hpp"
 #include <filesystem>
 #include <vector>
 #include <string>
@@ -18,6 +17,7 @@
 
 namespace tinakit::excel {
 
+    // Forward declaration for PIMPL pattern
     class Worksheet;
     
 /**

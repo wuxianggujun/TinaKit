@@ -71,12 +71,6 @@ namespace tinakit::core
          * @return 元素的文本内容，如果未找到返回空字符串
          */
         std::string get_element_text(const std::string& element_name);
-        
-        /**
-         * @brief 设置解析特性（如是否接收字符数据、属性等）
-         * @param features 特性标志的组合
-         */
-        void set_features(int features);
 
 
         /**

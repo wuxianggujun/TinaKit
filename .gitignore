@@ -835,3 +835,4 @@ MigrationBackup/
 3rdparty/Skia
 3rdparty/QXlsx
 
+/build/
