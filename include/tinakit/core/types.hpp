@@ -16,12 +16,7 @@
 
 namespace tinakit {
 
-// Forward declarations
-class WorkbookImpl;
-class WorksheetImpl;
-class CellImpl;
-class DocumentImpl;
-class RangeImpl;
+// Forward declarations (移除了不必要的前向声明)
 
 /**
  * @brief Configuration class

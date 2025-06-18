@@ -6,6 +6,7 @@ target_sources(tinakit PRIVATE
         core/io.cpp
         core/xml_parser.cpp
         core/color.cpp
+        core/types.cpp
         excel/excel.cpp
         excel/workbook.cpp
         excel/worksheet.cpp

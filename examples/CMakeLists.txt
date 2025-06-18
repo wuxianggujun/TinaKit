@@ -1,53 +1,4 @@
 # TinaKit Examples
-# 创建XML解析器测试示例
-add_executable(tinakit_xml_parser_example main.cpp)
-target_link_libraries(tinakit_xml_parser_example PRIVATE tinakit)
-
-# 设置输出目录，方便用户找到可执行文件
-set_target_properties(tinakit_xml_parser_example
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
-
-# 为了方便调试，设置工作目录
-if(WIN32)
-    set_target_properties(tinakit_xml_parser_example
-        PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-    )
-endif()
-
-# XLSX Archiver 完整示例程序
-add_executable(xlsx_archiver_demo xlsx_archiver_demo.cpp)
-target_link_libraries(xlsx_archiver_demo PRIVATE tinakit)
-
-set_target_properties(xlsx_archiver_demo
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
-
-if(WIN32)
-    set_target_properties(xlsx_archiver_demo
-        PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-    )
-endif()
-
-# XLSX 读取测试程序
-add_executable(xlsx_reader_test xlsx_reader_test.cpp)
-target_link_libraries(xlsx_reader_test PRIVATE tinakit)
-
-set_target_properties(xlsx_reader_test
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
-
-if(WIN32)
-    set_target_properties(xlsx_reader_test
-        PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-    )
-endif()
 
 # 创建一个函数来自动复制运行时依赖的 DLL
 function(copy_runtime_dependencies target_name)
@@ -77,55 +28,72 @@ function(copy_runtime_dependencies target_name)
     endif()
 endfunction()
 
-# debug_xlsx_test 已合并到 xlsx_reader_test
-# add_executable(debug_xlsx_test debug_xlsx_test.cpp)
-# target_link_libraries(debug_xlsx_test PRIVATE tinakit)
+# 创建一个函数来添加测试程序，避免重复配置
+function(add_tinakit_example target_name source_file)
+    # 创建可执行文件
+    add_executable(${target_name} ${source_file})
+    
+    # 链接 tinakit 库
+    target_link_libraries(${target_name} PRIVATE tinakit)
+    
+    # 设置输出目录
+    set_target_properties(${target_name}
+        PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+    )
+    
+    # Windows 下设置调试工作目录
+    if(WIN32)
+        set_target_properties(${target_name}
+            PROPERTIES
+            VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+        )
+    endif()
+    
+    # 自动应用 DLL 复制
+    copy_runtime_dependencies(${target_name})
+endfunction()
 
-# 直接测试 minizip-ng API
-add_executable(minizip_direct_test minizip_direct_test.cpp)
-target_link_libraries(minizip_direct_test PRIVATE minizip zlib)
+# 使用新函数添加测试程序
+add_tinakit_example(tinakit_xml_parser_example main.cpp)
+add_tinakit_example(xlsx_archiver_demo xlsx_archiver_demo.cpp)
+add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
+add_tinakit_example(workbook_test workbook_test.cpp)
+add_tinakit_example(stream_demo stream_demo.cpp)
+
+# 特殊的测试程序（不使用 tinakit 库）
+function(add_special_example target_name source_file libraries)
+    # 创建可执行文件
+    add_executable(${target_name} ${source_file})
+    
+    # 链接指定的库
+    target_link_libraries(${target_name} PRIVATE ${libraries})
+    
+    # 设置输出目录
+    set_target_properties(${target_name}
+        PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+    )
+    
+    # Windows 下设置调试工作目录
+    if(WIN32)
+        set_target_properties(${target_name}
+            PROPERTIES
+            VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+        )
+    endif()
+    
+    # 自动应用 DLL 复制
+    copy_runtime_dependencies(${target_name})
+endfunction()
+
+# 直接测试 minizip-ng API（使用特殊函数）
+add_special_example(minizip_direct_test minizip_direct_test.cpp "minizip;zlib")
 
 # Dream Code 示例（仅作为设计参考，不编译）
-# add_executable(dream_code dream_code.cpp)
-# target_link_libraries(dream_code PRIVATE tinakit)
+# add_tinakit_example(dream_code dream_code.cpp)
 
-# 流式读写演示程序
-add_executable(stream_demo stream_demo.cpp)
-target_link_libraries(stream_demo PRIVATE tinakit)
-
-# debug_xlsx_test 已合并到 xlsx_reader_test
-
-set_target_properties(minizip_direct_test
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
-
-set_target_properties(stream_demo
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
-
-if(WIN32)
-    # debug_xlsx_test 已合并到 xlsx_reader_test
-
-    set_target_properties(minizip_direct_test
-        PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-    )
-
-    set_target_properties(stream_demo
-        PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-    )
-endif()
-
-# 为所有示例程序应用 DLL 复制
-copy_runtime_dependencies(tinakit_xml_parser_example)
-copy_runtime_dependencies(xlsx_archiver_demo)
-copy_runtime_dependencies(xlsx_reader_test)
-# copy_runtime_dependencies(debug_xlsx_test)  # 已合并
-copy_runtime_dependencies(minizip_direct_test)
-copy_runtime_dependencies(stream_demo)
+# DLL 复制已在函数中自动处理
 
 # 如果 CMake 版本支持，使用更现代的方法
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")

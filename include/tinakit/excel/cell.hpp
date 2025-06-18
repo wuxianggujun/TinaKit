@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <variant>
+#include <type_traits>
 
 namespace tinakit::excel {
 
@@ -198,6 +199,36 @@ private:
     std::unique_ptr<CellImpl> impl_;
     friend class Worksheet;
 };
+
+// 为了支持字符数组，声明 value 函数的所有需要的特化
+template<> Cell& Cell::value<std::string>(const std::string& value);
+template<> Cell& Cell::value<int>(const int& value);
+template<> Cell& Cell::value<double>(const double& value);
+template<> Cell& Cell::value<bool>(const bool& value);
+
+// 对于字符数组的通用模板实现
+template<typename T>
+Cell& Cell::value(const T& val) {
+    // 对于字符数组，转换为 string
+    if constexpr (std::is_array_v<T> && std::is_same_v<std::remove_extent_t<T>, char>) {
+        return value(std::string(val));
+    } else {
+        // 对于其他类型，尝试转换
+        return value(static_cast<std::string>(val));
+    }
+}
+
+// as() 函数的声明
+template<> std::string Cell::as<std::string>() const;
+template<> int Cell::as<int>() const;
+template<> double Cell::as<double>() const;
+template<> bool Cell::as<bool>() const;
+
+// try_as() 函数的声明
+template<> std::optional<std::string> Cell::try_as<std::string>() const noexcept;
+template<> std::optional<int> Cell::try_as<int>() const noexcept;
+template<> std::optional<double> Cell::try_as<double>() const noexcept;
+template<> std::optional<bool> Cell::try_as<bool>() const noexcept;
 
 } // namespace tinakit::excel
 
