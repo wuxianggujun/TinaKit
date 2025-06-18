@@ -4,10 +4,26 @@
 
 #include "tinakit/core/xml_parser.hpp"
 #include <fstream>
+#include <iostream>
 #include <libstudxml/parser.hxx>
+#include <unordered_set>
 
 namespace tinakit::core
 {
+    // OpenXML标准属性集合
+    const std::unordered_set<std::string> known_openxml_attributes = {
+            // 通用属性
+            "ref", "count", "uniqueCount", "r", "t", "s", "name", "sheetId",
+            // 工作表属性
+            "tabSelected", "workbookViewId", "defaultRowHeight", "defaultColWidth",
+            // 关系属性
+            "Id", "Type", "Target",
+            // 样式属性
+            "numFmtId", "fontId", "fillId", "borderId", "xfId",
+            // 其他常见属性
+            "val", "sz", "b", "i", "u", "color", "rgb", "theme", "indexed"
+        };
+    
     struct XmlParser::Impl
     {
         // Manages file stream lifetime
@@ -19,13 +35,21 @@ namespace tinakit::core
 
         Impl(std::unique_ptr<std::ifstream> stream, const std::string& document_name): owned_stream(std::move(stream)),
             stream_ref(*owned_stream),
-            parser(std::make_unique<xml::parser>(stream_ref, document_name))
+            parser(std::make_unique<xml::parser>(stream_ref, document_name,
+                xml::parser::receive_elements |
+                xml::parser::receive_characters |
+                xml::parser::receive_attributes_map |
+                xml::parser::receive_namespace_decls))
         {
         }
 
         Impl(std::istream& stream, const std::string& document_name): owned_stream(nullptr), stream_ref(stream),
                                                                       parser(std::make_unique<xml::parser>(
-                                                                          stream_ref, document_name))
+                                                                          stream_ref, document_name,
+                                                                          xml::parser::receive_elements |
+                                                                          xml::parser::receive_characters |
+                                                                          xml::parser::receive_attributes_map |
+                                                                          xml::parser::receive_namespace_decls))
         {
         }
     };
@@ -242,8 +266,29 @@ namespace tinakit::core
             return std::nullopt;
         }
     }
-    
+
+    std::optional<std::string> XmlParser::iterator::attribute(const xml::qname& qname) const
+    {
+        if (!parser_)
+        {
+            return std::nullopt;
+        }
+
+        try {
+            // libstudxml 使用 attribute 方法获取属性，如果属性不存在会抛出异常
+            return parser_->impl_->parser->attribute(qname);
+        } catch (const std::exception&) {
+            // 属性不存在时返回 nullopt
+            return std::nullopt;
+        }
+    }
+
     bool XmlParser::iterator::has_attribute(const std::string& qname) const
+    {
+        return attribute(qname).has_value();
+    }
+
+    bool XmlParser::iterator::has_attribute(const xml::qname& qname) const
     {
         return attribute(qname).has_value();
     }
@@ -305,9 +350,50 @@ namespace tinakit::core
             }
         }catch (const xml::parsing& e)
         {
+            // 检查是否是属性相关的错误
+            std::string error_msg = e.what();
+            if (error_msg.find("unexpected attribute") != std::string::npos) {
+                // 提取属性名
+                std::string attr_name;
+                auto quote_pos = error_msg.find("'");
+                if (quote_pos != std::string::npos) {
+                    auto end_quote = error_msg.find("'", quote_pos + 1);
+                    if (end_quote != std::string::npos) {
+                        attr_name = error_msg.substr(quote_pos + 1, end_quote - quote_pos - 1);
+                    }
+                }
+
+                // 检查是否是已知的OpenXML属性
+                if (known_openxml_attributes.find(attr_name) != known_openxml_attributes.end()) {
+                    // 这是已知的OpenXML属性，静默忽略
+                    try {
+                        // 尝试继续解析下一个事件
+                        current_event_ = parser_->impl_->parser->next();
+                        if (current_event_ ==  xml::parser::event_type::eof) {
+                            parser_ = nullptr;
+                        }
+                        return;
+                    } catch (...) {
+                        // 如果还是失败，则抛出原始异常
+                    }
+                } else {
+                    // 真正未知的属性，显示警告
+                    std::cout << "警告: 遇到未知属性 '" << attr_name << "': " << error_msg << std::endl;
+                    try {
+                        current_event_ = parser_->impl_->parser->next();
+                        if (current_event_ ==  xml::parser::event_type::eof) {
+                            parser_ = nullptr;
+                        }
+                        return;
+                    } catch (...) {
+                        // 如果还是失败，则抛出原始异常
+                    }
+                }
+            }
+
             // Wrap libstudxml's exception into our project-specific exception type.
             throw ParseException(e.what());
         }
-        
+
     }
 } // tinakit

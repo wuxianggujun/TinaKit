@@ -112,7 +112,9 @@ namespace tinakit::core
             [[nodiscard]] std::string text_content();
 
             [[nodiscard]] std::optional<std::string> attribute(const std::string& qname) const;
+            [[nodiscard]] std::optional<std::string> attribute(const xml::qname& qname) const;
             [[nodiscard]] bool has_attribute(const std::string& qname) const;
+            [[nodiscard]] bool has_attribute(const xml::qname& qname) const;
             
             // 获取所有属性
             [[nodiscard]] std::map<std::string, std::string> attributes() const;

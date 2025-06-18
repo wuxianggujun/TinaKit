@@ -6,6 +6,7 @@
 #include <iostream>
 #include <filesystem>
 #include "tinakit/tinakit.hpp"
+#include "tinakit/core/openxml_archiver.hpp"
 
 using namespace tinakit;
 using namespace tinakit::excel;
@@ -54,14 +55,46 @@ Task<void> test_create_and_save() {
 Task<void> test_reopen() {
     std::cout << "\n3. 重新打开文件测试" << std::endl;
     std::cout << "===================" << std::endl;
-    
+
     try {
+        // 先检查文件是否存在
+        if (!std::filesystem::exists("final_test.xlsx")) {
+            std::cout << "❌ 文件不存在: final_test.xlsx" << std::endl;
+            co_return;
+        }
+
+        std::cout << "文件大小: " << std::filesystem::file_size("final_test.xlsx") << " 字节" << std::endl;
+
+        // 尝试用OpenXmlArchiver直接打开文件
+        std::cout << "尝试用OpenXmlArchiver打开文件..." << std::endl;
+        auto archiver = co_await core::OpenXmlArchiver::open_from_file("final_test.xlsx");
+
+        // 列出文件
+        auto files = co_await archiver.list_files();
+        std::cout << "ZIP文件中包含 " << files.size() << " 个文件:" << std::endl;
+        for (const auto& file : files) {
+            std::cout << "  - " << file << std::endl;
+        }
+
+        // 检查关键文件
+        bool has_workbook_rels = co_await archiver.has_file("xl/_rels/workbook.xml.rels");
+        std::cout << "xl/_rels/workbook.xml.rels 存在: " << (has_workbook_rels ? "是" : "否") << std::endl;
+
+        if (has_workbook_rels) {
+            std::cout << "尝试读取 workbook.xml.rels..." << std::endl;
+            auto content = co_await archiver.read_file("xl/_rels/workbook.xml.rels");
+            std::string xml_content(reinterpret_cast<const char*>(content.data()), content.size());
+            std::cout << "内容:\n" << xml_content << std::endl;
+        }
+
+        std::cout << "OpenXmlArchiver 测试成功，现在尝试用Workbook打开..." << std::endl;
+
         auto workbook = co_await Workbook::open_async("final_test.xlsx");
         std::cout << "✓ 文件打开成功" << std::endl;
-        
+
         auto& sheet = workbook[0];
         std::cout << "工作表数量: " << workbook.sheet_count() << std::endl;
-        
+
         // 读取数据
         std::cout << "\n读取的数据：" << std::endl;
         for (std::size_t r = 1; r <= 3; ++r) {
@@ -70,9 +103,9 @@ Task<void> test_reopen() {
             }
             std::cout << std::endl;
         }
-        
+
         std::cout << "\n✓ 所有数据读取成功！" << std::endl;
-        
+
     } catch (const std::exception& e) {
         std::cout << "❌ 打开文件失败: " << e.what() << std::endl;
     }

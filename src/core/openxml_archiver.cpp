@@ -182,12 +182,29 @@ namespace tinakit::core
             throw TinaKitException("Failed to get file info for: " + filename, "OpenXmlArchiver.read_file");
         }
 
+        // 打开条目进行读取
+        if (int32_t status = mz_zip_reader_entry_open(reader_handle_.get()); status != MZ_OK) {
+            throw TinaKitException("Failed to open entry for reading: " + filename + ". Status: " + std::to_string(status), "OpenXmlArchiver.read_file");
+        }
+
         std::vector<std::byte> buffer(file_info->uncompressed_size);
-        if (int32_t status = mz_zip_reader_entry_read(reader_handle_.get(), buffer.data(), static_cast<int32_t>(buffer.size())); status < 0)
-        {
-            throw TinaKitException(
-                "Failed to read file content for: " + filename + ". Status: " + std::to_string(status),
-                "OpenXmlArchiver.read_file");
+
+        try {
+            if (int32_t status = mz_zip_reader_entry_read(reader_handle_.get(), buffer.data(), static_cast<int32_t>(buffer.size())); status < 0)
+            {
+                throw TinaKitException(
+                    "Failed to read file content for: " + filename + ". Status: " + std::to_string(status),
+                    "OpenXmlArchiver.read_file");
+            }
+        } catch (...) {
+            // 确保关闭条目
+            mz_zip_reader_entry_close(reader_handle_.get());
+            throw;
+        }
+
+        // 关闭条目
+        if (int32_t status = mz_zip_reader_entry_close(reader_handle_.get()); status != MZ_OK) {
+            throw TinaKitException("Failed to close entry after reading: " + filename + ". Status: " + std::to_string(status), "OpenXmlArchiver.read_file");
         }
 
         co_return buffer;
@@ -352,6 +369,12 @@ namespace tinakit::core
             // 清空待处理文件映射，因为它们已经保存到文件中
             pending_new_files_.clear();
 
+            // 清空当前文件列表，强制重新扫描
+            current_files_.clear();
+
+            // 清空其他状态
+            files_to_remove_.clear();
+
             // 使用刚保存的内容重新创建 reader
             reader_handle_.reset(mz_zip_reader_create());
             if (reader_handle_) {
@@ -366,6 +389,9 @@ namespace tinakit::core
                     throw TinaKitException("Failed to reinitialize reader after save. Status: " + std::to_string(status),
                                            "OpenXmlArchiver::save_to_file");
                 }
+
+                // 重新扫描文件列表
+                co_await list_files();
             } else {
                 throw TinaKitException("Failed to create reader handle after save.", "OpenXmlArchiver::save_to_file");
             }
