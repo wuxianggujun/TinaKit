@@ -13,7 +13,7 @@
 #include "core/exceptions.hpp"
 #include "core/task.hpp"
 #include "core/async.hpp"
-#include "excel/io/xml_parser.hpp"
+#include "core/xml_parser.hpp"
 #include "excel/io/xlsx_archiver.hpp"
 
 // #include "excel/workbook.hpp"

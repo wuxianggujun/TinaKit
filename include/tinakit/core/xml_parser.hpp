@@ -4,14 +4,15 @@
 
 #pragma once
 
-#include "tinakit/core/exceptions.hpp"
 #include <istream>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
+#include <libstudxml/parser.hxx>
 
-#include "libstudxml/parser.hxx"
+#include "tinakit/core/exceptions.hpp"
+
 
 namespace xml
 {
@@ -19,7 +20,7 @@ namespace xml
 }
 
 
-namespace tinakit::io
+namespace tinakit::core
 {
     class XmlParser
     {
@@ -78,16 +79,16 @@ namespace tinakit::io
             bool operator==(const iterator& other) const;
             bool operator!=(const iterator& other) const;
 
-            bool is_start_element() const;
+            [[nodiscard]] bool is_start_element() const;
 
-            bool is_end_element() const;
+            [[nodiscard]] bool is_end_element() const;
 
 
-            const std::string& name() const;
+            [[nodiscard]] const std::string& name() const;
 
-            const std::string& value() const;
+            [[nodiscard]] const std::string& value() const;
 
-            std::optional<std::string> attribute(const std::string& qname) const;
+            [[nodiscard]] std::optional<std::string> attribute(const std::string& qname) const;
 
         private:
             friend class XmlParser;

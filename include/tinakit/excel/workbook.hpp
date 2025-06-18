@@ -2,13 +2,13 @@
  * @file workbook.hpp
  * @brief Excel 工作簿类定义
  * @author TinaKit Team
- * @date 2024-12-16
+ * @date 2025-6-16
  */
 
 #pragma once
 
-#include "core/types.hpp"
-#include "core/task.hpp"
+#include "tinakit/core/types.hpp"
+#include "tinakit/core/async.hpp"
 // #include "worksheet.hpp"
 #include <filesystem>
 #include <vector>
@@ -16,8 +16,10 @@
 #include <memory>
 #include <functional>
 
-namespace tinakit {
+namespace tinakit::excel {
 
+    class WorkSheet;
+    
 /**
  * @class Workbook
  * @brief Excel 工作簿类
@@ -82,7 +84,7 @@ public:
      * @param path 文件路径
      * @return 返回 Workbook 的 Task
      */
-    static Task<Workbook> open_async(const std::filesystem::path& path);
+    static async::Task<Workbook> open_async(const std::filesystem::path& path);
     
     /**
      * @brief 创建新的工作簿
@@ -90,7 +92,6 @@ public:
      */
     static Workbook create();
 
-public:
     /**
      * @brief 按名称获取工作表
      * @param name 工作表名称
@@ -191,7 +192,7 @@ public:
      * @param path 保存路径（可选，默认使用原路径）
      * @return 保存任务
      */
-    Task<void> save_async(const std::filesystem::path& path = {});
+    async::Task<void> save_async(const std::filesystem::path& path = {});
     
     /**
      * @brief 另存为
@@ -205,7 +206,7 @@ public:
      * @param path 新文件路径
      * @return 保存任务
      */
-    Task<void> save_as_async(const std::filesystem::path& path);
+    async::Task<void> save_as_async(const std::filesystem::path& path);
 
 public:
     /**
@@ -250,7 +251,9 @@ public:
     }
 
 private:
-    std::unique_ptr<WorkbookImpl> impl_;  ///< 实现细节（PIMPL 模式）
+    class Impl;
+    std::unique_ptr<Impl> impl_;  ///< 实现细节（PIMPL 模式）
+    friend class Excel;
 };
 
 } // namespace tinakit

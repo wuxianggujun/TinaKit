@@ -2,13 +2,11 @@
 // Created by wuxianggujun on 2025/6/16.
 //
 
-#include "tinakit/excel/io/xml_parser.hpp"
-#include "tinakit/excel/io/xml_parser.hpp"
-#include "tinakit/excel/io/xml_parser.hpp"
+#include "tinakit/core/xml_parser.hpp"
 #include <fstream>
 #include <libstudxml/parser.hxx>
 
-namespace tinakit::io
+namespace tinakit::core
 {
     struct XmlParser::Impl
     {
