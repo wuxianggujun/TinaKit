@@ -7,12 +7,14 @@ target_sources(tinakit PRIVATE
         core/xml_parser.cpp
         core/color.cpp
         core/types.cpp
-        excel/excel.cpp
-        excel/workbook.cpp
-        excel/worksheet.cpp
-        excel/cell.cpp
-        excel/row.cpp
-        excel/range.cpp
+            excel/excel.cpp
+    excel/workbook.cpp
+    excel/worksheet.cpp
+    excel/cell.cpp
+    excel/row.cpp
+    excel/range.cpp
+    excel/shared_strings.cpp
+    excel/style_manager.cpp
 )
 
 target_include_directories(tinakit PUBLIC

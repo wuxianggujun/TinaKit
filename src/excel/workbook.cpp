@@ -7,6 +7,8 @@
 
 #include "tinakit/excel/workbook.hpp"
 #include "tinakit/excel/worksheet.hpp"
+#include "tinakit/excel/shared_strings.hpp"
+#include "tinakit/excel/style_manager.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
 #include "tinakit/core/xml_parser.hpp"
 #include "tinakit/core/exceptions.hpp"
@@ -58,6 +60,12 @@ public:
     const std::filesystem::path& get_file_path() const noexcept;
     bool has_unsaved_changes() const noexcept;
     std::size_t get_file_size() const;
+    
+    // 获取管理器
+    SharedStrings& get_shared_strings() { return *shared_strings_; }
+    const SharedStrings& get_shared_strings() const { return *shared_strings_; }
+    StyleManager& get_style_manager() { return *style_manager_; }
+    const StyleManager& get_style_manager() const { return *style_manager_; }
 
     private:
     void load_from_archiver();
@@ -65,6 +73,7 @@ public:
     void parse_workbook_rels();
     void parse_workbook_xml();
     void parse_shared_strings();
+    void parse_styles();
     void regenerate_metadata_on_save();
     
     // OpenXML 结构生成
@@ -73,6 +82,8 @@ public:
     void generate_workbook_rels();
     void generate_app_props();
     void generate_core_props();
+    void generate_shared_strings();
+    void generate_styles();
     
     void report_error(const std::exception& error);
 
@@ -85,7 +96,10 @@ private:
         std::vector<WorksheetPtr> worksheets_;
     std::map<std::string, WorksheetPtr, std::less<>> worksheet_by_name_;
     std::map<std::string, std::string, std::less<>> rels_map_;
-    std::vector<std::string> shared_strings_;
+    
+    // 使用独立的管理器
+    std::shared_ptr<SharedStrings> shared_strings_;
+    std::shared_ptr<StyleManager> style_manager_;
     
     ErrorCallback error_callback_;
 };
@@ -95,7 +109,9 @@ private:
 // =============================================================================
 
 Workbook::Impl::Impl(const std::filesystem::path& path)
-    : original_path_(path) {
+    : original_path_(path),
+      shared_strings_(std::make_shared<SharedStrings>()),
+      style_manager_(std::make_shared<StyleManager>()) {
     try {
         archiver_ = std::make_shared<core::OpenXmlArchiver>(
             async::sync_wait(core::OpenXmlArchiver::open_from_file(path.string()))
@@ -108,7 +124,9 @@ Workbook::Impl::Impl(const std::filesystem::path& path)
 }
 
 Workbook::Impl::Impl() 
-    : is_modified_(true) {
+    : is_modified_(true),
+      shared_strings_(std::make_shared<SharedStrings>()),
+      style_manager_(std::make_shared<StyleManager>()) {
     try {
         archiver_ = std::make_shared<core::OpenXmlArchiver>(
             core::OpenXmlArchiver::create_in_memory_writer()
@@ -304,6 +322,7 @@ void Workbook::Impl::load_from_archiver() {
     parse_workbook_rels();
     parse_workbook_xml();
     parse_shared_strings();
+    parse_styles();
     // TODO: 解析各个工作表
 }
 
@@ -436,69 +455,46 @@ void Workbook::Impl::parse_shared_strings() {
         
         auto strings_data = async::sync_wait(archiver_->read_file(shared_strings_path));
         
-        std::istringstream stream(std::string(
+        std::string xml_data(
             reinterpret_cast<const char*>(strings_data.data()), 
             strings_data.size()
-        ));
+        );
         
-        core::XmlParser parser(stream, shared_strings_path);
-        
-        // 预分配共享字符串容器
-        // 通过查找 uniqueCount 属性来优化内存分配
-        std::size_t unique_count = 0;
-        
-        for (auto it = parser.begin(); it != parser.end(); ++it) {
-            if (it.is_start_element() && it.name() == "sst") {
-                auto count_attr = it.attribute("uniqueCount");
-                if (count_attr) {
-                    try {
-                        unique_count = std::stoull(*count_attr);
-                        shared_strings_.reserve(unique_count);
-                    } catch (...) {
-                        // 如果解析失败，使用默认容量
-                        shared_strings_.reserve(1000);
-                    }
-                }
-                break;
-            }
-        }
-        
-        // 解析共享字符串
-        bool in_si = false;
-        bool in_t = false;
-        std::string current_string;
-        
-        for (auto it = parser.begin(); it != parser.end(); ++it) {
-            if (it.is_start_element()) {
-                if (it.name() == "si") {
-                    in_si = true;
-                    current_string.clear();
-                } else if (in_si && it.name() == "t") {
-                    in_t = true;
-                    // 获取文本内容
-                    ++it;
-                    if (it != parser.end()) {
-                        current_string = it.value();
-                    }
-                    in_t = false;
-                }
-            } else if (it.is_end_element()) {
-                if (it.name() == "si") {
-                    in_si = false;
-                    // 使用 move 语义避免字符串拷贝
-                    shared_strings_.emplace_back(std::move(current_string));
-                    current_string.clear();
-                }
-            }
-        }
-        
-        // 收缩容器以释放多余内存
-        shared_strings_.shrink_to_fit();
+        // 使用 SharedStrings 对象的 load_from_xml 方法
+        shared_strings_->load_from_xml(xml_data);
         
     } catch (const std::exception& e) {
         // 共享字符串解析失败不应该阻止文件打开
         // 记录错误但继续处理
         report_error(ParseException("Warning: Failed to parse shared strings: " + std::string(e.what())));
+    }
+}
+
+void Workbook::Impl::parse_styles() {
+    try {
+        const std::string styles_path = "xl/styles.xml";
+        
+        // 检查文件是否存在（样式表应该始终存在）
+        if (!async::sync_wait(archiver_->has_file(styles_path))) {
+            // 如果没有样式表，使用默认样式
+            style_manager_->initialize_defaults();
+            return;
+        }
+        
+        auto styles_data = async::sync_wait(archiver_->read_file(styles_path));
+        
+        std::string xml_data(
+            reinterpret_cast<const char*>(styles_data.data()), 
+            styles_data.size()
+        );
+        
+        // 使用 StyleManager 对象的 load_from_xml 方法
+        style_manager_->load_from_xml(xml_data);
+        
+    } catch (const std::exception& e) {
+        // 样式解析失败时使用默认样式
+        style_manager_->initialize_defaults();
+        report_error(ParseException("Warning: Failed to parse styles, using defaults: " + std::string(e.what())));
     }
 }
 
@@ -511,6 +507,14 @@ void Workbook::Impl::regenerate_metadata_on_save() {
     generate_workbook_rels();
     generate_app_props();
     generate_core_props();
+    
+    // 生成共享字符串文件（如果有）
+    if (shared_strings_->count() > 0) {
+        generate_shared_strings();
+    }
+    
+    // 生成样式文件
+    generate_styles();
 }
 
 void Workbook::Impl::generate_content_types() {
@@ -524,6 +528,16 @@ void Workbook::Impl::generate_content_types() {
         content_types += std::format(R"(
     <Override PartName="/xl/worksheets/sheet{}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>)", i + 1);
     }
+    
+    // 共享字符串内容类型（如果有）
+    if (shared_strings_->count() > 0) {
+        content_types += R"(
+    <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>)";
+    }
+    
+    // 样式内容类型
+    content_types += R"(
+    <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>)";
 
     content_types += R"(
 </Types>)";
@@ -584,11 +598,16 @@ void Workbook::Impl::generate_workbook_rels() {
     }
     
     // 共享字符串关系（如果有）
-    if (!shared_strings_.empty()) {
+    if (shared_strings_->count() > 0) {
         std::size_t shared_strings_id = worksheets_.size() + 1;
         xml << R"(  <Relationship Id="rId)" << shared_strings_id
             << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>)" << '\n';
     }
+    
+    // 样式关系
+    std::size_t styles_id = worksheets_.size() + (shared_strings_->count() > 0 ? 2 : 1);
+    xml << R"(  <Relationship Id="rId)" << styles_id
+        << R"(" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>)" << '\n';
     
     xml << "</Relationships>\n";
     
@@ -607,6 +626,38 @@ void Workbook::Impl::generate_app_props() {
 
 void Workbook::Impl::generate_core_props() {
     // TODO: 生成 docProps/core.xml
+}
+
+void Workbook::Impl::generate_shared_strings() {
+    try {
+        // 生成共享字符串 XML
+        std::string xml_content = shared_strings_->generate_xml();
+        
+        // 转换为字节数组
+        std::vector<std::byte> xml_bytes(xml_content.size());
+        std::memcpy(xml_bytes.data(), xml_content.data(), xml_content.size());
+        
+        // 添加到归档
+        async::sync_wait(archiver_->add_file("xl/sharedStrings.xml", std::move(xml_bytes)));
+    } catch (const std::exception& e) {
+        throw IOException("Failed to generate shared strings: " + std::string(e.what()));
+    }
+}
+
+void Workbook::Impl::generate_styles() {
+    try {
+        // 生成样式 XML
+        std::string xml_content = style_manager_->generate_xml();
+        
+        // 转换为字节数组
+        std::vector<std::byte> xml_bytes(xml_content.size());
+        std::memcpy(xml_bytes.data(), xml_content.data(), xml_content.size());
+        
+        // 添加到归档
+        async::sync_wait(archiver_->add_file("xl/styles.xml", std::move(xml_bytes)));
+    } catch (const std::exception& e) {
+        throw IOException("Failed to generate styles: " + std::string(e.what()));
+    }
 }
 
 void Workbook::Impl::report_error(const std::exception& error) {
@@ -737,6 +788,22 @@ bool Workbook::has_unsaved_changes() const noexcept {
 
 std::size_t Workbook::file_size() const {
     return impl_->get_file_size();
+}
+
+SharedStrings& Workbook::shared_strings() {
+    return impl_->get_shared_strings();
+}
+
+const SharedStrings& Workbook::shared_strings() const {
+    return impl_->get_shared_strings();
+}
+
+StyleManager& Workbook::style_manager() {
+    return impl_->get_style_manager();
+}
+
+const StyleManager& Workbook::style_manager() const {
+    return impl_->get_style_manager();
 }
 
 } // namespace tinakit::excel

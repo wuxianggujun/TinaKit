@@ -188,6 +188,19 @@ public:
      * @return 单元格值的字符串表示
      */
     std::string to_string() const;
+    
+    /**
+     * @brief 设置样式 ID
+     * @param style_id 样式 ID
+     * @return 自身引用，支持链式调用
+     */
+    Cell& style_id(std::uint32_t style_id);
+    
+    /**
+     * @brief 获取样式 ID
+     * @return 样式 ID
+     */
+    std::uint32_t style_id() const;
 
 public:
     /**

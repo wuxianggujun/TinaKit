@@ -44,12 +44,17 @@ public:
     void set_alignment(Alignment alignment);
     void set_border(BorderType type, BorderStyle style);
 
+    // 获取和设置样式 ID
+    void set_style_id(std::uint32_t style_id) { style_id_ = style_id; }
+    std::uint32_t get_style_id() const { return style_id_; }
+
 private:
     std::size_t row_, column_;
     Cell::CellValue value_ = std::string("");
     std::optional<std::string> formula_;
+    std::uint32_t style_id_ = 0;  // 默认样式 ID
     
-    // TODO: 样式相关成员变量
+    // TODO: 详细的样式属性（字体、颜色等）
 };
 
 // =============================================================================
@@ -333,6 +338,15 @@ bool Cell::empty() const noexcept {
 
 std::string Cell::to_string() const {
     return as<std::string>();
+}
+
+Cell& Cell::style_id(std::uint32_t style_id) {
+    impl_->set_style_id(style_id);
+    return *this;
+}
+
+std::uint32_t Cell::style_id() const {
+    return impl_->get_style_id();
 }
 
 std::ostream& operator<<(std::ostream& os, const Cell& cell) {

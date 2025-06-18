@@ -227,6 +227,30 @@ public:
      * @return 文件大小
      */
     std::size_t file_size() const;
+    
+    /**
+     * @brief 获取共享字符串管理器
+     * @return 共享字符串管理器的引用
+     */
+    class SharedStrings& shared_strings();
+    
+    /**
+     * @brief 获取共享字符串管理器（只读）
+     * @return 共享字符串管理器的常量引用
+     */
+    const class SharedStrings& shared_strings() const;
+    
+    /**
+     * @brief 获取样式管理器
+     * @return 样式管理器的引用
+     */
+    class StyleManager& style_manager();
+    
+    /**
+     * @brief 获取样式管理器（只读）
+     * @return 样式管理器的常量引用
+     */
+    const class StyleManager& style_manager() const;
 
 
 

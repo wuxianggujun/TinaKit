@@ -60,6 +60,8 @@ add_tinakit_example(xlsx_archiver_demo xlsx_archiver_demo.cpp)
 add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
 add_tinakit_example(workbook_test workbook_test.cpp)
 add_tinakit_example(stream_demo stream_demo.cpp)
+add_tinakit_example(test_shared_strings_and_styles test_shared_strings_and_styles.cpp)
+add_tinakit_example(excel_with_styles excel_with_styles.cpp)
 
 # 特殊的测试程序（不使用 tinakit 库）
 function(add_special_example target_name source_file libraries)
