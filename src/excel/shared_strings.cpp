@@ -87,13 +87,10 @@ void SharedStrings::load_from_xml(const std::string& xml_data) {
     std::istringstream stream(xml_data);
     core::XmlParser parser(stream, "sharedStrings.xml");
     
-    bool in_si = false;
-    bool in_t = false;
-    std::string current_string;
-    
-    // 首先尝试获取 uniqueCount 以预分配内存
+    // 首先找到 sst 元素并获取 uniqueCount
     for (auto it = parser.begin(); it != parser.end(); ++it) {
         if (it.is_start_element() && it.name() == "sst") {
+            // 尝试获取 uniqueCount 以预分配内存
             auto count_attr = it.attribute("uniqueCount");
             if (count_attr) {
                 try {
@@ -107,32 +104,19 @@ void SharedStrings::load_from_xml(const std::string& xml_data) {
         }
     }
     
-    // 重新解析以获取字符串
-    parser = core::XmlParser(stream, "sharedStrings.xml");
+    // 重新解析以提取字符串
+    stream.clear();
+    stream.seekg(0);
+    core::XmlParser parser2(stream, "sharedStrings.xml");
     
-    for (auto it = parser.begin(); it != parser.end(); ++it) {
-        if (it.is_start_element()) {
-            if (it.name() == "si") {
-                in_si = true;
-                current_string.clear();
-            } else if (in_si && it.name() == "t") {
-                in_t = true;
-                // 获取文本内容
-                ++it;
-                if (it != parser.end() && it.is_characters()) {
-                    current_string = it.value();
-                }
-                in_t = false;
-            }
-        } else if (it.is_end_element()) {
-            if (it.name() == "si") {
-                in_si = false;
-                // 添加字符串到表中
-                add_string(current_string);
-                current_string.clear();
-            }
+    // 使用改进的 API 解析每个 si 元素
+    parser2.for_each_element("si", [this](core::XmlParser::iterator& it) {
+        // si 元素可能包含 <t> 子元素或其他富文本元素
+        std::string text = it.text_content();
+        if (!text.empty()) {
+            add_string(text);
         }
-    }
+    });
 }
 
 void SharedStrings::reserve(std::size_t size) {

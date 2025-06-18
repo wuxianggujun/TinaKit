@@ -31,6 +31,13 @@ public:
      * @param hex 十六进制颜色字符串 (例如: "#FF0000" 或 "FF0000")
      */
     explicit Color(const std::string& hex);
+    
+    /**
+     * @brief 从十六进制字符串创建颜色（静态方法）
+     * @param hex 十六进制颜色字符串 (例如: "#FF0000" 或 "FF0000")
+     * @return Color 对象
+     */
+    static Color from_hex(const std::string& hex);
 
     /**
      * @brief 获取红色分量

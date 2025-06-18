@@ -60,6 +60,37 @@ namespace tinakit::core
     {
         return {};
     }
+    
+    void XmlParser::for_each_element(const std::string& element_name, 
+                                    std::function<void(iterator&)> callback)
+    {
+        for (auto it = begin(); it != end(); ++it)
+        {
+            if (it.is_start_element() && it.name() == element_name)
+            {
+                callback(it);
+            }
+        }
+    }
+    
+    std::string XmlParser::get_element_text(const std::string& element_name)
+    {
+        for (auto it = begin(); it != end(); ++it)
+        {
+            if (it.is_start_element() && it.name() == element_name)
+            {
+                return it.text_content();
+            }
+        }
+        return "";
+    }
+    
+    void XmlParser::set_features(int features)
+    {
+        // 注意：libstudxml 在构造时设置 features，不能在运行时修改
+        // 这个方法保留为将来可能的扩展
+        (void)features; // 避免未使用参数警告
+    }
 
 
     // -- XmlParser::iterator Implementation -- //
@@ -103,6 +134,26 @@ namespace tinakit::core
     {
         return current_event_ == xml::parser::event_type::end_element;
     }
+    
+    bool XmlParser::iterator::is_start_attribute() const
+    {
+        return current_event_ == xml::parser::event_type::start_attribute;
+    }
+    
+    bool XmlParser::iterator::is_end_attribute() const
+    {
+        return current_event_ == xml::parser::event_type::end_attribute;
+    }
+    
+    bool XmlParser::iterator::is_characters() const
+    {
+        return current_event_ == xml::parser::event_type::characters;
+    }
+    
+    bool XmlParser::iterator::is_eof() const
+    {
+        return current_event_ == xml::parser::event_type::eof;
+    }
 
     const std::string& XmlParser::iterator::name() const
     {
@@ -124,6 +175,63 @@ namespace tinakit::core
         return empty_string;
     }
 
+    const std::string& XmlParser::iterator::namespace_uri() const
+    {
+        if (parser_)
+        {
+            return parser_->impl_->parser->namespace_();
+        }
+        static const std::string empty_string;
+        return empty_string;
+    }
+    
+    const std::string& XmlParser::iterator::prefix() const
+    {
+        if (parser_)
+        {
+            return parser_->impl_->parser->prefix();
+        }
+        static const std::string empty_string;
+        return empty_string;
+    }
+    
+    std::string XmlParser::iterator::text_content()
+    {
+        if (!parser_ || !is_start_element())
+        {
+            return "";
+        }
+        
+        std::string content;
+        int depth = 1;
+        
+        // 前进到下一个事件
+        ++(*this);
+        
+        while (parser_ && depth > 0)
+        {
+            if (is_characters())
+            {
+                content += value();
+            }
+            else if (is_start_element())
+            {
+                depth++;
+            }
+            else if (is_end_element())
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    break;
+                }
+            }
+            ++(*this);
+        }
+        
+        return content;
+    }
+
     std::optional<std::string> XmlParser::iterator::attribute(const std::string& qname) const
     {
         if (!parser_)
@@ -138,6 +246,48 @@ namespace tinakit::core
             // 属性不存在时返回 nullopt
             return std::nullopt;
         }
+    }
+    
+    bool XmlParser::iterator::has_attribute(const std::string& qname) const
+    {
+        return attribute(qname).has_value();
+    }
+    
+    std::map<std::string, std::string> XmlParser::iterator::attributes() const
+    {
+        std::map<std::string, std::string> attrs;
+        
+        if (!parser_ || !is_start_element())
+        {
+            return attrs;
+        }
+        
+        // 获取属性映射（这是 libstudxml 的特性）
+        const auto& attr_map = parser_->impl_->parser->attribute_map();
+        for (const auto& [qname, attr_value] : attr_map)
+        {
+            attrs[qname.name()] = attr_value.value;
+        }
+        
+        return attrs;
+    }
+    
+    std::size_t XmlParser::iterator::line() const
+    {
+        if (parser_)
+        {
+            return parser_->impl_->parser->line();
+        }
+        return 0;
+    }
+    
+    std::size_t XmlParser::iterator::column() const
+    {
+        if (parser_)
+        {
+            return parser_->impl_->parser->column();
+        }
+        return 0;
     }
 
     XmlParser::iterator::iterator(XmlParser* parser) : parser_(parser)

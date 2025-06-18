@@ -307,17 +307,29 @@ std::string StyleManager::generate_xml() const {
         xml << "    <border>\n";
         
         // 生成各边框线
-        auto generate_border_line = [&xml](const char* name, const Border::BorderLine& line) {
+        auto generate_border_line = [&xml](const char* name, const Border::BorderLine& line) -> void {
             if (line.style != Border::Style::None) {
                 xml << "      <" << name << " style=\"";
+                
+                // 将 switch 语句移出到单独的转换
+                const char* style_str = "thin";
                 switch (line.style) {
-                    case Border::Style::Thin: xml << "thin"; break;
-                    case Border::Style::Medium: xml << "medium"; break;
-                    case Border::Style::Thick: xml << "thick"; break;
-                    // ... 其他样式
-                    default: xml << "thin"; break;
+                    case Border::Style::Thin: style_str = "thin"; break;
+                    case Border::Style::Medium: style_str = "medium"; break;
+                    case Border::Style::Thick: style_str = "thick"; break;
+                    case Border::Style::Dashed: style_str = "dashed"; break;
+                    case Border::Style::Dotted: style_str = "dotted"; break;
+                    case Border::Style::Double: style_str = "double"; break;
+                    case Border::Style::Hair: style_str = "hair"; break;
+                    case Border::Style::MediumDashed: style_str = "mediumDashed"; break;
+                    case Border::Style::DashDot: style_str = "dashDot"; break;
+                    case Border::Style::MediumDashDot: style_str = "mediumDashDot"; break;
+                    case Border::Style::DashDotDot: style_str = "dashDotDot"; break;
+                    case Border::Style::MediumDashDotDot: style_str = "mediumDashDotDot"; break;
+                    case Border::Style::SlantDashDot: style_str = "slantDashDot"; break;
+                    default: style_str = "thin"; break;
                 }
-                xml << "\"";
+                xml << style_str << "\"";
                 
                 if (line.color) {
                     xml << ">\n";
@@ -361,7 +373,7 @@ std::string StyleManager::generate_xml() const {
         }
         
         if (style.alignment) {
-            xml << R"( applyAlignment="1">";
+            xml << R"( applyAlignment="1">)";
             xml << "\n      <alignment";
             
             // 水平对齐
@@ -412,7 +424,11 @@ std::size_t StyleManager::hash_font(const Font& font) const {
     h ^= std::hash<bool>{}(font.underline);
     h ^= std::hash<bool>{}(font.strike);
     if (font.color) {
-        h ^= std::hash<std::uint32_t>{}(font.color->to_rgba());
+        // 使用颜色的各个分量计算哈希
+        h ^= std::hash<std::uint8_t>{}(font.color->red()) << 24;
+        h ^= std::hash<std::uint8_t>{}(font.color->green()) << 16;
+        h ^= std::hash<std::uint8_t>{}(font.color->blue()) << 8;
+        h ^= std::hash<std::uint8_t>{}(font.color->alpha());
     }
     return h;
 }
@@ -421,10 +437,16 @@ std::size_t StyleManager::hash_fill(const Fill& fill) const {
     std::size_t h = 0;
     h ^= std::hash<int>{}(static_cast<int>(fill.pattern_type));
     if (fill.fg_color) {
-        h ^= std::hash<std::uint32_t>{}(fill.fg_color->to_rgba());
+        h ^= std::hash<std::uint8_t>{}(fill.fg_color->red()) << 24;
+        h ^= std::hash<std::uint8_t>{}(fill.fg_color->green()) << 16;
+        h ^= std::hash<std::uint8_t>{}(fill.fg_color->blue()) << 8;
+        h ^= std::hash<std::uint8_t>{}(fill.fg_color->alpha());
     }
     if (fill.bg_color) {
-        h ^= std::hash<std::uint32_t>{}(fill.bg_color->to_rgba());
+        h ^= std::hash<std::uint8_t>{}(fill.bg_color->red()) << 20;
+        h ^= std::hash<std::uint8_t>{}(fill.bg_color->green()) << 12;
+        h ^= std::hash<std::uint8_t>{}(fill.bg_color->blue()) << 4;
+        h ^= std::hash<std::uint8_t>{}(fill.bg_color->alpha()) >> 4;
     }
     return h;
 }
@@ -435,7 +457,10 @@ std::size_t StyleManager::hash_border(const Border& border) const {
     auto hash_border_line = [](const Border::BorderLine& line) {
         std::size_t lh = std::hash<int>{}(static_cast<int>(line.style));
         if (line.color) {
-            lh ^= std::hash<std::uint32_t>{}(line.color->to_rgba());
+            lh ^= std::hash<std::uint8_t>{}(line.color->red()) << 24;
+            lh ^= std::hash<std::uint8_t>{}(line.color->green()) << 16;
+            lh ^= std::hash<std::uint8_t>{}(line.color->blue()) << 8;
+            lh ^= std::hash<std::uint8_t>{}(line.color->alpha());
         }
         return lh;
     };

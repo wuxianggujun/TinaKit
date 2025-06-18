@@ -9,6 +9,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <map>
+#include <functional>
 #include <libstudxml/parser.hxx>
 
 #include "tinakit/core/exceptions.hpp"
@@ -54,6 +56,27 @@ namespace tinakit::core
          * @return A sentinel end iterator
          */
         iterator end();
+        
+        /**
+         * @brief 便利方法：解析整个 XML 元素及其子元素
+         * @param element_name 要查找的元素名称
+         * @param callback 处理元素的回调函数
+         */
+        void for_each_element(const std::string& element_name, 
+                            std::function<void(iterator&)> callback);
+        
+        /**
+         * @brief 便利方法：获取第一个匹配的元素的文本内容
+         * @param element_name 元素名称
+         * @return 元素的文本内容，如果未找到返回空字符串
+         */
+        std::string get_element_text(const std::string& element_name);
+        
+        /**
+         * @brief 设置解析特性（如是否接收字符数据、属性等）
+         * @param features 特性标志的组合
+         */
+        void set_features(int features);
 
 
         /**
@@ -80,15 +103,29 @@ namespace tinakit::core
             bool operator!=(const iterator& other) const;
 
             [[nodiscard]] bool is_start_element() const;
-
             [[nodiscard]] bool is_end_element() const;
-
+            [[nodiscard]] bool is_start_attribute() const;
+            [[nodiscard]] bool is_end_attribute() const;
+            [[nodiscard]] bool is_characters() const;
+            [[nodiscard]] bool is_eof() const;
 
             [[nodiscard]] const std::string& name() const;
-
             [[nodiscard]] const std::string& value() const;
+            [[nodiscard]] const std::string& namespace_uri() const;
+            [[nodiscard]] const std::string& prefix() const;
+            
+            // 获取当前元素的文本内容（自动处理CDATA和字符实体）
+            [[nodiscard]] std::string text_content();
 
             [[nodiscard]] std::optional<std::string> attribute(const std::string& qname) const;
+            [[nodiscard]] bool has_attribute(const std::string& qname) const;
+            
+            // 获取所有属性
+            [[nodiscard]] std::map<std::string, std::string> attributes() const;
+            
+            // 获取当前解析位置（用于错误报告）
+            [[nodiscard]] std::size_t line() const;
+            [[nodiscard]] std::size_t column() const;
 
         private:
             friend class XmlParser;

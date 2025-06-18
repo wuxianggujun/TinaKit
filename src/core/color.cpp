@@ -66,6 +66,10 @@ bool Color::operator!=(const Color& other) const noexcept {
     return !(*this == other);
 }
 
+Color Color::from_hex(const std::string& hex) {
+    return Color(hex);
+}
+
 // 预定义颜色
 const Color Color::Black(0, 0, 0);
 const Color Color::White(255, 255, 255);
