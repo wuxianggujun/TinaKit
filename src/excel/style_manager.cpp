@@ -465,7 +465,7 @@ void StyleManager::load_from_xml(const std::string& xml_data) {
         // 清空现有样式，不要初始化默认样式，而是从XML中完全解析
         clear();
 
-        std::cout << "StyleManager: 开始解析样式XML，长度: " << xml_data.length() << std::endl;
+
 
         std::istringstream stream(xml_data);
         core::XmlParser parser(stream, "styles.xml");
@@ -497,16 +497,14 @@ void StyleManager::load_from_xml(const std::string& xml_data) {
                     // 解析字体的子元素
                     parse_font_element(it, font);
                     fonts_.push_back(font);
-                    std::cout << "StyleManager: 解析字体 " << fonts_.size()-1 << ", 粗体=" << font.bold << ", 名称=" << font.name << std::endl;
+
                 } else if (name == "fill" && in_fills) {
                     // 解析填充
                     Fill fill;
                     // 解析填充的子元素
                     parse_fill_element(it, fill);
                     fills_.push_back(fill);
-                    std::cout << "StyleManager: 解析填充 " << fills_.size()-1
-                              << ", 模式=" << static_cast<int>(fill.pattern_type)
-                              << ", 前景色=" << (fill.fg_color ? "有" : "无") << std::endl;
+
                 } else if (name == "border" && in_borders) {
                     // 解析边框
                     Border border;
@@ -538,10 +536,7 @@ void StyleManager::load_from_xml(const std::string& xml_data) {
                     if (num_fmt_id) style.number_format_id = std::stoul(*num_fmt_id);
 
                     cell_styles_.push_back(style);
-                    std::cout << "StyleManager: 解析单元格样式 " << cell_styles_.size()-1
-                              << ", 字体ID=" << (font_id ? *font_id : "无")
-                              << ", 填充ID=" << (fill_id ? *fill_id : "无")
-                              << ", 数字格式ID=" << (num_fmt_id ? *num_fmt_id : "无") << std::endl;
+
                 }
             } else if (it.is_end_element()) {
                 const std::string& name = it.name();

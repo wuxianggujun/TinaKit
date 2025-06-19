@@ -288,11 +288,7 @@ void CellImpl::apply_style_changes() {
     if (font_changed_ || fill_changed_ || border_changed_ ||
         number_format_changed_ || alignment_changed_) {
 
-        std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
-                  << ", 字体更改=" << font_changed_
-                  << ", 填充更改=" << fill_changed_
-                  << ", 数字格式更改=" << number_format_changed_
-                  << ", 当前数字格式=" << (pending_number_format_ ? pending_number_format_->format_code : "无") << std::endl;
+
 
         has_custom_style_ = true;
 
@@ -301,8 +297,7 @@ void CellImpl::apply_style_changes() {
         // 如果有工作表引用，使用StyleManager动态创建样式
         if (worksheet_) {
             auto* style_manager = worksheet_->get_style_manager();
-            std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
-                      << " 有工作表引用，StyleManager=" << (style_manager ? "存在" : "空") << std::endl;
+
 
             if (style_manager) {
                 // 创建完整的样式定义
@@ -344,18 +339,15 @@ void CellImpl::apply_style_changes() {
 
                 // 添加到StyleManager并获取样式ID
                 style_id_ = style_manager->add_cell_style(cell_style);
-                std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
-                          << " 分配新样式ID=" << style_id_ << std::endl;
+
             } else {
                 // 回退到默认样式，而不是粗体样式
-                std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
-                          << " StyleManager为空，使用默认样式" << std::endl;
+
                 style_id_ = 0;  // 使用默认样式
             }
         } else {
             // 没有工作表引用，使用默认样式
-            std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
-                      << " 没有工作表引用，使用默认样式" << std::endl;
+
             style_id_ = 0;  // 使用默认样式
         }
 
