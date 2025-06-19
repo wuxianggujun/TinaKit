@@ -192,9 +192,35 @@ void CellImpl::set_border(BorderType type, BorderStyle style) {
     if (!pending_border_) {
         pending_border_ = Border();
     }
-    
+
     Border::BorderLine line;
-    line.style = static_cast<Border::Style>(static_cast<int>(style));
+    // 正确映射 BorderStyle 到 Border::Style
+    switch (style) {
+        case BorderStyle::None:
+            line.style = Border::Style::None;
+            break;
+        case BorderStyle::Thin:
+            line.style = Border::Style::Thin;
+            break;
+        case BorderStyle::Medium:
+            line.style = Border::Style::Medium;
+            break;
+        case BorderStyle::Thick:
+            line.style = Border::Style::Thick;
+            break;
+        case BorderStyle::Double:
+            line.style = Border::Style::Double;
+            break;
+        case BorderStyle::Dotted:
+            line.style = Border::Style::Dotted;
+            break;
+        case BorderStyle::Dashed:
+            line.style = Border::Style::Dashed;
+            break;
+        default:
+            line.style = Border::Style::Thin;
+            break;
+    }
     line.color = Color::Black;  // 默认黑色边框
     
     switch (type) {
@@ -232,8 +258,27 @@ void CellImpl::set_number_format(const std::string& format_code) {
     if (!pending_number_format_) {
         pending_number_format_ = NumberFormat();
     }
-    // TODO: 生成合适的 format ID
-    pending_number_format_->id = 164;  // 自定义格式的起始 ID
+
+    // 检查是否是常用的内置格式
+    std::uint32_t format_id = 0;
+    if (format_code == "0.00%") {
+        format_id = 10;  // Excel内置百分比格式
+    } else if (format_code == "0%") {
+        format_id = 9;   // Excel内置整数百分比格式
+    } else if (format_code == "#,##0") {
+        format_id = 3;   // Excel内置千分位格式
+    } else if (format_code == "#,##0.00") {
+        format_id = 4;   // Excel内置千分位小数格式
+    } else if (format_code == "yyyy-mm-dd") {
+        format_id = 14;  // Excel内置日期格式
+    } else if (format_code == "hh:mm:ss") {
+        format_id = 21;  // Excel内置时间格式
+    } else {
+        // 自定义格式，使用164开始的ID
+        format_id = 164;
+    }
+
+    pending_number_format_->id = format_id;
     pending_number_format_->format_code = format_code;
     number_format_changed_ = true;
 }

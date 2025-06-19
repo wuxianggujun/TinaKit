@@ -212,7 +212,7 @@ struct Alignment {
     };
     
     Horizontal horizontal = Horizontal::General;
-    Vertical vertical = Vertical::Center;  // 默认垂直居中，更符合用户期望
+    Vertical vertical = Vertical::Center;  // 默认垂直居中，像WPS一样
     int text_rotation = 0;             ///< 文本旋转角度（-90 到 90 或 255）
     bool wrap_text = false;            ///< 是否自动换行
     bool shrink_to_fit = false;        ///< 是否缩小字体以适应

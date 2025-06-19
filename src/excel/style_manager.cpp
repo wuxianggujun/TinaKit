@@ -176,12 +176,21 @@ std::uint32_t StyleManager::add_number_format(const NumberFormat& format) {
     if (it != number_format_cache_.end()) {
         return it->second;
     }
-    
-    std::uint32_t id = static_cast<std::uint32_t>(number_formats_.size());
-    number_formats_.push_back(format);
-    number_format_cache_[format.format_code] = id;
-    
-    return id;
+
+    // 对于内置格式（ID < 164），直接返回其ID，不添加到自定义格式列表
+    if (format.id < 164) {
+        number_format_cache_[format.format_code] = format.id;
+        return format.id;
+    }
+
+    // 对于自定义格式，分配新的ID并添加到列表
+    NumberFormat custom_format = format;
+    custom_format.id = 164 + static_cast<std::uint32_t>(number_formats_.size());
+
+    number_formats_.push_back(custom_format);
+    number_format_cache_[format.format_code] = custom_format.id;
+
+    return custom_format.id;
 }
 
 const NumberFormat& StyleManager::get_number_format(std::uint32_t id) const {
@@ -227,11 +236,19 @@ std::string StyleManager::generate_xml() const {
     // 样式表根元素
     xml << R"(<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">)" << '\n';
     
-    // 数字格式
+    // 数字格式（只输出自定义格式，内置格式不需要定义）
     if (!number_formats_.empty()) {
         xml << R"(  <numFmts count=")" << number_formats_.size() << R"(">)" << '\n';
         for (const auto& fmt : number_formats_) {
-            xml << R"(    <numFmt numFmtId=")" << fmt.id << R"(" formatCode=")" << fmt.format_code << R"("/>)" << '\n';
+            // 对格式代码进行XML转义
+            std::string escaped_format = fmt.format_code;
+            // 简单的XML转义
+            size_t pos = 0;
+            while ((pos = escaped_format.find('"', pos)) != std::string::npos) {
+                escaped_format.replace(pos, 1, "&quot;");
+                pos += 6;
+            }
+            xml << R"(    <numFmt numFmtId=")" << fmt.id << R"(" formatCode=")" << escaped_format << R"("/>)" << '\n';
         }
         xml << "  </numFmts>\n";
     }

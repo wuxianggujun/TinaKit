@@ -134,11 +134,11 @@ int main() {
         sheet["B6"].value("Justified Text").align(Alignment::Justify);
         sheet["C6"].value("长文本使用");
 
-        // 2. 垂直对齐
+        // 2. 垂直对齐（默认已经是垂直居中，像WPS一样）
         sheet.row(8).height(40);  // 增加行高以观察垂直对齐
 
         sheet["A8"].value("顶部对齐").align(Alignment::Top);
-        sheet["B8"].value("中间对齐").align(Alignment::Middle);
+        sheet["B8"].value("中间对齐（默认）").align(Alignment::Middle);
         sheet["C8"].value("底部对齐").align(Alignment::Bottom);
 
         // 3. 组合对齐
@@ -427,6 +427,7 @@ int main() {
         sheet["B1"].value("原始值").bold();
         sheet["C1"].value("格式化结果").bold();
         sheet["D1"].value("格式代码").bold();
+        sheet["E1"].value("说明").bold();
 
         int row = 3;
 
@@ -475,18 +476,20 @@ int main() {
         sheet["D" + std::to_string(row)].value("€#,##0.00");
         row++;
 
-        // 3. 百分比格式
+        // 3. 百分比格式（注意：Excel中百分比格式会自动将小数乘以100）
         row++;
         sheet["A" + std::to_string(row)].value("百分比").bold();
-        sheet["B" + std::to_string(row)].value(0.1234);
-        sheet["C" + std::to_string(row)].value(0.1234).number_format("0.00%");
+        sheet["B" + std::to_string(row)].value(0.1234);  // 原始值：0.1234
+        sheet["C" + std::to_string(row)].value(0.1234).number_format("0.00%");  // 显示为：12.34%
         sheet["D" + std::to_string(row)].value("0.00%");
+        sheet["E" + std::to_string(row)].value("自动×100");
         row++;
 
         sheet["A" + std::to_string(row)].value("整数百分比");
-        sheet["B" + std::to_string(row)].value(0.1234);
-        sheet["C" + std::to_string(row)].value(0.1234).number_format("0%");
+        sheet["B" + std::to_string(row)].value(0.1234);  // 原始值：0.1234
+        sheet["C" + std::to_string(row)].value(0.1234).number_format("0%");     // 显示为：12%
         sheet["D" + std::to_string(row)].value("0%");
+        sheet["E" + std::to_string(row)].value("自动×100");
         row++;
 
         // 4. 日期时间格式

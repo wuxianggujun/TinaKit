@@ -63,10 +63,11 @@ add_tinakit_example(stream_demo stream_demo.cpp)
 add_tinakit_example(excel_with_styles excel_with_styles.cpp)
 add_tinakit_example(tinakit_comprehensive_demo tinakit_comprehensive_demo.cpp)
 add_tinakit_example(final_test final_test.cpp)
+# 综合样式测试（替代之前的多个单独测试）
+add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
+
+# 保留一些重要的演示
 add_tinakit_example(styled_report_demo styled_report_demo.cpp)
-add_tinakit_example(style_chain_demo style_chain_demo.cpp)
-add_tinakit_example(simple_style_test simple_style_test.cpp)
-add_tinakit_example(alignment_test alignment_test.cpp)
 
 # 调试测试程序（不依赖 tinakit 库）
 add_executable(debug_position debug_position.cpp)
