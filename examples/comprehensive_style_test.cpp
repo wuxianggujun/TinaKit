@@ -237,12 +237,12 @@ int main() {
             .border(BorderType::All, BorderStyle::Medium, Color(255, 20, 147))  // 深粉色
             .background_color(Color(255, 240, 245));  // 淡粉色背景
 
-        // 专门的缩进对比演示 - 缩进单位是空格数！
-        advanced_sheet["A11"].value("缩进效果对比（缩进=空格数）").bold().background_color(Color::LightBlue);
-        advanced_sheet["A12"].value("0空格：|文本紧贴左边").align(left_align_indent).indent(0).border(BorderType::All, BorderStyle::Thin);
-        advanced_sheet["A13"].value("5空格：|轻微向右偏移").align(left_align_indent).indent(5).border(BorderType::All, BorderStyle::Thin);
-        advanced_sheet["A14"].value("10空格：|明显向右偏移").align(left_align_indent).indent(10).border(BorderType::All, BorderStyle::Thin);
-        advanced_sheet["A15"].value("15空格：|最大缩进").align(left_align_indent).indent(15).border(BorderType::All, BorderStyle::Thin);
+        // 专门的缩进对比演示 - 测试调用顺序的灵活性！
+        advanced_sheet["A11"].value("缩进效果对比（测试调用顺序）").bold().background_color(Color::LightBlue);
+        advanced_sheet["A12"].value("先对齐后缩进：0空格").align(left_align_indent).indent(0).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A13"].value("先缩进后对齐：5空格").indent(5).align(left_align_indent).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A14"].value("先对齐后缩进：10空格").align(left_align_indent).indent(10).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A15"].value("先缩进后对齐：15空格").indent(15).align(left_align_indent).border(BorderType::All, BorderStyle::Thin);
         advanced_sheet["A16"].value("对比：手动5空格").value("     |手动5空格对比").align(left_align_indent).border(BorderType::All, BorderStyle::Thin);
         advanced_sheet["A17"].value("对比：手动10空格").value("          |手动10空格对比").align(left_align_indent).border(BorderType::All, BorderStyle::Thin);
 

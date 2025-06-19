@@ -187,7 +187,30 @@ void CellImpl::set_background_color(const Color& color) {
 }
 
 void CellImpl::set_alignment(const Alignment& alignment) {
-    pending_alignment_ = alignment;
+    if (!pending_alignment_) {
+        // 如果没有现有的对齐设置，直接使用新的
+        pending_alignment_ = alignment;
+    } else {
+        // 如果已有对齐设置，智能合并：
+        // 保留通过专门方法设置的非默认值
+        int current_indent = pending_alignment_->indent;
+        bool current_wrap_text = pending_alignment_->wrap_text;
+        bool current_shrink_to_fit = pending_alignment_->shrink_to_fit;
+
+        // 应用新的对齐设置
+        *pending_alignment_ = alignment;
+
+        // 如果新对齐中某些属性是默认值，但当前有非默认值，则保留当前值
+        if (alignment.indent == 0 && current_indent != 0) {
+            pending_alignment_->indent = current_indent;
+        }
+        if (alignment.wrap_text == false && current_wrap_text == true) {
+            pending_alignment_->wrap_text = current_wrap_text;
+        }
+        if (alignment.shrink_to_fit == false && current_shrink_to_fit == true) {
+            pending_alignment_->shrink_to_fit = current_shrink_to_fit;
+        }
+    }
     alignment_changed_ = true;
 }
 
