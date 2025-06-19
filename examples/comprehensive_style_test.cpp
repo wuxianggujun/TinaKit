@@ -166,9 +166,104 @@ int main() {
         border_sheet["B5"].value("下边框").border(BorderType::Bottom, BorderStyle::Thin);
         border_sheet["C5"].value("左边框").border(BorderType::Left, BorderStyle::Thin);
         border_sheet["D5"].value("右边框").border(BorderType::Right, BorderStyle::Thin);
+
+        // 彩色边框测试
+        border_sheet["A7"].value("红色边框").border(BorderType::All, BorderStyle::Medium, Color::Red);
+        border_sheet["B7"].value("蓝色边框").border(BorderType::All, BorderStyle::Medium, Color::Blue);
+        border_sheet["C7"].value("绿色边框").border(BorderType::All, BorderStyle::Medium, Color::Green);
+        border_sheet["D7"].value("紫色边框").border(BorderType::All, BorderStyle::Medium, Color(128, 0, 128));
+
+        // 文本换行和缩进测试
+        border_sheet["A9"].value("这是一个很长的文本，用来测试文本换行功能，看看是否能正确换行显示").wrap_text(true);
+        border_sheet["B9"].value("缩进级别1").indent(1);
+        border_sheet["C9"].value("缩进级别2").indent(2);
+        border_sheet["D9"].value("缩进级别3").indent(3);
+
+        // 设置行高测试
+        border_sheet.row(9).height(40.0);  // 设置第9行高度为40磅
+        border_sheet.row(10).height(25.0); // 设置第10行高度为25磅
+
+        // 设置列宽测试
+        border_sheet.set_column_width("A", 25.0);  // A列宽度25字符
+        border_sheet.set_column_width("B", 15.0);  // B列宽度15字符
+        border_sheet.set_column_width("C", 18.0);  // C列宽度18字符
+        border_sheet.set_column_width("D", 20.0);  // D列宽度20字符
         
         // ========================================
-        // 5. 综合样式测试
+        // 5. 高级格式测试
+        // ========================================
+        std::cout << "创建高级格式测试工作表..." << std::endl;
+        auto& advanced_sheet = workbook.create_sheet("高级格式");
+
+        // 标题
+        advanced_sheet["A1"]
+            .value("高级格式功能测试")
+            .font("微软雅黑", 16)
+            .bold()
+            .color(Color::White)
+            .background_color(Color(75, 0, 130))  // 靛蓝色
+            .align(center_align);
+
+        // 文本换行测试
+        advanced_sheet["A3"].value("文本换行测试").bold();
+        advanced_sheet["A4"].value("这是一个很长的文本，用来测试自动换行功能。当文本超过单元格宽度时，应该自动换行到下一行显示。").wrap_text(true);
+        advanced_sheet["A5"].value("不换行的长文本：这个文本不会换行，会超出单元格边界显示。");
+
+        // 缩进测试（配合左对齐使用）
+        Alignment left_align_indent;
+        left_align_indent.horizontal = Alignment::Horizontal::Left;
+        left_align_indent.vertical = Alignment::Vertical::Center;
+
+        advanced_sheet["C3"].value("缩进测试（左对齐）").bold().align(left_align_indent);
+        advanced_sheet["C4"].value("级别0：无缩进文本").align(left_align_indent).indent(0);
+        advanced_sheet["C5"].value("级别1：一级缩进文本").align(left_align_indent).indent(1);
+        advanced_sheet["C6"].value("级别2：二级缩进文本").align(left_align_indent).indent(2);
+        advanced_sheet["C7"].value("级别3：三级缩进文本").align(left_align_indent).indent(3);
+        advanced_sheet["C8"].value("级别4：四级缩进文本").align(left_align_indent).indent(4);
+        advanced_sheet["C9"].value("级别5：五级缩进文本").align(left_align_indent).indent(5);
+
+        // 彩色边框测试
+        advanced_sheet["E3"].value("彩色边框").bold();
+        advanced_sheet["E4"].value("红色").border(BorderType::All, BorderStyle::Thick, Color::Red);
+        advanced_sheet["E5"].value("绿色").border(BorderType::All, BorderStyle::Thick, Color::Green);
+        advanced_sheet["E6"].value("蓝色").border(BorderType::All, BorderStyle::Thick, Color::Blue);
+        advanced_sheet["E7"].value("橙色").border(BorderType::All, BorderStyle::Thick, Color(255, 165, 0));
+
+        // 组合测试
+        advanced_sheet["A9"]
+            .value("组合效果：换行+缩进+彩色边框")
+            .wrap_text(true)
+            .indent(1)
+            .border(BorderType::All, BorderStyle::Medium, Color(255, 20, 147))  // 深粉色
+            .background_color(Color(255, 240, 245));  // 淡粉色背景
+
+        // 专门的缩进对比演示 - 缩进单位是空格数！
+        advanced_sheet["A11"].value("缩进效果对比（缩进=空格数）").bold().background_color(Color::LightBlue);
+        advanced_sheet["A12"].value("0空格：|文本紧贴左边").align(left_align_indent).indent(0).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A13"].value("5空格：|轻微向右偏移").align(left_align_indent).indent(5).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A14"].value("10空格：|明显向右偏移").align(left_align_indent).indent(10).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A15"].value("15空格：|最大缩进").align(left_align_indent).indent(15).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A16"].value("对比：手动5空格").value("     |手动5空格对比").align(left_align_indent).border(BorderType::All, BorderStyle::Thin);
+        advanced_sheet["A17"].value("对比：手动10空格").value("          |手动10空格对比").align(left_align_indent).border(BorderType::All, BorderStyle::Thin);
+
+        // 实际应用场景：目录结构（使用合理的空格数）
+        advanced_sheet["C11"].value("实际应用：目录结构").bold().background_color(Color::LightGreen);
+        advanced_sheet["C12"].value("第一章").align(left_align_indent).indent(0);
+        advanced_sheet["C13"].value("1.1 节").align(left_align_indent).indent(4);  // 4空格缩进
+        advanced_sheet["C14"].value("1.1.1 小节").align(left_align_indent).indent(8);  // 8空格缩进
+        advanced_sheet["C15"].value("1.1.2 小节").align(left_align_indent).indent(8);  // 8空格缩进
+        advanced_sheet["C16"].value("1.2 节").align(left_align_indent).indent(4);  // 4空格缩进
+        advanced_sheet["C17"].value("第二章").align(left_align_indent).indent(0);
+
+        // 设置行高和列宽
+        advanced_sheet.row(4).height(50.0);  // 换行测试行
+        advanced_sheet.row(9).height(60.0);  // 组合测试行
+        advanced_sheet.set_column_width("A", 35.0);  // 增加A列宽度以显示缩进效果
+        advanced_sheet.set_column_width("C", 25.0);  // 增加C列宽度以显示缩进效果
+        advanced_sheet.set_column_width("E", 15.0);
+
+        // ========================================
+        // 6. 综合样式测试
         // ========================================
         std::cout << "创建综合样式测试工作表..." << std::endl;
         auto& combo_sheet = workbook.create_sheet("综合样式");
@@ -212,8 +307,20 @@ int main() {
         std::cout << "   • 字体和颜色 - 字体、颜色、背景色测试" << std::endl;
         std::cout << "   • 对齐测试 - 水平和垂直对齐测试" << std::endl;
         std::cout << "   • 数字格式 - 各种数字格式测试" << std::endl;
-        std::cout << "   • 边框测试 - 边框样式和类型测试" << std::endl;
+        std::cout << "   • 边框测试 - 边框样式、彩色边框、行高列宽测试" << std::endl;
+        std::cout << "   • 高级格式 - 文本换行、缩进、彩色边框组合测试" << std::endl;
         std::cout << "   • 综合样式 - 复杂样式组合测试" << std::endl;
+        std::cout << "\n🎨 新增功能:" << std::endl;
+        std::cout << "   ✓ 彩色边框 - border(type, style, color)" << std::endl;
+        std::cout << "   ✓ 文本换行 - wrap_text(true)" << std::endl;
+        std::cout << "   ✓ 文本缩进 - indent(level) 【需要配合左对齐使用】" << std::endl;
+        std::cout << "   ✓ 行高设置 - row(n).height(value)" << std::endl;
+        std::cout << "   ✓ 列宽设置 - set_column_width(column, width)" << std::endl;
+        std::cout << "\n💡 缩进说明:" << std::endl;
+        std::cout << "   • 缩进是文本在单元格内的左边距偏移" << std::endl;
+        std::cout << "   • 需要配合左对齐使用才能看到效果" << std::endl;
+        std::cout << "   • 查看'高级格式'工作表的缩进对比演示" << std::endl;
+        std::cout << "   • 层级结构演示展示了缩进的实际应用场景" << std::endl;
         std::cout << "\n请用Excel/WPS打开查看所有样式效果！" << std::endl;
         
     } catch (const std::exception& e) {

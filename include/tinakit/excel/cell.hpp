@@ -159,13 +159,36 @@ public:
      * @return 自身引用，支持链式调用
      */
     Cell& border(BorderType border_type, BorderStyle style);
-    
+
+    /**
+     * @brief 设置边框（带颜色）
+     * @param border_type 边框类型
+     * @param style 边框样式
+     * @param color 边框颜色
+     * @return 自身引用，支持链式调用
+     */
+    Cell& border(BorderType border_type, BorderStyle style, const Color& color);
+
     /**
      * @brief 设置数字格式
      * @param format_code 格式代码（如 "#,##0.00"）
      * @return 自身引用，支持链式调用
      */
     Cell& number_format(const std::string& format_code);
+
+    /**
+     * @brief 设置文本换行
+     * @param wrap 是否换行
+     * @return 自身引用，支持链式调用
+     */
+    Cell& wrap_text(bool wrap = true);
+
+    /**
+     * @brief 设置缩进
+     * @param indent_level 缩进级别（0-15）
+     * @return 自身引用，支持链式调用
+     */
+    Cell& indent(int indent_level);
 
 public:
     /**

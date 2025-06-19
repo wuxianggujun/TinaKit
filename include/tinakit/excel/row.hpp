@@ -110,6 +110,13 @@ public:
      * @param height 行高（磅）
      */
     void set_height(double height);
+
+    /**
+     * @brief 设置行高（链式调用版本）
+     * @param height 行高（磅）
+     * @return 自身引用，支持链式调用
+     */
+    Row& height(double height);
     
     /**
      * @brief 检查是否为空行

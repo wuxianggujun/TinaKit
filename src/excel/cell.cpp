@@ -48,7 +48,10 @@ public:
     void set_background_color(const Color& color);
     void set_alignment(const Alignment& alignment);
     void set_border(BorderType type, BorderStyle style);
+    void set_border(BorderType type, BorderStyle style, const Color& color);
     void set_number_format(const std::string& format_code);
+    void set_wrap_text(bool wrap);
+    void set_indent(int indent_level);
 
     // 获取和设置样式 ID
     void set_style_id(std::uint32_t style_id) { style_id_ = style_id; has_custom_style_ = true; }
@@ -252,6 +255,89 @@ void CellImpl::set_border(BorderType type, BorderStyle style) {
     }
     
     border_changed_ = true;
+}
+
+void CellImpl::set_border(BorderType type, BorderStyle style, const Color& color) {
+    if (!pending_border_) {
+        pending_border_ = Border();
+    }
+
+    Border::BorderLine line;
+    // 正确映射 BorderStyle 到 Border::Style
+    switch (style) {
+        case BorderStyle::None:
+            line.style = Border::Style::None;
+            break;
+        case BorderStyle::Thin:
+            line.style = Border::Style::Thin;
+            break;
+        case BorderStyle::Medium:
+            line.style = Border::Style::Medium;
+            break;
+        case BorderStyle::Thick:
+            line.style = Border::Style::Thick;
+            break;
+        case BorderStyle::Double:
+            line.style = Border::Style::Double;
+            break;
+        case BorderStyle::Dotted:
+            line.style = Border::Style::Dotted;
+            break;
+        case BorderStyle::Dashed:
+            line.style = Border::Style::Dashed;
+            break;
+        default:
+            line.style = Border::Style::Thin;
+            break;
+    }
+    line.color = color;  // 使用指定的颜色
+
+    switch (type) {
+        case BorderType::All:
+            pending_border_->left = line;
+            pending_border_->right = line;
+            pending_border_->top = line;
+            pending_border_->bottom = line;
+            break;
+        case BorderType::Left:
+            pending_border_->left = line;
+            break;
+        case BorderType::Right:
+            pending_border_->right = line;
+            break;
+        case BorderType::Top:
+            pending_border_->top = line;
+            break;
+        case BorderType::Bottom:
+            pending_border_->bottom = line;
+            break;
+        case BorderType::None:
+            // 清除所有边框
+            pending_border_->left.style = Border::Style::None;
+            pending_border_->right.style = Border::Style::None;
+            pending_border_->top.style = Border::Style::None;
+            pending_border_->bottom.style = Border::Style::None;
+            break;
+    }
+
+    border_changed_ = true;
+}
+
+void CellImpl::set_wrap_text(bool wrap) {
+    if (!pending_alignment_) {
+        pending_alignment_ = Alignment();
+    }
+    pending_alignment_->wrap_text = wrap;
+    alignment_changed_ = true;
+}
+
+void CellImpl::set_indent(int indent_level) {
+    if (!pending_alignment_) {
+        pending_alignment_ = Alignment();
+    }
+    // 限制缩进级别在有效范围内
+    pending_alignment_->indent = std::max(0, std::min(15, indent_level));
+    alignment_changed_ = true;
 }
 
 void CellImpl::set_number_format(const std::string& format_code) {
@@ -577,6 +663,24 @@ Cell& Cell::border(BorderType border_type, BorderStyle style) {
 Cell& Cell::number_format(const std::string& format_code) {
     impl_->set_number_format(format_code);
     impl_->apply_style_changes();  // 立即应用样式
+    return *this;
+}
+
+Cell& Cell::border(BorderType border_type, BorderStyle style, const Color& color) {
+    impl_->set_border(border_type, style, color);
+    impl_->apply_style_changes();
+    return *this;
+}
+
+Cell& Cell::wrap_text(bool wrap) {
+    impl_->set_wrap_text(wrap);
+    impl_->apply_style_changes();
+    return *this;
+}
+
+Cell& Cell::indent(int indent_level) {
+    impl_->set_indent(indent_level);
+    impl_->apply_style_changes();
     return *this;
 }
 

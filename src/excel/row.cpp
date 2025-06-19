@@ -148,6 +148,11 @@ void Row::set_height(double height) {
     impl_->set_height(height);
 }
 
+Row& Row::height(double height) {
+    impl_->set_height(height);
+    return *this;
+}
+
 bool Row::empty() const {
     return impl_->is_empty();
 }

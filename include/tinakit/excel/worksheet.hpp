@@ -251,6 +251,34 @@ public:
      * @return 最大列数
      */
     std::size_t max_column() const noexcept;
+
+    /**
+     * @brief 设置列宽
+     * @param column_name 列名（如 "A", "B", "AA"）
+     * @param width 列宽（字符数）
+     */
+    void set_column_width(const std::string& column_name, double width);
+
+    /**
+     * @brief 设置列宽
+     * @param column_index 列索引（1-based）
+     * @param width 列宽（字符数）
+     */
+    void set_column_width(std::size_t column_index, double width);
+
+    /**
+     * @brief 获取列宽
+     * @param column_name 列名（如 "A", "B", "AA"）
+     * @return 列宽（字符数）
+     */
+    double get_column_width(const std::string& column_name) const;
+
+    /**
+     * @brief 获取列宽
+     * @param column_index 列索引（1-based）
+     * @return 列宽（字符数）
+     */
+    double get_column_width(std::size_t column_index) const;
     
     /**
      * @brief 检查是否为空

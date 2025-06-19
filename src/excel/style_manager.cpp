@@ -447,6 +447,10 @@ std::string StyleManager::generate_xml() const {
                     xml << R"( wrapText="1")";
                 }
 
+                if (style.alignment->indent > 0) {
+                    xml << R"( indent=")" << style.alignment->indent << R"(")";
+                }
+
                 xml << "/>\n    </xf>\n";
             } else {
                 xml << "/>\n";

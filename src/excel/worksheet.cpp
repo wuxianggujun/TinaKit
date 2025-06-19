@@ -52,6 +52,12 @@ public:
     // 样式管理
     StyleManager* get_style_manager() const { return style_manager_; }
 
+    // 列宽管理
+    void set_column_width(const std::string& column_name, double width);
+    void set_column_width(std::size_t column_index, double width);
+    double get_column_width(const std::string& column_name) const;
+    double get_column_width(std::size_t column_index) const;
+
 private:
     std::string name_;
     StyleManager* style_manager_ = nullptr;  // 样式管理器引用
@@ -61,6 +67,9 @@ private:
 
     std::size_t max_row_ = 0;
     std::size_t max_column_ = 0;
+
+    // 列宽存储（列索引 -> 宽度）
+    std::map<std::size_t, double> column_widths_;
 };
 
 
@@ -162,15 +171,40 @@ std::size_t Worksheet::Impl::get_max_column() const noexcept {
 }
 
 std::vector<std::string> Worksheet::Impl::find_value(const std::string& value) const {
+    (void)value; // 避免未使用参数警告
     std::vector<std::string> result;
     // TODO: 实现查找逻辑
     return result;
 }
 
 std::size_t Worksheet::Impl::replace_value(const std::string& old_value, const std::string& new_value) {
+    (void)old_value; // 避免未使用参数警告
+    (void)new_value; // 避免未使用参数警告
     std::size_t count = 0;
     // TODO: 实现替换逻辑
     return count;
+}
+
+void Worksheet::Impl::set_column_width(const std::string& column_name, double width) {
+    auto column_index = column_name_to_number(column_name);
+    set_column_width(column_index, width);
+}
+
+void Worksheet::Impl::set_column_width(std::size_t column_index, double width) {
+    column_widths_[column_index] = width;
+}
+
+double Worksheet::Impl::get_column_width(const std::string& column_name) const {
+    auto column_index = column_name_to_number(column_name);
+    return get_column_width(column_index);
+}
+
+double Worksheet::Impl::get_column_width(std::size_t column_index) const {
+    auto it = column_widths_.find(column_index);
+    if (it != column_widths_.end()) {
+        return it->second;
+    }
+    return 8.43; // Excel默认列宽
 }
 
 // =============================================================================
@@ -302,6 +336,23 @@ async::Task<void> Worksheet::process_rows_async(std::function<async::Task<void>(
 // 样式管理
 StyleManager* Worksheet::get_style_manager() const {
     return impl_->get_style_manager();
+}
+
+// 列宽管理
+void Worksheet::set_column_width(const std::string& column_name, double width) {
+    impl_->set_column_width(column_name, width);
+}
+
+void Worksheet::set_column_width(std::size_t column_index, double width) {
+    impl_->set_column_width(column_index, width);
+}
+
+double Worksheet::get_column_width(const std::string& column_name) const {
+    return impl_->get_column_width(column_name);
+}
+
+double Worksheet::get_column_width(std::size_t column_index) const {
+    return impl_->get_column_width(column_index);
 }
 
 // =============================================================================
