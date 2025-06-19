@@ -9,6 +9,7 @@
 #include "tinakit/excel/cell.hpp"
 #include "tinakit/excel/row.hpp"
 #include "tinakit/excel/range.hpp"
+#include "tinakit/excel/worksheet_range.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/types.hpp"
 #include "tinakit/excel/style_manager.hpp"
@@ -388,7 +389,12 @@ Worksheet::RowRange Worksheet::rows() {
     return RowRange(*this, 1, max_row());
 }
 
-Range Worksheet::range(const std::string& range_str) {
+WorksheetRange Worksheet::range(const std::string& range_str) {
+    Range basic_range = Range::from_string(range_str);
+    return WorksheetRange(*this, basic_range);
+}
+
+Range Worksheet::basic_range(const std::string& range_str) {
     return Range::from_string(range_str);
 }
 

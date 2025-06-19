@@ -24,6 +24,7 @@ namespace tinakit::excel {
 // 前向声明
 class StyleManager;
 class ConditionalFormatBuilder;
+class WorksheetRange;
 
 /**
  * @class Worksheet
@@ -165,11 +166,18 @@ public:
     RowRange rows();
     
     /**
-     * @brief 获取范围
+     * @brief 获取工作表范围（支持样式操作）
      * @param range_str 范围字符串（如 "A1:C10"）
-     * @return 范围对象
+     * @return 工作表范围对象
      */
-    Range range(const std::string& range_str);
+    WorksheetRange range(const std::string& range_str);
+
+    /**
+     * @brief 获取基础范围（仅位置信息）
+     * @param range_str 范围字符串（如 "A1:C10"）
+     * @return 基础范围对象
+     */
+    Range basic_range(const std::string& range_str);
 
 public:
     /**

@@ -66,6 +66,7 @@ add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
 add_tinakit_example(excel_read_edit_test excel_read_edit_test.cpp)
 add_tinakit_example(debug_excel_xml debug_excel_xml.cpp)
 add_tinakit_example(conditional_format_test conditional_format_test.cpp)
+add_tinakit_example(style_template_test style_template_test.cpp)
 
 # 特殊的测试程序（不使用 tinakit 库）
 function(add_special_example target_name source_file libraries)

@@ -19,6 +19,7 @@ namespace tinakit::excel {
 
     class CellImpl;
     class Worksheet;
+    class StyleTemplate;
 
 /**
  * @class Cell
@@ -189,6 +190,13 @@ public:
      * @return 自身引用，支持链式调用
      */
     Cell& indent(int indent_level);
+
+    /**
+     * @brief 应用样式模板
+     * @param style_template 样式模板
+     * @return 自身引用，支持链式调用
+     */
+    Cell& style(const StyleTemplate& style_template);
 
 public:
     /**

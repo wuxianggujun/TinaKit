@@ -17,6 +17,10 @@ target_sources(tinakit PRIVATE
         excel/style_manager.cpp
         excel/types.cpp
         excel/conditional_format.cpp
+        excel/style_template.cpp
+        excel/worksheet_range.cpp
+        excel/style_template.cpp
+        excel/worksheet_range.cpp
 )
 
 target_include_directories(tinakit PUBLIC

@@ -13,6 +13,7 @@
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/style_manager.hpp"
 #include "tinakit/excel/worksheet.hpp"
+#include "tinakit/excel/style_template.hpp"
 #include <sstream>
 
 namespace tinakit::excel {
@@ -60,7 +61,10 @@ public:
     
     // 设置工作表引用（用于访问样式管理器）
     void set_worksheet(Worksheet* ws) { worksheet_ = ws; }
-    
+
+    // 获取工作表引用
+    Worksheet* get_worksheet() const { return worksheet_; }
+
     // 应用累积的样式更改
     void apply_style_changes();
 
@@ -704,6 +708,24 @@ Cell& Cell::wrap_text(bool wrap) {
 Cell& Cell::indent(int indent_level) {
     impl_->set_indent(indent_level);
     impl_->apply_style_changes();
+    return *this;
+}
+
+Cell& Cell::style(const StyleTemplate& style_template) {
+    if (style_template.has_any_style()) {
+        auto* worksheet = impl_->get_worksheet();
+        if (worksheet) {
+            // 获取工作表的样式管理器
+            auto* style_manager = worksheet->get_style_manager();
+            if (style_manager) {
+                // 应用样式模板并获取样式ID
+                std::uint32_t style_id = style_template.apply_to_style_manager(*style_manager);
+
+                // 设置单元格样式ID
+                impl_->set_style_id(style_id);
+            }
+        }
+    }
     return *this;
 }
 
