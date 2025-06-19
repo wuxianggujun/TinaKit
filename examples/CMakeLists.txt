@@ -66,6 +66,18 @@ add_tinakit_example(final_test final_test.cpp)
 # 综合样式测试（替代之前的多个单独测试）
 add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
 
+# Excel读取编辑测试
+add_tinakit_example(excel_read_edit_test excel_read_edit_test.cpp)
+
+# 样式XML提取工具
+add_executable(extract_styles extract_styles.cpp)
+target_link_libraries(extract_styles PRIVATE minizip zlib)
+set_target_properties(extract_styles
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+)
+copy_runtime_dependencies(extract_styles)
+
 # 保留一些重要的演示
 add_tinakit_example(styled_report_demo styled_report_demo.cpp)
 

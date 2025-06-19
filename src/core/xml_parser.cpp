@@ -20,6 +20,10 @@ namespace tinakit::core
             "Id", "Type", "Target",
             // 样式属性
             "numFmtId", "fontId", "fillId", "borderId", "xfId",
+            // 填充样式属性
+            "patternType",
+            // 单元格样式应用属性
+            "applyFont", "applyFill", "applyBorder", "applyAlignment", "applyNumberFormat", "applyProtection",
             // 其他常见属性
             "val", "sz", "b", "i", "u", "color", "rgb", "theme", "indexed"
         };

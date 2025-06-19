@@ -212,6 +212,16 @@ namespace tinakit::core
 
     async::Task<void> OpenXmlArchiver::add_file(const std::string& filename, std::vector<std::byte> content)
     {
+        // 如果文件已存在，标记为需要移除，这样在复制时会跳过原文件
+        // 这必须在 transition_to_writer_mode_if_needed() 之前完成
+        if (current_files_.empty()) {
+            co_await list_files();  // 确保 current_files_ 已填充
+        }
+
+        if (current_files_.count(filename)) {
+            files_to_remove_.insert(filename);
+        }
+
         // 只有在没有写入器的情况下才需要转换模式
         // 如果已经有写入器（比如通过 create_in_memory_writer 创建），就不要重新创建
         if (!writer_handle_) {
@@ -220,12 +230,21 @@ namespace tinakit::core
 
         pending_new_files_[filename] = std::move(content);
         current_files_.insert(filename);
-        files_to_remove_.erase(filename);
         co_return;
     }
 
     async::Task<void> OpenXmlArchiver::add_file_stream(const std::string& filename, std::istream& stream, size_t estimated_size)
     {
+        // 确保 current_files_ 已填充
+        if (current_files_.empty()) {
+            co_await list_files();
+        }
+
+        // 如果文件已存在，标记为需要移除，这样在复制时会跳过原文件
+        if (current_files_.count(filename)) {
+            files_to_remove_.insert(filename);
+        }
+
         // 只有在没有写入器的情况下才需要转换模式
         if (!writer_handle_) {
             co_await transition_to_writer_mode_if_needed();
@@ -253,7 +272,6 @@ namespace tinakit::core
         // 使用现有的 add_file 方法
         pending_new_files_[filename] = std::move(content);
         current_files_.insert(filename);
-        files_to_remove_.erase(filename);
 
         co_return;
     }
@@ -421,6 +439,37 @@ namespace tinakit::core
             throw TinaKitException("Memory stream handle is null", "OpenXmlArchiver.save_to_memory");
         }
 
+        // 首先，从原始reader复制不需要删除且不会被新文件替换的文件
+        if (reader_handle_) {
+            if (int32_t status = mz_zip_reader_goto_first_entry(reader_handle_.get()); status == MZ_OK) {
+                do {
+                    mz_zip_file* file_info = nullptr;
+                    if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) != MZ_OK || !file_info) {
+                        continue;
+                    }
+                    std::string filename = file_info->filename;
+
+                    // 检查文件是否在移除列表中，或者是否有待写入的新版本
+                    bool should_skip = files_to_remove_.find(filename) != files_to_remove_.end() ||
+                                      pending_new_files_.find(filename) != pending_new_files_.end();
+
+                    if (!should_skip) {
+                        if (int32_t copy_status = mz_zip_writer_copy_from_reader(
+                            writer_handle_.get(), reader_handle_.get()); copy_status != MZ_OK) {
+                            throw TinaKitException(
+                                "Failed to copy entry '" + filename + "' during save.",
+                                "OpenXmlArchiver.save_to_memory");
+                        }
+                    }
+                } while (mz_zip_reader_goto_next_entry(reader_handle_.get()) == MZ_OK);
+            }
+
+            // 复制完成后释放reader
+            reader_handle_.reset(nullptr);
+            source_buffer_.clear();
+        }
+
+        // 然后写入所有新文件
         for (auto const& [filename, content] : pending_new_files_) {
             // 设置文件信息
             mz_zip_file file_info = {};
@@ -454,7 +503,8 @@ namespace tinakit::core
             }
         }
         pending_new_files_.clear();
-        
+        files_to_remove_.clear();  // 清空移除列表，因为保存操作已完成
+
         if (int32_t status = mz_zip_writer_close(writer_handle_.get()); status != MZ_OK) {
             throw TinaKitException("Failed to close zip writer. Status: " + std::to_string(status), "OpenXmlArchiver.save_to_memory");
         }
@@ -537,35 +587,8 @@ namespace tinakit::core
                 "OpenXmlArchiver.transition_to_writer_mode_if_needed");
         }
 
-        if (reader_handle_)
-        {
-            if (int32_t status = mz_zip_reader_goto_first_entry(reader_handle_.get()); status == MZ_OK)
-            {
-                do
-                {
-                    mz_zip_file* file_info = nullptr;
-                    if (mz_zip_reader_entry_get_info(reader_handle_.get(), &file_info) != MZ_OK || !file_info) {
-                        continue;
-                    }
-                    if (files_to_remove_.find(file_info->filename) == files_to_remove_.end())
-                    {
-                        if (int32_t copy_status = mz_zip_writer_copy_from_reader(
-                            writer_handle_.get(), reader_handle_.get()); copy_status != MZ_OK)
-                        {
-                            throw TinaKitException(
-                                "Failed to copy entry '" + std::string(file_info->filename) + "' during transition.",
-                                "OpenXmlArchiver.transition_to_writer_mode_if_needed");
-                        }
-                    }
-                }
-                while (mz_zip_reader_goto_next_entry(reader_handle_.get()) == MZ_OK);
-            }
-
-            reader_handle_.reset(nullptr);
-            source_buffer_.clear();
-        }
-
-        files_to_remove_.clear();
+        // 不再在这里立即复制文件，而是延迟到 save_to_memory() 时进行
+        // 这样可以确保 files_to_remove_ 和 pending_new_files_ 都是最终状态
 
         co_return;
     }

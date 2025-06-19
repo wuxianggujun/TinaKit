@@ -451,8 +451,8 @@ void Workbook::Impl::parse_workbook_xml() {
                         // 从关系映射中获取实际路径
                         auto rel_it = rels_map_.find(*r_id);
                         if (rel_it != rels_map_.end()) {
-                            // 创建工作表对象（延迟加载内容）
-                            auto worksheet = Worksheet::create(*name);
+                            // 创建工作表对象（延迟加载内容），传递StyleManager
+                            auto worksheet = Worksheet::create(*name, style_manager_.get());
                             
                             // 存储工作表
                             worksheets_.push_back(worksheet);
@@ -576,6 +576,7 @@ void Workbook::Impl::parse_worksheet(std::size_t index) {
         // 当前单元格信息
         std::string current_cell_ref;
         std::string current_cell_type;
+        std::string current_cell_style;
         std::size_t current_cell_row = 0;
         std::size_t current_cell_col = 0;
 
@@ -600,14 +601,17 @@ void Workbook::Impl::parse_worksheet(std::size_t index) {
                     in_cell = true;
                     auto cell_ref = it.attribute("r");
                     auto cell_type = it.attribute("t");
+                    auto cell_style = it.attribute("s");  // 解析样式ID
 
                     if (cell_ref) {
                         current_cell_ref = *cell_ref;
                         current_cell_type = cell_type ? *cell_type : "";
+                        current_cell_style = cell_style ? *cell_style : "";
 
                         // 解析单元格地址
                         parse_cell_address(current_cell_ref, current_cell_row, current_cell_col);
-                        std::cout << "找到单元格: " << current_cell_ref << " 类型=" << current_cell_type << std::endl;
+                        std::cout << "找到单元格: " << current_cell_ref << " 类型=" << current_cell_type
+                                  << " 样式=" << current_cell_style << std::endl;
                     }
                 } else if (in_cell && it.name() == "v") {
                     // 这是单元格的值元素，获取其文本内容
@@ -626,6 +630,7 @@ void Workbook::Impl::parse_worksheet(std::size_t index) {
                     in_value = false;
                     current_cell_ref.clear();
                     current_cell_type.clear();
+                    current_cell_style.clear();
                 } else if (it.name() == "v") {
                     in_value = false;
                 }
@@ -667,6 +672,17 @@ void Workbook::Impl::parse_worksheet(std::size_t index) {
                         } catch (...) {
                             cell.value(cell_value);
                             cell_count++;
+                        }
+                    }
+
+                    // 应用样式ID（如果有的话）
+                    if (!current_cell_style.empty()) {
+                        try {
+                            std::uint32_t style_id = std::stoul(current_cell_style);
+                            cell.style_id(style_id);
+                            std::cout << "应用样式ID: " << style_id << " 到单元格 " << current_cell_ref << std::endl;
+                        } catch (...) {
+                            // 忽略无效的样式ID
                         }
                     }
                 }
@@ -1161,30 +1177,41 @@ void Workbook::Impl::generate_worksheet_xml(std::size_t index) {
         for (std::size_t c = 1; c <= sheet.max_column(); ++c) {
             try {
                 auto& cell = sheet.cell(r, c);
-                if (!cell.empty()) {
+                // 修改条件：不仅检查是否为空，还要检查是否有自定义样式
+                if (!cell.empty() || cell.style_id() != 0) {
                     row_has_data = true;
                     row_xml << R"(      <c r=")" << cell.address() << R"(")";
-                    
-                    // 添加样式索引
-                    row_xml << R"( s=")" << cell.style_id() << R"(")";
-                    
+
+                    // 添加样式索引（即使是空单元格也要添加样式）
+                    if (cell.style_id() != 0) {
+                        row_xml << R"( s=")" << cell.style_id() << R"(")";
+                    }
+
                     // 处理不同类型的单元格值
                     const auto& value_variant = cell.raw_value();
                     if (std::holds_alternative<std::string>(value_variant)) {
                         auto str_value = std::get<std::string>(value_variant);
-                        // 使用共享字符串
-                        auto ss_index = shared_strings_->add_string(str_value);
-                        row_xml << R"( t="s"><v>)" << ss_index << R"(</v></c>)" << '\n';
+                        if (!str_value.empty()) {
+                            // 使用共享字符串
+                            auto ss_index = shared_strings_->add_string(str_value);
+                            row_xml << R"( t="s"><v>)" << ss_index << R"(</v></c>)" << '\n';
+                        } else {
+                            // 空字符串单元格，只有样式没有值
+                            row_xml << R"(></c>)" << '\n';
+                        }
                     } else if (std::holds_alternative<double>(value_variant)) {
                         row_xml << R"(><v>)" << std::get<double>(value_variant) << R"(</v></c>)" << '\n';
                     } else if (std::holds_alternative<int>(value_variant)) {
                         row_xml << R"(><v>)" << std::get<int>(value_variant) << R"(</v></c>)" << '\n';
                     } else if (std::holds_alternative<bool>(value_variant)) {
                         row_xml << R"( t="b"><v>)" << (std::get<bool>(value_variant) ? 1 : 0) << R"(</v></c>)" << '\n';
+                    } else {
+                        // 其他情况（包括空单元格但有样式）
+                        row_xml << R"(></c>)" << '\n';
                     }
                 }
             } catch (...) {
-                // 忽略空单元格
+                // 忽略无法访问的单元格
             }
         }
         

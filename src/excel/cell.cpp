@@ -288,6 +288,12 @@ void CellImpl::apply_style_changes() {
     if (font_changed_ || fill_changed_ || border_changed_ ||
         number_format_changed_ || alignment_changed_) {
 
+        std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
+                  << ", 字体更改=" << font_changed_
+                  << ", 填充更改=" << fill_changed_
+                  << ", 数字格式更改=" << number_format_changed_
+                  << ", 当前数字格式=" << (pending_number_format_ ? pending_number_format_->format_code : "无") << std::endl;
+
         has_custom_style_ = true;
 
         // 开始应用样式更改
@@ -295,7 +301,8 @@ void CellImpl::apply_style_changes() {
         // 如果有工作表引用，使用StyleManager动态创建样式
         if (worksheet_) {
             auto* style_manager = worksheet_->get_style_manager();
-            // StyleManager可用，使用动态样式创建
+            std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
+                      << " 有工作表引用，StyleManager=" << (style_manager ? "存在" : "空") << std::endl;
 
             if (style_manager) {
                 // 创建完整的样式定义
@@ -337,21 +344,28 @@ void CellImpl::apply_style_changes() {
 
                 // 添加到StyleManager并获取样式ID
                 style_id_ = style_manager->add_cell_style(cell_style);
+                std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
+                          << " 分配新样式ID=" << style_id_ << std::endl;
             } else {
-                // 回退到简化的样式ID分配
-                style_id_ = 1;  // 非默认样式
+                // 回退到默认样式，而不是粗体样式
+                std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
+                          << " StyleManager为空，使用默认样式" << std::endl;
+                style_id_ = 0;  // 使用默认样式
             }
         } else {
-            // 没有工作表引用，使用简化的样式ID分配
-            style_id_ = 1;  // 非默认样式
+            // 没有工作表引用，使用默认样式
+            std::cout << "CellImpl::apply_style_changes() - 单元格 " << address()
+                      << " 没有工作表引用，使用默认样式" << std::endl;
+            style_id_ = 0;  // 使用默认样式
         }
 
-        // 清除标志，样式已应用
-        font_changed_ = false;
-        fill_changed_ = false;
-        border_changed_ = false;
-        number_format_changed_ = false;
-        alignment_changed_ = false;
+        // 不要清除标志，允许增量样式更新
+        // 只有在保存文件时才清除这些标志
+        // font_changed_ = false;
+        // fill_changed_ = false;
+        // border_changed_ = false;
+        // number_format_changed_ = false;
+        // alignment_changed_ = false;
     }
 }
 
@@ -385,7 +399,7 @@ Cell& Cell::operator=(Cell&& other) noexcept {
 template<>
 Cell& Cell::value<std::string>(const std::string& value) {
     impl_->set_value(value);
-    // 设置值后应用累积的样式更改
+    // 设置值后应用累积的样式更改（如果有的话）
     impl_->apply_style_changes();
     return *this;
 }
@@ -393,7 +407,7 @@ Cell& Cell::value<std::string>(const std::string& value) {
 template<>
 Cell& Cell::value<int>(const int& value) {
     impl_->set_value(value);
-    // 设置值后应用累积的样式更改
+    // 设置值后应用累积的样式更改（如果有的话）
     impl_->apply_style_changes();
     return *this;
 }
@@ -401,7 +415,7 @@ Cell& Cell::value<int>(const int& value) {
 template<>
 Cell& Cell::value<double>(const double& value) {
     impl_->set_value(value);
-    // 设置值后应用累积的样式更改
+    // 设置值后应用累积的样式更改（如果有的话）
     impl_->apply_style_changes();
     return *this;
 }
@@ -409,7 +423,7 @@ Cell& Cell::value<double>(const double& value) {
 template<>
 Cell& Cell::value<bool>(const bool& value) {
     impl_->set_value(value);
-    // 设置值后应用累积的样式更改
+    // 设置值后应用累积的样式更改（如果有的话）
     impl_->apply_style_changes();
     return *this;
 }

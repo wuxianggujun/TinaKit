@@ -10,8 +10,14 @@
 #include <sstream>
 #include <stdexcept>
 #include <functional>
+#include <iostream>
 
 namespace tinakit::excel {
+
+// 前向声明辅助函数
+static void parse_font_element(core::XmlParser::iterator& it, Font& font);
+static void parse_fill_element(core::XmlParser::iterator& it, Fill& fill);
+static void parse_border_element(core::XmlParser::iterator& it, Border& border);
 
 // StyleManager 实现
 StyleManager::StyleManager() {
@@ -286,10 +292,16 @@ std::string StyleManager::generate_xml() const {
         }
         
         xml << "\"";
-        
-        if (fill.fg_color) {
+
+        // 检查是否需要生成颜色信息
+        bool has_colors = fill.fg_color || fill.bg_color;
+        bool needs_content = has_colors || fill.pattern_type != Fill::PatternType::None;
+
+        if (needs_content) {
             xml << ">\n";
-            xml << R"(        <fgColor rgb=")" << fill.fg_color->to_excel_rgb() << R"("/>)" << '\n';
+            if (fill.fg_color) {
+                xml << R"(        <fgColor rgb=")" << fill.fg_color->to_excel_rgb() << R"("/>)" << '\n';
+            }
             if (fill.bg_color) {
                 xml << R"(        <bgColor rgb=")" << fill.bg_color->to_excel_rgb() << R"("/>)" << '\n';
             }
@@ -449,8 +461,111 @@ std::string StyleManager::generate_xml() const {
 }
 
 void StyleManager::load_from_xml(const std::string& xml_data) {
-    // TODO: 实现从 XML 加载样式
-    // 这里需要解析 styles.xml 文件的内容
+    try {
+        // 清空现有样式，不要初始化默认样式，而是从XML中完全解析
+        clear();
+
+        std::cout << "StyleManager: 开始解析样式XML，长度: " << xml_data.length() << std::endl;
+
+        std::istringstream stream(xml_data);
+        core::XmlParser parser(stream, "styles.xml");
+
+        // 解析样式XML
+        bool in_fonts = false;
+        bool in_fills = false;
+        bool in_borders = false;
+        bool in_num_fmts = false;
+        bool in_cell_xfs = false;
+
+        for (auto it = parser.begin(); it != parser.end(); ++it) {
+            if (it.is_start_element()) {
+                const std::string& name = it.name();
+
+                if (name == "fonts") {
+                    in_fonts = true;
+                } else if (name == "fills") {
+                    in_fills = true;
+                } else if (name == "borders") {
+                    in_borders = true;
+                } else if (name == "numFmts") {
+                    in_num_fmts = true;
+                } else if (name == "cellXfs") {
+                    in_cell_xfs = true;
+                } else if (name == "font" && in_fonts) {
+                    // 解析字体
+                    Font font;
+                    // 解析字体的子元素
+                    parse_font_element(it, font);
+                    fonts_.push_back(font);
+                    std::cout << "StyleManager: 解析字体 " << fonts_.size()-1 << ", 粗体=" << font.bold << ", 名称=" << font.name << std::endl;
+                } else if (name == "fill" && in_fills) {
+                    // 解析填充
+                    Fill fill;
+                    // 解析填充的子元素
+                    parse_fill_element(it, fill);
+                    fills_.push_back(fill);
+                    std::cout << "StyleManager: 解析填充 " << fills_.size()-1
+                              << ", 模式=" << static_cast<int>(fill.pattern_type)
+                              << ", 前景色=" << (fill.fg_color ? "有" : "无") << std::endl;
+                } else if (name == "border" && in_borders) {
+                    // 解析边框
+                    Border border;
+                    // 解析边框的子元素
+                    parse_border_element(it, border);
+                    borders_.push_back(border);
+                } else if (name == "numFmt" && in_num_fmts) {
+                    // 解析数字格式
+                    auto id_attr = it.attribute("numFmtId");
+                    auto code_attr = it.attribute("formatCode");
+                    if (id_attr && code_attr) {
+                        NumberFormat fmt;
+                        fmt.id = std::stoul(*id_attr);
+                        fmt.format_code = *code_attr;
+                        number_formats_.push_back(fmt);
+                    }
+                } else if (name == "xf" && in_cell_xfs) {
+                    // 解析单元格样式
+                    CellStyle style;
+
+                    auto font_id = it.attribute("fontId");
+                    auto fill_id = it.attribute("fillId");
+                    auto border_id = it.attribute("borderId");
+                    auto num_fmt_id = it.attribute("numFmtId");
+
+                    if (font_id) style.font_id = std::stoul(*font_id);
+                    if (fill_id) style.fill_id = std::stoul(*fill_id);
+                    if (border_id) style.border_id = std::stoul(*border_id);
+                    if (num_fmt_id) style.number_format_id = std::stoul(*num_fmt_id);
+
+                    cell_styles_.push_back(style);
+                    std::cout << "StyleManager: 解析单元格样式 " << cell_styles_.size()-1
+                              << ", 字体ID=" << (font_id ? *font_id : "无")
+                              << ", 填充ID=" << (fill_id ? *fill_id : "无")
+                              << ", 数字格式ID=" << (num_fmt_id ? *num_fmt_id : "无") << std::endl;
+                }
+            } else if (it.is_end_element()) {
+                const std::string& name = it.name();
+
+                if (name == "fonts") {
+                    in_fonts = false;
+                } else if (name == "fills") {
+                    in_fills = false;
+                } else if (name == "borders") {
+                    in_borders = false;
+                } else if (name == "numFmts") {
+                    in_num_fmts = false;
+                } else if (name == "cellXfs") {
+                    in_cell_xfs = false;
+                }
+            }
+        }
+
+    } catch (const std::exception& e) {
+        // 如果解析失败，使用默认样式
+        clear();
+        initialize_defaults();
+        throw ParseException("Failed to parse styles.xml: " + std::string(e.what()));
+    }
 }
 
 std::size_t StyleManager::hash_font(const Font& font) const {
@@ -514,4 +629,125 @@ std::size_t StyleManager::hash_border(const Border& border) const {
     return h;
 }
 
-} // namespace tinakit::excel 
+// 解析字体元素的辅助函数
+static void parse_font_element(core::XmlParser::iterator& it, Font& font) {
+    // 解析字体属性
+    while (it != core::XmlParser::iterator{}) {
+        ++it;
+        if (it.is_start_element()) {
+            const std::string& name = it.name();
+            if (name == "sz") {
+                auto val = it.attribute("val");
+                if (val) {
+                    font.size = std::stod(*val);
+                }
+            } else if (name == "name") {
+                auto val = it.attribute("val");
+                if (val) {
+                    font.name = *val;
+                }
+            } else if (name == "b") {
+                font.bold = true;
+            } else if (name == "i") {
+                font.italic = true;
+            } else if (name == "u") {
+                font.underline = true;
+            } else if (name == "strike") {
+                font.strike = true;
+            } else if (name == "color") {
+                auto rgb = it.attribute("rgb");
+                auto theme = it.attribute("theme");
+                if (rgb) {
+                    font.color = Color::from_hex(*rgb);
+                } else if (theme) {
+                    // 简化处理主题颜色
+                    font.color = Color::Black;
+                }
+            }
+        } else if (it.is_end_element() && it.name() == "font") {
+            break;
+        }
+    }
+}
+
+// 解析填充元素的辅助函数
+static void parse_fill_element(core::XmlParser::iterator& it, Fill& fill) {
+    while (it != core::XmlParser::iterator{}) {
+        ++it;
+        if (it.is_start_element()) {
+            const std::string& name = it.name();
+            if (name == "patternFill") {
+                auto pattern_type = it.attribute("patternType");
+                if (pattern_type) {
+                    if (*pattern_type == "solid") {
+                        fill.pattern_type = Fill::PatternType::Solid;
+                    } else if (*pattern_type == "none") {
+                        fill.pattern_type = Fill::PatternType::None;
+                    } else if (*pattern_type == "gray125") {
+                        fill.pattern_type = Fill::PatternType::Gray125;
+                    }
+                }
+            } else if (name == "fgColor") {
+                auto rgb = it.attribute("rgb");
+                auto theme = it.attribute("theme");
+                if (rgb) {
+                    fill.fg_color = Color::from_hex(*rgb);
+                } else if (theme) {
+                    // 简化处理主题颜色
+                    fill.fg_color = Color::Black;
+                }
+            } else if (name == "bgColor") {
+                auto rgb = it.attribute("rgb");
+                if (rgb) {
+                    fill.bg_color = Color::from_hex(*rgb);
+                }
+            }
+        } else if (it.is_end_element() && it.name() == "fill") {
+            break;
+        }
+    }
+}
+
+// 解析边框元素的辅助函数
+static void parse_border_element(core::XmlParser::iterator& it, Border& border) {
+    while (it != core::XmlParser::iterator{}) {
+        ++it;
+        if (it.is_start_element()) {
+            const std::string& name = it.name();
+            Border::BorderLine* line = nullptr;
+
+            if (name == "left") {
+                line = &border.left;
+            } else if (name == "right") {
+                line = &border.right;
+            } else if (name == "top") {
+                line = &border.top;
+            } else if (name == "bottom") {
+                line = &border.bottom;
+            }
+
+            if (line) {
+                auto style = it.attribute("style");
+                if (style) {
+                    if (*style == "thin") {
+                        line->style = Border::Style::Thin;
+                    } else if (*style == "medium") {
+                        line->style = Border::Style::Medium;
+                    } else if (*style == "thick") {
+                        line->style = Border::Style::Thick;
+                    } else if (*style == "double") {
+                        line->style = Border::Style::Double;
+                    } else if (*style == "dotted") {
+                        line->style = Border::Style::Dotted;
+                    } else if (*style == "dashed") {
+                        line->style = Border::Style::Dashed;
+                    }
+                }
+            }
+        } else if (it.is_end_element() && it.name() == "border") {
+            break;
+        }
+    }
+}
+
+} // namespace tinakit::excel
