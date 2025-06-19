@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "tinakit/core/types.hpp"
+#include "types.hpp"
 #include <string>
 
 namespace tinakit::excel {
@@ -51,6 +51,19 @@ public:
      * @return 范围字符串
      */
     std::string to_string() const;
+
+    /**
+     * @brief 检查位置是否在范围内
+     * @param pos 位置
+     * @return 如果位置在范围内返回true
+     */
+    bool contains(const Position& pos) const;
+
+    /**
+     * @brief 获取范围大小
+     * @return 行数和列数的对
+     */
+    std::pair<std::size_t, std::size_t> size() const;
 
 private:
     Position start_;

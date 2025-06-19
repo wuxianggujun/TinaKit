@@ -1092,10 +1092,19 @@ void Workbook::Impl::generate_worksheet_xml(std::size_t index) {
         << R"(xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">)" << '\n';
     
     // 添加维度信息（Excel 需要这个来正确显示数据）
-    xml << R"(  <dimension ref="A1:)"
-        << column_number_to_name(sheet.max_column())
-        << sheet.max_row()
-        << R"("/>)" << '\n';
+    // 处理空工作表的情况
+    std::size_t max_row = sheet.max_row();
+    std::size_t max_col = sheet.max_column();
+
+    if (max_row == 0 || max_col == 0) {
+        // 空工作表，使用默认维度 A1:A1
+        xml << R"(  <dimension ref="A1:A1"/>)" << '\n';
+    } else {
+        xml << R"(  <dimension ref="A1:)"
+            << column_number_to_name(max_col)
+            << max_row
+            << R"("/>)" << '\n';
+    }
     
     // 添加 sheetViews（Excel 需要这个来正确显示）
     xml << R"(  <sheetViews>)" << '\n';

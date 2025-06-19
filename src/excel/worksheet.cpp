@@ -8,8 +8,9 @@
 #include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/cell.hpp"
 #include "tinakit/excel/row.hpp"
+#include "tinakit/excel/range.hpp"
 #include "tinakit/core/exceptions.hpp"
-#include "tinakit/core/types.hpp"
+#include "tinakit/excel/types.hpp"
 #include <algorithm>
 #include <map>
 

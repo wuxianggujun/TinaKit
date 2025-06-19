@@ -48,4 +48,16 @@ std::string Range::to_string() const {
     }
 }
 
+bool Range::contains(const Position& pos) const {
+    return pos.row >= start_.row && pos.row <= end_.row &&
+           pos.column >= start_.column && pos.column <= end_.column;
+}
+
+std::pair<std::size_t, std::size_t> Range::size() const {
+    return {
+        end_.row - start_.row + 1,
+        end_.column - start_.column + 1
+    };
+}
+
 } // namespace tinakit::excel

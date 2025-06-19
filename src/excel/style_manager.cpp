@@ -13,69 +13,6 @@
 
 namespace tinakit::excel {
 
-// Font 实现
-bool Font::operator==(const Font& other) const {
-    return name == other.name &&
-           size == other.size &&
-           bold == other.bold &&
-           italic == other.italic &&
-           underline == other.underline &&
-           strike == other.strike &&
-           color == other.color;
-}
-
-// Fill 实现
-bool Fill::operator==(const Fill& other) const {
-    return pattern_type == other.pattern_type &&
-           fg_color == other.fg_color &&
-           bg_color == other.bg_color;
-}
-
-// BorderLine 实现
-bool Border::BorderLine::operator==(const BorderLine& other) const {
-    return style == other.style && color == other.color;
-}
-
-// Border 实现
-bool Border::operator==(const Border& other) const {
-    return left == other.left &&
-           right == other.right &&
-           top == other.top &&
-           bottom == other.bottom &&
-           diagonal == other.diagonal &&
-           diagonal_up == other.diagonal_up &&
-           diagonal_down == other.diagonal_down;
-}
-
-// Alignment 实现
-bool Alignment::operator==(const Alignment& other) const {
-    return horizontal == other.horizontal &&
-           vertical == other.vertical &&
-           text_rotation == other.text_rotation &&
-           wrap_text == other.wrap_text &&
-           shrink_to_fit == other.shrink_to_fit &&
-           indent == other.indent;
-}
-
-// NumberFormat 实现
-bool NumberFormat::operator==(const NumberFormat& other) const {
-    return id == other.id && format_code == other.format_code;
-}
-
-// CellStyle 实现
-bool CellStyle::operator==(const CellStyle& other) const {
-    return font_id == other.font_id &&
-           fill_id == other.fill_id &&
-           border_id == other.border_id &&
-           number_format_id == other.number_format_id &&
-           alignment == other.alignment &&
-           apply_font == other.apply_font &&
-           apply_fill == other.apply_fill &&
-           apply_border == other.apply_border &&
-           apply_number_format == other.apply_number_format &&
-           apply_alignment == other.apply_alignment;
-}
-
 // StyleManager 实现
 StyleManager::StyleManager() {
     initialize_defaults();

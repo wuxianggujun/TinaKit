@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include "tinakit/core/types.hpp"
+#include "tinakit/core/color.hpp"
+#include "types.hpp"
 #include <string>
 #include <memory>
 #include <optional>
@@ -17,6 +18,7 @@
 namespace tinakit::excel {
 
     class CellImpl;
+    class Worksheet;
 
 /**
  * @class Cell
@@ -148,7 +150,7 @@ public:
      * @param alignment 对齐方式
      * @return 自身引用，支持链式调用
      */
-    Cell& align(Alignment alignment);
+    Cell& align(const Alignment& alignment);
     
     /**
      * @brief 设置边框
@@ -157,6 +159,13 @@ public:
      * @return 自身引用，支持链式调用
      */
     Cell& border(BorderType border_type, BorderStyle style);
+    
+    /**
+     * @brief 设置数字格式
+     * @param format_code 格式代码（如 "#,##0.00"）
+     * @return 自身引用，支持链式调用
+     */
+    Cell& number_format(const std::string& format_code);
 
 public:
     /**
@@ -213,6 +222,18 @@ public:
      * @brief 输出流操作符
      */
     friend std::ostream& operator<<(std::ostream& os, const Cell& cell);
+    
+private:
+    /**
+     * @brief 设置工作表引用（内部使用）
+     * @param ws 工作表指针
+     */
+    void set_worksheet(Worksheet* ws);
+    
+    /**
+     * @brief 应用累积的样式更改（内部使用）
+     */
+    void apply_style_changes();
 
 private:
     std::unique_ptr<CellImpl> impl_;

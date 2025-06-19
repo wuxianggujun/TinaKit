@@ -63,6 +63,15 @@ add_tinakit_example(stream_demo stream_demo.cpp)
 add_tinakit_example(excel_with_styles excel_with_styles.cpp)
 add_tinakit_example(tinakit_comprehensive_demo tinakit_comprehensive_demo.cpp)
 add_tinakit_example(final_test final_test.cpp)
+add_tinakit_example(styled_report_demo styled_report_demo.cpp)
+add_tinakit_example(style_chain_demo style_chain_demo.cpp)
+
+# 调试测试程序（不依赖 tinakit 库）
+add_executable(debug_position debug_position.cpp)
+set_target_properties(debug_position
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
+)
 
 # 特殊的测试程序（不使用 tinakit 库）
 function(add_special_example target_name source_file libraries)
@@ -96,8 +105,6 @@ add_special_example(minizip_direct_test minizip_direct_test.cpp "minizip;zlib")
 # Dream Code 示例（仅作为设计参考，不编译）
 # add_tinakit_example(dream_code dream_code.cpp)
 
-# DLL 复制已在函数中自动处理
-
 # 如果 CMake 版本支持，使用更现代的方法
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
     # 使用现代的 TARGET_RUNTIME_DLLS 方法（CMake 3.21+）
@@ -112,9 +119,5 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
             )
         endif()
     endfunction()
-
-    # 注释掉旧方法，使用新方法
-    # copy_runtime_dlls_modern(tinakit_xml_parser_example)
-    # copy_runtime_dlls_modern(xlsx_archiver_demo)
-    # copy_runtime_dlls_modern(xlsx_reader_test)
+    
 endif()

@@ -15,6 +15,7 @@ target_sources(tinakit PRIVATE
         excel/range.cpp
         excel/shared_strings.cpp
         excel/style_manager.cpp
+        excel/types.cpp
 )
 
 target_include_directories(tinakit PUBLIC
