@@ -65,6 +65,27 @@ public:
      */
     std::pair<std::size_t, std::size_t> size() const;
 
+    /**
+     * @brief 检查两个范围是否重叠
+     * @param other 另一个范围
+     * @return 如果重叠返回true
+     */
+    bool overlaps(const Range& other) const;
+
+    /**
+     * @brief 相等比较运算符
+     * @param other 另一个范围
+     * @return 如果相等返回true
+     */
+    bool operator==(const Range& other) const;
+
+    /**
+     * @brief 不等比较运算符
+     * @param other 另一个范围
+     * @return 如果不等返回true
+     */
+    bool operator!=(const Range& other) const;
+
 private:
     Position start_;
     Position end_;

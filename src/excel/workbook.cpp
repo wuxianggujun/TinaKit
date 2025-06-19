@@ -1192,6 +1192,17 @@ void Workbook::Impl::generate_worksheet_xml(std::size_t index) {
     }
     
     xml << R"(  </sheetData>)" << '\n';
+
+    // 添加合并单元格信息
+    const auto& merged_ranges = sheet.get_merged_ranges();
+    if (!merged_ranges.empty()) {
+        xml << R"(  <mergeCells count=")" << merged_ranges.size() << R"(">)" << '\n';
+        for (const auto& range : merged_ranges) {
+            xml << R"(    <mergeCell ref=")" << range.to_string() << R"("/>)" << '\n';
+        }
+        xml << R"(  </mergeCells>)" << '\n';
+    }
+
     xml << R"(</worksheet>)" << '\n';
     
     // 转换为字节数组

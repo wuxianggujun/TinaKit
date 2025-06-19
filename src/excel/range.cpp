@@ -60,4 +60,25 @@ std::pair<std::size_t, std::size_t> Range::size() const {
     };
 }
 
+bool Range::overlaps(const Range& other) const {
+    // 两个矩形重叠的条件：
+    // 1. 第一个矩形的左边界 <= 第二个矩形的右边界
+    // 2. 第一个矩形的右边界 >= 第二个矩形的左边界
+    // 3. 第一个矩形的上边界 <= 第二个矩形的下边界
+    // 4. 第一个矩形的下边界 >= 第二个矩形的上边界
+
+    return start_.column <= other.end_.column &&
+           end_.column >= other.start_.column &&
+           start_.row <= other.end_.row &&
+           end_.row >= other.start_.row;
+}
+
+bool Range::operator==(const Range& other) const {
+    return start_ == other.start_ && end_ == other.end_;
+}
+
+bool Range::operator!=(const Range& other) const {
+    return !(*this == other);
+}
+
 } // namespace tinakit::excel

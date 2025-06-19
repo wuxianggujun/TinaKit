@@ -58,6 +58,13 @@ public:
     double get_column_width(const std::string& column_name) const;
     double get_column_width(std::size_t column_index) const;
 
+    // 合并单元格管理
+    void merge_cells(std::size_t start_row, std::size_t start_col,
+                     std::size_t end_row, std::size_t end_col);
+    void unmerge_cells(std::size_t start_row, std::size_t start_col,
+                       std::size_t end_row, std::size_t end_col);
+    const std::vector<Range>& get_merged_ranges() const { return merged_ranges_; }
+
 private:
     std::string name_;
     StyleManager* style_manager_ = nullptr;  // 样式管理器引用
@@ -70,6 +77,9 @@ private:
 
     // 列宽存储（列索引 -> 宽度）
     std::map<std::size_t, double> column_widths_;
+
+    // 合并单元格范围存储
+    std::vector<Range> merged_ranges_;
 };
 
 
@@ -205,6 +215,47 @@ double Worksheet::Impl::get_column_width(std::size_t column_index) const {
         return it->second;
     }
     return 8.43; // Excel默认列宽
+}
+
+void Worksheet::Impl::merge_cells(std::size_t start_row, std::size_t start_col,
+                                  std::size_t end_row, std::size_t end_col) {
+    // 验证参数
+    if (start_row > end_row || start_col > end_col) {
+        throw std::invalid_argument("Invalid merge range: start position must be <= end position");
+    }
+
+    if (start_row == end_row && start_col == end_col) {
+        // 单个单元格，无需合并
+        return;
+    }
+
+    // 创建合并范围
+    Range merge_range(Position(start_row, start_col), Position(end_row, end_col));
+
+    // 检查是否与现有合并范围重叠
+    for (const auto& existing_range : merged_ranges_) {
+        if (merge_range.overlaps(existing_range)) {
+            throw std::invalid_argument("Merge range overlaps with existing merged range");
+        }
+    }
+
+    // 添加到合并范围列表
+    merged_ranges_.push_back(merge_range);
+}
+
+void Worksheet::Impl::unmerge_cells(std::size_t start_row, std::size_t start_col,
+                                    std::size_t end_row, std::size_t end_col) {
+    Range target_range(Position(start_row, start_col), Position(end_row, end_col));
+
+    // 查找并移除匹配的合并范围
+    auto it = std::find_if(merged_ranges_.begin(), merged_ranges_.end(),
+        [&target_range](const Range& range) {
+            return range == target_range;
+        });
+
+    if (it != merged_ranges_.end()) {
+        merged_ranges_.erase(it);
+    }
 }
 
 // =============================================================================
@@ -353,6 +404,35 @@ double Worksheet::get_column_width(const std::string& column_name) const {
 
 double Worksheet::get_column_width(std::size_t column_index) const {
     return impl_->get_column_width(column_index);
+}
+
+// 合并单元格
+void Worksheet::merge_cells(const std::string& range_str) {
+    auto range = Range::from_string(range_str);
+    auto start_pos = range.start();
+    auto end_pos = range.end();
+    merge_cells(start_pos.row, start_pos.column, end_pos.row, end_pos.column);
+}
+
+void Worksheet::merge_cells(std::size_t start_row, std::size_t start_col,
+                           std::size_t end_row, std::size_t end_col) {
+    impl_->merge_cells(start_row, start_col, end_row, end_col);
+}
+
+void Worksheet::unmerge_cells(const std::string& range_str) {
+    auto range = Range::from_string(range_str);
+    auto start_pos = range.start();
+    auto end_pos = range.end();
+    unmerge_cells(start_pos.row, start_pos.column, end_pos.row, end_pos.column);
+}
+
+void Worksheet::unmerge_cells(std::size_t start_row, std::size_t start_col,
+                             std::size_t end_row, std::size_t end_col) {
+    impl_->unmerge_cells(start_row, start_col, end_row, end_col);
+}
+
+const std::vector<Range>& Worksheet::get_merged_ranges() const {
+    return impl_->get_merged_ranges();
 }
 
 // =============================================================================

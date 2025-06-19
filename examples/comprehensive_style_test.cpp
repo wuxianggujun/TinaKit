@@ -262,6 +262,17 @@ int main() {
         advanced_sheet.set_column_width("C", 25.0);  // 增加C列宽度以显示缩进效果
         advanced_sheet.set_column_width("E", 15.0);
 
+        // 合并单元格测试
+        advanced_sheet["G3"].value("合并单元格测试").bold().background_color(Color::LightRed);
+        advanced_sheet["G4"].value("这是一个合并的单元格，跨越多列").align(center_align).background_color(Color::Yellow);
+        advanced_sheet.merge_cells("G4:I4");  // 合并G4到I4
+
+        advanced_sheet["G6"].value("垂直合并").align(center_align).background_color(Color::LightGreen);
+        advanced_sheet.merge_cells("G6:G8");  // 垂直合并G6到G8
+
+        advanced_sheet["H6"].value("区域合并").align(center_align).background_color(Color::LightBlue);
+        advanced_sheet.merge_cells("H6:I8");  // 区域合并H6到I8
+
         // ========================================
         // 6. 综合样式测试
         // ========================================
@@ -313,9 +324,10 @@ int main() {
         std::cout << "\n🎨 新增功能:" << std::endl;
         std::cout << "   ✓ 彩色边框 - border(type, style, color)" << std::endl;
         std::cout << "   ✓ 文本换行 - wrap_text(true)" << std::endl;
-        std::cout << "   ✓ 文本缩进 - indent(level) 【需要配合左对齐使用】" << std::endl;
+        std::cout << "   ✓ 文本缩进 - indent(level) 【支持任意调用顺序】" << std::endl;
         std::cout << "   ✓ 行高设置 - row(n).height(value)" << std::endl;
         std::cout << "   ✓ 列宽设置 - set_column_width(column, width)" << std::endl;
+        std::cout << "   ✓ 合并单元格 - merge_cells(range) / unmerge_cells(range)" << std::endl;
         std::cout << "\n💡 缩进说明:" << std::endl;
         std::cout << "   • 缩进是文本在单元格内的左边距偏移" << std::endl;
         std::cout << "   • 需要配合左对齐使用才能看到效果" << std::endl;

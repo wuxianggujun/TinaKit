@@ -279,7 +279,40 @@ public:
      * @return 列宽（字符数）
      */
     double get_column_width(std::size_t column_index) const;
-    
+
+public:
+    /**
+     * @brief 合并单元格
+     * @param range_str 要合并的范围（如 "A1:C3"）
+     */
+    void merge_cells(const std::string& range_str);
+
+    /**
+     * @brief 合并单元格
+     * @param start_row 起始行（1-based）
+     * @param start_col 起始列（1-based）
+     * @param end_row 结束行（1-based）
+     * @param end_col 结束列（1-based）
+     */
+    void merge_cells(std::size_t start_row, std::size_t start_col,
+                     std::size_t end_row, std::size_t end_col);
+
+    /**
+     * @brief 取消合并单元格
+     * @param range_str 要取消合并的范围（如 "A1:C3"）
+     */
+    void unmerge_cells(const std::string& range_str);
+
+    /**
+     * @brief 取消合并单元格
+     * @param start_row 起始行（1-based）
+     * @param start_col 起始列（1-based）
+     * @param end_row 结束行（1-based）
+     * @param end_col 结束列（1-based）
+     */
+    void unmerge_cells(std::size_t start_row, std::size_t start_col,
+                       std::size_t end_row, std::size_t end_col);
+
     /**
      * @brief 检查是否为空
      * @return 如果工作表为空返回 true
@@ -302,6 +335,12 @@ public:
      * @return 样式管理器指针
      */
     StyleManager* get_style_manager() const;
+
+    /**
+     * @brief 获取合并单元格范围（内部使用）
+     * @return 合并单元格范围列表
+     */
+    const std::vector<Range>& get_merged_ranges() const;
 
 private:
     std::unique_ptr<Impl> impl_;  ///< 实现细节（PIMPL 模式）
