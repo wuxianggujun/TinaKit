@@ -222,7 +222,29 @@ public:
      * @brief 输出流操作符
      */
     friend std::ostream& operator<<(std::ostream& os, const Cell& cell);
-    
+
+public:
+    /**
+     * @brief 检查是否有自定义样式
+     * @return 如果有自定义样式返回true
+     */
+    bool has_custom_style() const;
+
+    /**
+     * @brief 获取样式信息（供StyleManager使用）
+     */
+    bool has_font_changes() const;
+    bool has_fill_changes() const;
+    bool has_border_changes() const;
+    bool has_number_format_changes() const;
+    bool has_alignment_changes() const;
+
+    const std::optional<Font>& get_pending_font() const;
+    const std::optional<Fill>& get_pending_fill() const;
+    const std::optional<Border>& get_pending_border() const;
+    const std::optional<NumberFormat>& get_pending_number_format() const;
+    const std::optional<Alignment>& get_pending_alignment() const;
+
 private:
     /**
      * @brief 设置工作表引用（内部使用）

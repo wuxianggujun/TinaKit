@@ -40,6 +40,8 @@ public:
     Worksheet& get_worksheet(std::size_t index);
     const Worksheet& get_worksheet(const std::string& name) const;
     const Worksheet& get_worksheet(std::size_t index) const;
+
+    Worksheet& create_worksheet(const std::string& name);
     
     Worksheet& add_worksheet(const std::string& name);
     void remove_worksheet(const std::string& name);
@@ -81,7 +83,8 @@ public:
     void parse_cell(core::XmlParser::iterator& it, Worksheet& worksheet, std::size_t row);
     void parse_cell_address(const std::string& address, std::size_t& row, std::size_t& col);
     void regenerate_metadata_on_save();
-    
+    void process_cell_styles();  // 处理单元格样式
+
     // OpenXML 结构生成
     void generate_root_rels();
     void generate_content_types();
@@ -181,15 +184,30 @@ Worksheet& Workbook::Impl::add_worksheet(const std::string& name) {
     if (worksheet_by_name_.find(name) != worksheet_by_name_.end()) {
         throw DuplicateWorksheetNameException("Worksheet name already exists: " + name);
     }
-    
-    // 使用 Worksheet 的工厂方法创建新的工作表
-    auto worksheet = Worksheet::create(name);
-    
+
+    // 使用带有StyleManager的工厂方法创建工作表
+    auto worksheet = Worksheet::create(name, style_manager_.get());
+
     worksheets_.push_back(worksheet);
     worksheet_by_name_[name] = worksheet;
     is_modified_ = true;
-    
+
     return *worksheet;
+}
+
+Worksheet& Workbook::Impl::create_worksheet(const std::string& name) {
+    // 如果只有一个工作表且名称为"Sheet1"，则重命名它
+    if (worksheets_.size() == 1 && worksheets_[0]->name() == "Sheet1") {
+        worksheets_[0]->set_name(name);
+        // 更新名称映射
+        worksheet_by_name_.erase("Sheet1");
+        worksheet_by_name_[name] = worksheets_[0];
+        is_modified_ = true;
+        return *worksheets_[0];
+    } else {
+        // 否则添加新工作表
+        return add_worksheet(name);
+    }
 }
 
 void Workbook::Impl::remove_worksheet(const std::string& name) {
@@ -769,8 +787,20 @@ void Workbook::Impl::parse_cell(core::XmlParser::iterator& it, Worksheet& worksh
     }
 }
 
+void Workbook::Impl::process_cell_styles() {
+    // 遍历所有工作表的所有单元格，为有样式的单元格分配样式ID
+    for (auto& worksheet : worksheets_) {
+        // 这里需要访问工作表的所有单元格
+        // 由于当前架构限制，我们暂时跳过这个实现
+        // TODO: 实现单元格样式处理
+    }
+}
+
 void Workbook::Impl::regenerate_metadata_on_save() {
     // 总是重新生成元数据文件，确保文件完整性
+
+    // 处理单元格样式
+    process_cell_styles();
 
     // 生成根关系文件
     generate_root_rels();
@@ -1135,8 +1165,8 @@ void Workbook::Impl::generate_worksheet_xml(std::size_t index) {
                     row_has_data = true;
                     row_xml << R"(      <c r=")" << cell.address() << R"(")";
                     
-                    // 添加样式索引（使用默认样式 0）
-                    row_xml << R"( s="0")";
+                    // 添加样式索引
+                    row_xml << R"( s=")" << cell.style_id() << R"(")";
                     
                     // 处理不同类型的单元格值
                     const auto& value_variant = cell.raw_value();
@@ -1245,6 +1275,10 @@ const Worksheet& Workbook::active_sheet() const {
 // 工作表管理
 Worksheet& Workbook::add_sheet(const std::string& name) {
     return impl_->add_worksheet(name);
+}
+
+Worksheet& Workbook::create_sheet(const std::string& name) {
+    return impl_->create_worksheet(name);
 }
 
 void Workbook::remove_sheet(const std::string& name) {

@@ -17,7 +17,7 @@ int main() {
         
         // 创建工作簿
         auto workbook = Workbook::create();
-        auto& sheet = workbook.add_sheet("样式演示");
+        auto& sheet = workbook.create_sheet("样式演示");
         
         // 演示链式调用设置样式
         sheet["A1"]

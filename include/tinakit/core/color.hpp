@@ -66,6 +66,12 @@ public:
     std::string to_hex() const;
 
     /**
+     * @brief 转换为Excel格式的颜色字符串（不带#前缀）
+     * @return Excel格式的颜色字符串
+     */
+    std::string to_excel_rgb() const;
+
+    /**
      * @brief 比较运算符
      */
     bool operator==(const Color& other) const noexcept;

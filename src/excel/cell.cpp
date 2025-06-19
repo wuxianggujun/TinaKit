@@ -6,6 +6,9 @@
  */
 
 #include "tinakit/excel/cell.hpp"
+
+#include <iostream>
+
 #include "tinakit/excel/types.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/style_manager.hpp"
@@ -50,12 +53,26 @@ public:
     // 获取和设置样式 ID
     void set_style_id(std::uint32_t style_id) { style_id_ = style_id; has_custom_style_ = true; }
     std::uint32_t get_style_id() const { return style_id_; }
+    bool has_custom_style() const { return has_custom_style_; }
     
     // 设置工作表引用（用于访问样式管理器）
     void set_worksheet(Worksheet* ws) { worksheet_ = ws; }
     
     // 应用累积的样式更改
     void apply_style_changes();
+
+    // 获取样式信息（供StyleManager使用）
+    bool has_font_changes() const { return font_changed_; }
+    bool has_fill_changes() const { return fill_changed_; }
+    bool has_border_changes() const { return border_changed_; }
+    bool has_number_format_changes() const { return number_format_changed_; }
+    bool has_alignment_changes() const { return alignment_changed_; }
+
+    const std::optional<Font>& get_pending_font() const { return pending_font_; }
+    const std::optional<Fill>& get_pending_fill() const { return pending_fill_; }
+    const std::optional<Border>& get_pending_border() const { return pending_border_; }
+    const std::optional<NumberFormat>& get_pending_number_format() const { return pending_number_format_; }
+    const std::optional<Alignment>& get_pending_alignment() const { return pending_alignment_; }
 
 private:
     std::size_t row_, column_;
@@ -222,58 +239,69 @@ void CellImpl::set_number_format(const std::string& format_code) {
 }
 
 void CellImpl::apply_style_changes() {
-    if (!worksheet_) {
-        // 如果没有工作表引用，无法应用样式
-        return;
-    }
-    
-    // 如果有任何样式更改，创建新的样式
-    if (font_changed_ || fill_changed_ || border_changed_ || 
+    // 检查是否有任何样式更改
+    if (font_changed_ || fill_changed_ || border_changed_ ||
         number_format_changed_ || alignment_changed_) {
-        
-        // TODO: 从工作簿获取样式管理器
-        // auto& style_manager = worksheet_->workbook().style_manager();
-        
-        // 暂时注释掉，等待 Worksheet 类实现相关方法
-        /*
-        CellStyle new_style;
-        
-        // 设置字体
-        if (font_changed_ && pending_font_) {
-            new_style.font_id = style_manager.add_font(*pending_font_);
-            new_style.apply_font = true;
-        }
-        
-        // 设置填充
-        if (fill_changed_ && pending_fill_) {
-            new_style.fill_id = style_manager.add_fill(*pending_fill_);
-            new_style.apply_fill = true;
-        }
-        
-        // 设置边框
-        if (border_changed_ && pending_border_) {
-            new_style.border_id = style_manager.add_border(*pending_border_);
-            new_style.apply_border = true;
-        }
-        
-        // 设置数字格式
-        if (number_format_changed_ && pending_number_format_) {
-            new_style.number_format_id = style_manager.add_number_format(*pending_number_format_);
-            new_style.apply_number_format = true;
-        }
-        
-        // 设置对齐
-        if (alignment_changed_ && pending_alignment_) {
-            new_style.alignment = pending_alignment_;
-            new_style.apply_alignment = true;
-        }
-        
-        // 创建新样式并获取 ID
-        style_id_ = style_manager.add_cell_style(new_style);
+
         has_custom_style_ = true;
-        */
-        
-        // 清除标志
+
+        // 开始应用样式更改
+
+        // 如果有工作表引用，使用StyleManager动态创建样式
+        if (worksheet_) {
+            auto* style_manager = worksheet_->get_style_manager();
+            // StyleManager可用，使用动态样式创建
+
+            if (style_manager) {
+                // 创建完整的样式定义
+                CellStyle cell_style;
+
+                // 处理字体
+                if (pending_font_) {
+                    std::uint32_t font_id = style_manager->add_font(*pending_font_);
+                    cell_style.font_id = font_id;
+                    cell_style.apply_font = true;
+                }
+
+                // 处理填充
+                if (pending_fill_) {
+                    std::uint32_t fill_id = style_manager->add_fill(*pending_fill_);
+                    cell_style.fill_id = fill_id;
+                    cell_style.apply_fill = true;
+                }
+
+                // 处理边框
+                if (pending_border_) {
+                    std::uint32_t border_id = style_manager->add_border(*pending_border_);
+                    cell_style.border_id = border_id;
+                    cell_style.apply_border = true;
+                }
+
+                // 处理数字格式
+                if (pending_number_format_) {
+                    std::uint32_t format_id = style_manager->add_number_format(*pending_number_format_);
+                    cell_style.number_format_id = format_id;
+                    cell_style.apply_number_format = true;
+                }
+
+                // 处理对齐
+                if (pending_alignment_) {
+                    cell_style.alignment = *pending_alignment_;
+                    cell_style.apply_alignment = true;
+                }
+
+                // 添加到StyleManager并获取样式ID
+                style_id_ = style_manager->add_cell_style(cell_style);
+            } else {
+                // 回退到简化的样式ID分配
+                style_id_ = 1;  // 非默认样式
+            }
+        } else {
+            // 没有工作表引用，使用简化的样式ID分配
+            style_id_ = 1;  // 非默认样式
+        }
+
+        // 清除标志，样式已应用
         font_changed_ = false;
         fill_changed_ = false;
         border_changed_ = false;
@@ -312,24 +340,32 @@ Cell& Cell::operator=(Cell&& other) noexcept {
 template<>
 Cell& Cell::value<std::string>(const std::string& value) {
     impl_->set_value(value);
+    // 设置值后应用累积的样式更改
+    impl_->apply_style_changes();
     return *this;
 }
 
 template<>
 Cell& Cell::value<int>(const int& value) {
     impl_->set_value(value);
+    // 设置值后应用累积的样式更改
+    impl_->apply_style_changes();
     return *this;
 }
 
 template<>
 Cell& Cell::value<double>(const double& value) {
     impl_->set_value(value);
+    // 设置值后应用累积的样式更改
+    impl_->apply_style_changes();
     return *this;
 }
 
 template<>
 Cell& Cell::value<bool>(const bool& value) {
     impl_->set_value(value);
+    // 设置值后应用累积的样式更改
+    impl_->apply_style_changes();
     return *this;
 }
 
@@ -444,44 +480,52 @@ std::optional<std::string> Cell::formula() const {
     return impl_->get_formula();
 }
 
-// 样式操作
+// 样式操作 - 立即应用
 Cell& Cell::font(const std::string& font_name, double size) {
     impl_->set_font(font_name, size);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::bold(bool bold) {
     impl_->set_bold(bold);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::italic(bool italic) {
     impl_->set_italic(italic);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::color(const Color& color) {
     impl_->set_color(color);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::background_color(const Color& color) {
     impl_->set_background_color(color);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::align(const Alignment& alignment) {
     impl_->set_alignment(alignment);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::border(BorderType border_type, BorderStyle style) {
     impl_->set_border(border_type, style);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
 Cell& Cell::number_format(const std::string& format_code) {
     impl_->set_number_format(format_code);
+    impl_->apply_style_changes();  // 立即应用样式
     return *this;
 }
 
@@ -532,4 +576,49 @@ void Cell::apply_style_changes() {
     impl_->apply_style_changes();
 }
 
-} // namespace tinakit::excel 
+// 获取样式信息（供StyleManager使用）
+bool Cell::has_custom_style() const {
+    return impl_->has_custom_style();
+}
+
+bool Cell::has_font_changes() const {
+    return impl_->has_font_changes();
+}
+
+bool Cell::has_fill_changes() const {
+    return impl_->has_fill_changes();
+}
+
+bool Cell::has_border_changes() const {
+    return impl_->has_border_changes();
+}
+
+bool Cell::has_number_format_changes() const {
+    return impl_->has_number_format_changes();
+}
+
+bool Cell::has_alignment_changes() const {
+    return impl_->has_alignment_changes();
+}
+
+const std::optional<Font>& Cell::get_pending_font() const {
+    return impl_->get_pending_font();
+}
+
+const std::optional<Fill>& Cell::get_pending_fill() const {
+    return impl_->get_pending_fill();
+}
+
+const std::optional<Border>& Cell::get_pending_border() const {
+    return impl_->get_pending_border();
+}
+
+const std::optional<NumberFormat>& Cell::get_pending_number_format() const {
+    return impl_->get_pending_number_format();
+}
+
+const std::optional<Alignment>& Cell::get_pending_alignment() const {
+    return impl_->get_pending_alignment();
+}
+
+} // namespace tinakit::excel

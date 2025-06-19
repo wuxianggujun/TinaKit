@@ -9,6 +9,7 @@
 
 #include "tinakit/core/types.hpp"
 #include "tinakit/core/async.hpp"
+#include "tinakit/excel/worksheet.hpp"
 #include <filesystem>
 #include <vector>
 #include <string>
@@ -16,9 +17,6 @@
 #include <functional>
 
 namespace tinakit::excel {
-
-    // Forward declaration for PIMPL pattern
-    class Worksheet;
     
 /**
  * @class Workbook
@@ -139,6 +137,14 @@ public:
      * @throws DuplicateWorksheetNameException 工作表名称已存在
      */
     Worksheet& add_sheet(const std::string& name);
+
+    /**
+     * @brief 创建工作表（重命名默认工作表）
+     * @param name 工作表名称
+     * @return 工作表引用
+     * @note 如果只有默认的"Sheet1"工作表，则重命名它；否则添加新工作表
+     */
+    Worksheet& create_sheet(const std::string& name);
     
     /**
      * @brief 删除工作表

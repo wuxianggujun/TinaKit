@@ -21,24 +21,40 @@ StyleManager::StyleManager() {
 void StyleManager::initialize_defaults() {
     // 清空所有内容
     clear();
-    
+
     // 添加默认字体 (索引 0)
     Font default_font;
     add_font(default_font);
-    
+
+    // 添加粗体字体 (索引 1)
+    Font bold_font = default_font;
+    bold_font.bold = true;
+    add_font(bold_font);
+
+    // 添加斜体字体 (索引 2)
+    Font italic_font = default_font;
+    italic_font.italic = true;
+    add_font(italic_font);
+
+    // 添加粗体+斜体字体 (索引 3)
+    Font bold_italic_font = default_font;
+    bold_italic_font.bold = true;
+    bold_italic_font.italic = true;
+    add_font(bold_italic_font);
+
     // 添加默认填充 (索引 0 和 1)
     Fill none_fill;
     none_fill.pattern_type = Fill::PatternType::None;
     add_fill(none_fill);
-    
+
     Fill gray125_fill;
     gray125_fill.pattern_type = Fill::PatternType::Gray125;
     add_fill(gray125_fill);
-    
+
     // 添加默认边框 (索引 0)
     Border default_border;
     add_border(default_border);
-    
+
     // 添加默认单元格样式 (索引 0)
     CellStyle default_style;
     default_style.font_id = 0;
@@ -46,6 +62,37 @@ void StyleManager::initialize_defaults() {
     default_style.border_id = 0;
     default_style.number_format_id = 0;
     add_cell_style(default_style);
+
+    // 添加常用的样式组合
+    // 样式 1: 粗体
+    CellStyle bold_style;
+    bold_style.font_id = 1;  // 粗体字体
+    bold_style.fill_id = 0;
+    bold_style.border_id = 0;
+    bold_style.number_format_id = 0;
+    bold_style.apply_font = true;
+    add_cell_style(bold_style);
+
+    // 样式 2: 斜体
+    CellStyle italic_style;
+    italic_style.font_id = 2;  // 斜体字体
+    italic_style.fill_id = 0;
+    italic_style.border_id = 0;
+    italic_style.number_format_id = 0;
+    italic_style.apply_font = true;
+    add_cell_style(italic_style);
+
+    // 样式 3: 粗体+斜体
+    CellStyle bold_italic_style;
+    bold_italic_style.font_id = 3;  // 粗体+斜体字体
+    bold_italic_style.fill_id = 0;
+    bold_italic_style.border_id = 0;
+    bold_italic_style.number_format_id = 0;
+    bold_italic_style.apply_font = true;
+    add_cell_style(bold_italic_style);
+
+    // 添加更多样式以匹配 Cell::apply_style_changes() 中的逻辑
+    // 这里可以根据需要添加更多预定义样式
 }
 
 std::uint32_t StyleManager::add_font(const Font& font) {
@@ -199,7 +246,7 @@ std::string StyleManager::generate_xml() const {
         if (font.strike) xml << "      <strike/>\n";
         xml << R"(      <sz val=")" << font.size << R"("/>)" << '\n';
         if (font.color) {
-            xml << R"(      <color rgb=")" << font.color->to_hex() << R"("/>)" << '\n';
+            xml << R"(      <color rgb=")" << font.color->to_excel_rgb() << R"("/>)" << '\n';
         }
         xml << R"(      <name val=")" << font.name << R"("/>)" << '\n';
         xml << "    </font>\n";
@@ -225,9 +272,9 @@ std::string StyleManager::generate_xml() const {
         
         if (fill.fg_color) {
             xml << ">\n";
-            xml << R"(        <fgColor rgb=")" << fill.fg_color->to_hex() << R"("/>)" << '\n';
+            xml << R"(        <fgColor rgb=")" << fill.fg_color->to_excel_rgb() << R"("/>)" << '\n';
             if (fill.bg_color) {
-                xml << R"(        <bgColor rgb=")" << fill.bg_color->to_hex() << R"("/>)" << '\n';
+                xml << R"(        <bgColor rgb=")" << fill.bg_color->to_excel_rgb() << R"("/>)" << '\n';
             }
             xml << "      </patternFill>\n";
         } else {
@@ -270,7 +317,7 @@ std::string StyleManager::generate_xml() const {
                 
                 if (line.color) {
                     xml << ">\n";
-                    xml << R"(        <color rgb=")" << line.color->to_hex() << R"("/>)" << '\n';
+                    xml << R"(        <color rgb=")" << line.color->to_excel_rgb() << R"("/>)" << '\n';
                     xml << "      </" << name << ">\n";
                 } else {
                     xml << "/>\n";

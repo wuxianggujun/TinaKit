@@ -11,6 +11,7 @@
 #include "tinakit/excel/range.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/types.hpp"
+#include "tinakit/excel/style_manager.hpp"
 #include <algorithm>
 #include <map>
 
@@ -23,6 +24,7 @@ namespace tinakit::excel {
 class Worksheet::Impl {
 public:
     explicit Impl(const std::string& name);
+    explicit Impl(const std::string& name, StyleManager* style_manager);
     ~Impl() = default;
 
     // 单元格管理
@@ -47,12 +49,16 @@ public:
     std::vector<std::string> find_value(const std::string& value) const;
     std::size_t replace_value(const std::string& old_value, const std::string& new_value);
 
+    // 样式管理
+    StyleManager* get_style_manager() const { return style_manager_; }
+
 private:
     std::string name_;
+    StyleManager* style_manager_ = nullptr;  // 样式管理器引用
     // TODO: 实际的单元格和行数据结构
     mutable std::map<std::pair<std::size_t, std::size_t>, std::unique_ptr<Cell>> cells_;
     mutable std::map<std::size_t, std::unique_ptr<Row>> rows_;
-    
+
     std::size_t max_row_ = 0;
     std::size_t max_column_ = 0;
 };
@@ -64,6 +70,10 @@ private:
 // =============================================================================
 
 Worksheet::Impl::Impl(const std::string& name) : name_(name) {
+}
+
+Worksheet::Impl::Impl(const std::string& name, StyleManager* style_manager)
+    : name_(name), style_manager_(style_manager) {
 }
 
 Cell& Worksheet::Impl::get_cell(const std::string& address) {
@@ -83,11 +93,16 @@ Cell& Worksheet::Impl::get_cell(std::size_t row, std::size_t column) {
         // 使用 Cell 的工厂方法创建新的 Cell
         auto cell = Cell::create(row, column);
         auto& cell_ref = *cell;
+
+        // 设置工作表引用，让 Cell 能够访问样式管理器
+        // 注意：这里需要传递包含此 Impl 的 Worksheet 对象
+        // 暂时先不设置，稍后在 Worksheet 层面处理
+
         cells_[key] = std::move(cell);
-        
+
         max_row_ = std::max(max_row_, row);
         max_column_ = std::max(max_column_, column);
-        
+
         return cell_ref;
     }
     return *it->second;
@@ -167,6 +182,11 @@ std::shared_ptr<Worksheet> Worksheet::create(const std::string& name) {
     return std::make_shared<Worksheet>(std::move(impl));
 }
 
+std::shared_ptr<Worksheet> Worksheet::create(const std::string& name, StyleManager* style_manager) {
+    auto impl = std::make_unique<Impl>(name, style_manager);
+    return std::make_shared<Worksheet>(std::move(impl));
+}
+
 Worksheet::Worksheet(std::unique_ptr<Impl> impl) 
     : impl_(std::move(impl)) {
 }
@@ -186,7 +206,9 @@ Worksheet& Worksheet::operator=(Worksheet&& other) noexcept {
 
 // 单元格访问
 Cell& Worksheet::operator[](const std::string& address) {
-    return impl_->get_cell(address);
+    auto& cell = impl_->get_cell(address);
+    cell.set_worksheet(this);
+    return cell;
 }
 
 const Cell& Worksheet::operator[](const std::string& address) const {
@@ -194,7 +216,9 @@ const Cell& Worksheet::operator[](const std::string& address) const {
 }
 
 Cell& Worksheet::cell(const std::string& address) {
-    return impl_->get_cell(address);
+    auto& cell = impl_->get_cell(address);
+    cell.set_worksheet(this);
+    return cell;
 }
 
 const Cell& Worksheet::cell(const std::string& address) const {
@@ -202,7 +226,10 @@ const Cell& Worksheet::cell(const std::string& address) const {
 }
 
 Cell& Worksheet::cell(std::size_t row, std::size_t column) {
-    return impl_->get_cell(row, column);
+    auto& cell = impl_->get_cell(row, column);
+    // 设置工作表引用，让 Cell 能够访问样式管理器
+    cell.set_worksheet(this);
+    return cell;
 }
 
 const Cell& Worksheet::cell(std::size_t row, std::size_t column) const {
@@ -270,6 +297,11 @@ async::Task<void> Worksheet::process_rows_async(std::function<async::Task<void>(
     for (std::size_t i = 1; i <= max_row(); ++i) {
         co_await processor(row(i));
     }
+}
+
+// 样式管理
+StyleManager* Worksheet::get_style_manager() const {
+    return impl_->get_style_manager();
 }
 
 // =============================================================================

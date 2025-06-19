@@ -21,6 +21,9 @@
 
 namespace tinakit::excel {
 
+// 前向声明
+class StyleManager;
+
 /**
  * @class Worksheet
  * @brief Excel 工作表类
@@ -53,6 +56,14 @@ public:
      * @return 工作表智能指针
      */
     static std::shared_ptr<Worksheet> create(const std::string& name);
+
+    /**
+     * @brief 创建新的工作表（带样式管理器）
+     * @param name 工作表名称
+     * @param style_manager 样式管理器指针
+     * @return 工作表智能指针
+     */
+    static std::shared_ptr<Worksheet> create(const std::string& name, StyleManager* style_manager);
 
     /**
      * @brief 构造函数（由 Workbook 内部创建）
@@ -257,6 +268,12 @@ public:
     const_iterator end() const;
     const_iterator cbegin() const;
     const_iterator cend() const;
+
+    /**
+     * @brief 获取样式管理器（内部使用）
+     * @return 样式管理器指针
+     */
+    StyleManager* get_style_manager() const;
 
 private:
     std::unique_ptr<Impl> impl_;  ///< 实现细节（PIMPL 模式）

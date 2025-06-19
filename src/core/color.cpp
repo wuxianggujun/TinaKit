@@ -50,11 +50,21 @@ std::string Color::to_hex() const {
         << std::setw(2) << static_cast<int>(r_)
         << std::setw(2) << static_cast<int>(g_)
         << std::setw(2) << static_cast<int>(b_);
-    
+
     if (a_ != 255) {
         oss << std::setw(2) << static_cast<int>(a_);
     }
-    
+
+    return oss.str();
+}
+
+std::string Color::to_excel_rgb() const {
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0') << std::uppercase
+        << std::setw(2) << static_cast<int>(r_)
+        << std::setw(2) << static_cast<int>(g_)
+        << std::setw(2) << static_cast<int>(b_);
+
     return oss.str();
 }
 
