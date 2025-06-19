@@ -66,6 +66,7 @@ add_tinakit_example(final_test final_test.cpp)
 add_tinakit_example(styled_report_demo styled_report_demo.cpp)
 add_tinakit_example(style_chain_demo style_chain_demo.cpp)
 add_tinakit_example(simple_style_test simple_style_test.cpp)
+add_tinakit_example(alignment_test alignment_test.cpp)
 
 # 调试测试程序（不依赖 tinakit 库）
 add_executable(debug_position debug_position.cpp)
