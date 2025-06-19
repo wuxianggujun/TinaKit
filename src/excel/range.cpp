@@ -6,6 +6,8 @@
  */
 
 #include "tinakit/excel/range.hpp"
+#include "tinakit/excel/worksheet.hpp"
+#include "tinakit/excel/conditional_format.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include <sstream>
 
@@ -79,6 +81,10 @@ bool Range::operator==(const Range& other) const {
 
 bool Range::operator!=(const Range& other) const {
     return !(*this == other);
+}
+
+ConditionalFormatBuilder Range::conditional_format(Worksheet& worksheet) const {
+    return worksheet.conditional_format(this->to_string());
 }
 
 } // namespace tinakit::excel

@@ -87,12 +87,34 @@ public:
      */
     void initialize_defaults();
 
+    /**
+     * @brief 添加条件格式差异样式
+     * @param font 字体样式（可选）
+     * @param fill 填充样式（可选）
+     * @return dxf ID（用于条件格式引用）
+     */
+    std::uint32_t add_dxf(const Font* font, const Fill* fill);
+
+    /**
+     * @brief 获取dxf数量
+     * @return dxf数量
+     */
+    std::size_t get_dxf_count() const;
+
 private:
     std::vector<Font> fonts_;
     std::vector<Fill> fills_;
     std::vector<Border> borders_;
     std::vector<NumberFormat> number_formats_;
     std::vector<CellStyle> cell_styles_;
+
+    // 条件格式差异样式存储
+    struct Dxf {
+        std::optional<Font> font;
+        std::optional<Fill> fill;
+        std::optional<Border> border;
+    };
+    std::vector<Dxf> dxfs_;
     
     // 用于快速查找重复样式
     std::unordered_map<std::size_t, std::uint32_t> font_cache_;

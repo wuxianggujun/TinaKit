@@ -16,6 +16,7 @@ target_sources(tinakit PRIVATE
         excel/shared_strings.cpp
         excel/style_manager.cpp
         excel/types.cpp
+        excel/conditional_format.cpp
 )
 
 target_include_directories(tinakit PUBLIC

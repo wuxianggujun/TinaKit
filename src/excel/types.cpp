@@ -137,4 +137,22 @@ bool CellStyle::operator==(const CellStyle& other) const {
            apply_alignment == other.apply_alignment;
 }
 
+// ConditionalFormatRule 实现
+bool ConditionalFormatRule::operator==(const ConditionalFormatRule& other) const {
+    return type == other.type &&
+           operator_type == other.operator_type &&
+           formulas == other.formulas &&
+           text == other.text &&
+           font == other.font &&
+           fill == other.fill &&
+           border == other.border;
+}
+
+// ConditionalFormat 实现
+bool ConditionalFormat::operator==(const ConditionalFormat& other) const {
+    return range == other.range &&
+           rules == other.rules &&
+           priority == other.priority;
+}
+
 } // namespace tinakit::excel

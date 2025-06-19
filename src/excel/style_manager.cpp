@@ -458,7 +458,62 @@ std::string StyleManager::generate_xml() const {
         }
     }
     xml << "  </cellXfs>\n";
-    
+
+    // 添加条件格式差异样式（dxfs）
+    if (!dxfs_.empty()) {
+        xml << R"(  <dxfs count=")" << dxfs_.size() << R"(">)" << '\n';
+        for (const auto& dxf : dxfs_) {
+            xml << "    <dxf>\n";
+
+            // 字体样式 - 使用Excel兼容的格式和顺序
+            if (dxf.font) {
+                xml << "      <font>\n";
+                // 1. 字体名称
+                xml << R"(        <name val=")" << dxf.font->name << R"("/>)" << '\n';
+                // 2. scheme属性（Excel兼容性）
+                xml << R"(        <scheme val="none"/>)" << '\n';
+                // 3. 样式属性（使用val="1"格式）
+                if (dxf.font->bold) xml << R"(        <b val="1"/>)" << '\n';
+                if (dxf.font->italic) xml << R"(        <i val="1"/>)" << '\n';
+                if (dxf.font->underline) xml << R"(        <u val="1"/>)" << '\n';
+                if (dxf.font->strike) xml << R"(        <strike val="1"/>)" << '\n';
+                // 4. 字体大小
+                xml << R"(        <sz val=")" << dxf.font->size << R"("/>)" << '\n';
+                // 5. 字体颜色
+                if (dxf.font->color) {
+                    // 使用ARGB格式，去掉#号
+                    std::string font_color_hex = dxf.font->color->to_hex();
+                    if (font_color_hex.length() == 7 && font_color_hex[0] == '#') {
+                        font_color_hex = "FF" + font_color_hex.substr(1);
+                    }
+                    xml << R"(        <color rgb=")" << font_color_hex << R"("/>)" << '\n';
+                }
+                xml << "      </font>\n";
+            }
+
+            // 填充样式 - 使用Excel标准的条件格式背景色结构
+            if (dxf.fill && dxf.fill->fg_color) {
+                xml << "      <fill>\n";
+                xml << R"(        <patternFill patternType="solid">)" << '\n';
+
+                // 使用ARGB格式，去掉#号
+                std::string fill_color_hex = dxf.fill->fg_color->to_hex();
+                if (fill_color_hex.length() == 7 && fill_color_hex[0] == '#') {
+                    fill_color_hex = "FF" + fill_color_hex.substr(1);
+                }
+
+                // Excel条件格式：背景色使用bgColor！
+                xml << R"(          <bgColor rgb=")" << fill_color_hex << R"("/>)" << '\n';
+
+                xml << "        </patternFill>\n";
+                xml << "      </fill>\n";
+            }
+
+            xml << "    </dxf>\n";
+        }
+        xml << "  </dxfs>\n";
+    }
+
     xml << "</styleSheet>\n";
     
     return xml.str();
@@ -747,6 +802,25 @@ static void parse_border_element(core::XmlParser::iterator& it, Border& border) 
             break;
         }
     }
+}
+
+// 条件格式差异样式管理
+std::uint32_t StyleManager::add_dxf(const Font* font, const Fill* fill) {
+    Dxf dxf;
+    if (font) {
+        dxf.font = *font;
+    }
+    if (fill) {
+        dxf.fill = *fill;
+    }
+
+    std::uint32_t id = static_cast<std::uint32_t>(dxfs_.size());
+    dxfs_.push_back(dxf);
+    return id;
+}
+
+std::size_t StyleManager::get_dxf_count() const {
+    return dxfs_.size();
 }
 
 } // namespace tinakit::excel

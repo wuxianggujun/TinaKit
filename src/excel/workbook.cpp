@@ -98,6 +98,9 @@ public:
     
     void report_error(const std::exception& error);
 
+    // 辅助函数：转换条件格式操作符
+    std::string get_operator_string(ConditionalFormatOperator op);
+
 private:
         std::shared_ptr<core::OpenXmlArchiver> archiver_;
     std::filesystem::path original_path_;
@@ -1203,6 +1206,57 @@ void Workbook::Impl::generate_worksheet_xml(std::size_t index) {
         xml << R"(  </mergeCells>)" << '\n';
     }
 
+    // 添加条件格式信息 - 简化但正确的Excel格式
+    const auto& conditional_formats = sheet.get_conditional_formats();
+    if (!conditional_formats.empty()) {
+        std::cout << "生成条件格式XML，数量: " << conditional_formats.size() << std::endl;
+
+        int priority_counter = 1;  // 为每个规则分配不同的优先级
+        for (const auto& format : conditional_formats) {
+            std::cout << "  范围: " << format.range << ", 规则数: " << format.rules.size() << std::endl;
+            xml << R"(  <conditionalFormatting sqref=")" << format.range << R"(">)" << '\n';
+
+            for (const auto& rule : format.rules) {
+                std::cout << "    操作符: " << get_operator_string(rule.operator_type)
+                         << ", 公式数: " << rule.formulas.size() << std::endl;
+                if (!rule.formulas.empty()) {
+                    std::cout << "    第一个公式: " << rule.formulas[0] << std::endl;
+                }
+                if (rule.fill && rule.fill->fg_color) {
+                    std::cout << "    背景色: " << rule.fill->fg_color->to_hex() << std::endl;
+                }
+
+                // 生成cfRule
+                if (rule.type == ConditionalFormatType::ContainsText ||
+                    rule.type == ConditionalFormatType::NotContainsText ||
+                    rule.type == ConditionalFormatType::BeginsWith ||
+                    rule.type == ConditionalFormatType::EndsWith) {
+                    xml << R"(    <cfRule type="expression" priority=")" << priority_counter++;
+                } else {
+                    xml << R"(    <cfRule type="cellIs" operator=")"
+                        << get_operator_string(rule.operator_type)
+                        << R"(" priority=")" << priority_counter++;
+                }
+
+                // 添加dxfId引用（如果有的话）
+                if (rule.dxf_id) {
+                    xml << R"(" dxfId=")" << *rule.dxf_id;
+                }
+                xml << R"(">)" << '\n';
+
+                // 添加条件公式
+                for (const auto& formula : rule.formulas) {
+                    xml << R"(      <formula>)" << formula << R"(</formula>)" << '\n';
+                }
+
+                xml << R"(    </cfRule>)" << '\n';
+            }
+            xml << R"(  </conditionalFormatting>)" << '\n';
+        }
+    } else {
+        std::cout << "没有条件格式需要生成" << std::endl;
+    }
+
     xml << R"(</worksheet>)" << '\n';
     
     // 转换为字节数组
@@ -1363,6 +1417,25 @@ StyleManager& Workbook::style_manager() {
 
 const StyleManager& Workbook::style_manager() const {
     return impl_->get_style_manager();
+}
+
+// 辅助函数实现
+std::string Workbook::Impl::get_operator_string(ConditionalFormatOperator op) {
+    switch (op) {
+        case ConditionalFormatOperator::LessThan: return "lessThan";
+        case ConditionalFormatOperator::LessThanOrEqual: return "lessThanOrEqual";
+        case ConditionalFormatOperator::Equal: return "equal";
+        case ConditionalFormatOperator::NotEqual: return "notEqual";
+        case ConditionalFormatOperator::GreaterThanOrEqual: return "greaterThanOrEqual";
+        case ConditionalFormatOperator::GreaterThan: return "greaterThan";
+        case ConditionalFormatOperator::Between: return "between";
+        case ConditionalFormatOperator::NotBetween: return "notBetween";
+        case ConditionalFormatOperator::ContainsText: return "containsText";
+        case ConditionalFormatOperator::NotContains: return "notContains";
+        case ConditionalFormatOperator::BeginsWith: return "beginsWith";
+        case ConditionalFormatOperator::EndsWith: return "endsWith";
+        default: return "greaterThan";
+    }
 }
 
 } // namespace tinakit::excel

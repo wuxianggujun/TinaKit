@@ -12,6 +12,7 @@
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/types.hpp"
 #include "tinakit/excel/style_manager.hpp"
+#include "tinakit/excel/conditional_format.hpp"
 #include <algorithm>
 #include <map>
 
@@ -65,6 +66,13 @@ public:
                        std::size_t end_row, std::size_t end_col);
     const std::vector<Range>& get_merged_ranges() const { return merged_ranges_; }
 
+    // 条件格式管理
+    void add_conditional_format(const ConditionalFormat& format);
+    const std::vector<ConditionalFormat>& get_conditional_formats() const { return conditional_formats_; }
+
+    // 样式管理器访问
+    StyleManager& get_style_manager() { return *style_manager_; }
+
 private:
     std::string name_;
     StyleManager* style_manager_ = nullptr;  // 样式管理器引用
@@ -80,6 +88,9 @@ private:
 
     // 合并单元格范围存储
     std::vector<Range> merged_ranges_;
+
+    // 条件格式存储
+    std::vector<ConditionalFormat> conditional_formats_;
 };
 
 
@@ -258,6 +269,10 @@ void Worksheet::Impl::unmerge_cells(std::size_t start_row, std::size_t start_col
     }
 }
 
+void Worksheet::Impl::add_conditional_format(const ConditionalFormat& format) {
+    conditional_formats_.push_back(format);
+}
+
 // =============================================================================
 // Worksheet 公共接口实现
 // =============================================================================
@@ -386,7 +401,7 @@ async::Task<void> Worksheet::process_rows_async(std::function<async::Task<void>(
 
 // 样式管理
 StyleManager* Worksheet::get_style_manager() const {
-    return impl_->get_style_manager();
+    return &impl_->get_style_manager();
 }
 
 // 列宽管理
@@ -433,6 +448,23 @@ void Worksheet::unmerge_cells(std::size_t start_row, std::size_t start_col,
 
 const std::vector<Range>& Worksheet::get_merged_ranges() const {
     return impl_->get_merged_ranges();
+}
+
+// 条件格式
+ConditionalFormatBuilder Worksheet::conditional_format(const std::string& range_str) {
+    return ConditionalFormatBuilder(*this, range_str);
+}
+
+void Worksheet::add_conditional_format(const ConditionalFormat& format) {
+    impl_->add_conditional_format(format);
+}
+
+const std::vector<ConditionalFormat>& Worksheet::get_conditional_formats() const {
+    return impl_->get_conditional_formats();
+}
+
+StyleManager& Worksheet::style_manager() {
+    return impl_->get_style_manager();
 }
 
 // =============================================================================

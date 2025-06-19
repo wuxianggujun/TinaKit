@@ -1,5 +1,6 @@
 #include <iostream>
 #include "tinakit/excel/workbook.hpp"
+#include "tinakit/excel/conditional_format.hpp"
 
 using namespace tinakit;
 using namespace tinakit::excel;
@@ -274,6 +275,78 @@ int main() {
         advanced_sheet.merge_cells("H6:I8");  // 区域合并H6到I8
 
         // ========================================
+        // 6. 条件格式测试
+        // ========================================
+        std::cout << "创建条件格式测试工作表..." << std::endl;
+        auto& conditional_sheet = workbook.create_sheet("条件格式");
+
+        // 标题
+        conditional_sheet["A1"]
+            .value("条件格式功能测试")
+            .font("微软雅黑", 16)
+            .bold()
+            .color(Color::White)
+            .background_color(Color(128, 0, 128))  // 紫色
+            .align(center_align);
+
+        // 数值条件格式测试数据
+        conditional_sheet["A3"].value("数值条件格式测试").bold();
+        conditional_sheet["A4"].value("分数");
+        conditional_sheet["B4"].value("等级");
+
+        // 填入测试数据
+        std::vector<int> scores = {95, 87, 76, 65, 58, 92, 81, 73, 69, 84};
+        for (size_t i = 0; i < scores.size(); ++i) {
+            conditional_sheet.cell(5 + i, 1).value(scores[i]);
+        }
+
+        // 应用条件格式：分数大于90显示绿色背景
+        std::cout << "添加条件格式：分数>90显示绿色..." << std::endl;
+        conditional_sheet.conditional_format("A5:A14")
+            .when_greater_than(90)
+            .background_color(Color::Green)
+            .apply();
+
+        // 检查条件格式是否添加成功
+        const auto& formats = conditional_sheet.get_conditional_formats();
+        std::cout << "当前条件格式数量: " << formats.size() << std::endl;
+
+        // 应用条件格式：分数小于60显示红色背景
+        conditional_sheet.conditional_format("A5:A14")
+            .when_less_than(60)
+            .background_color(Color::Red)
+            .apply();
+
+        // 应用条件格式：分数在70-89之间显示黄色背景
+        conditional_sheet.conditional_format("A5:A14")
+            .when_between(70, 89)
+            .background_color(Color::Yellow)
+            .apply();
+
+        // 文本条件格式测试
+        conditional_sheet["D3"].value("文本条件格式测试").bold();
+        conditional_sheet["D4"].value("状态");
+
+        std::vector<std::string> statuses = {"优秀", "良好", "一般", "差", "优秀", "良好", "差", "一般", "优秀", "良好"};
+        for (size_t i = 0; i < statuses.size(); ++i) {
+            conditional_sheet.cell(5 + i, 4).value(statuses[i]);
+        }
+
+        // 应用条件格式：包含"优秀"的文本显示绿色字体
+        conditional_sheet.conditional_format("D5:D14")
+            .when_contains("优秀")
+            .font_color(Color::Green)
+            .bold()
+            .apply();
+
+        // 应用条件格式：包含"差"的文本显示红色字体
+        conditional_sheet.conditional_format("D5:D14")
+            .when_contains("差")
+            .font_color(Color::Red)
+            .bold()
+            .apply();
+
+        // ========================================
         // 6. 综合样式测试
         // ========================================
         std::cout << "创建综合样式测试工作表..." << std::endl;
@@ -319,7 +392,8 @@ int main() {
         std::cout << "   • 对齐测试 - 水平和垂直对齐测试" << std::endl;
         std::cout << "   • 数字格式 - 各种数字格式测试" << std::endl;
         std::cout << "   • 边框测试 - 边框样式、彩色边框、行高列宽测试" << std::endl;
-        std::cout << "   • 高级格式 - 文本换行、缩进、彩色边框组合测试" << std::endl;
+        std::cout << "   • 高级格式 - 文本换行、缩进、彩色边框、合并单元格测试" << std::endl;
+        std::cout << "   • 条件格式 - 数值条件、文本条件格式测试" << std::endl;
         std::cout << "   • 综合样式 - 复杂样式组合测试" << std::endl;
         std::cout << "\n🎨 新增功能:" << std::endl;
         std::cout << "   ✓ 彩色边框 - border(type, style, color)" << std::endl;
@@ -328,6 +402,7 @@ int main() {
         std::cout << "   ✓ 行高设置 - row(n).height(value)" << std::endl;
         std::cout << "   ✓ 列宽设置 - set_column_width(column, width)" << std::endl;
         std::cout << "   ✓ 合并单元格 - merge_cells(range) / unmerge_cells(range)" << std::endl;
+        std::cout << "   ✓ 条件格式 - conditional_format(range).when_xxx().apply()" << std::endl;
         std::cout << "\n💡 缩进说明:" << std::endl;
         std::cout << "   • 缩进是文本在单元格内的左边距偏移" << std::endl;
         std::cout << "   • 需要配合左对齐使用才能看到效果" << std::endl;

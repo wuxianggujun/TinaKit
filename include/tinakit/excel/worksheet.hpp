@@ -23,6 +23,7 @@ namespace tinakit::excel {
 
 // 前向声明
 class StyleManager;
+class ConditionalFormatBuilder;
 
 /**
  * @class Worksheet
@@ -312,6 +313,32 @@ public:
      */
     void unmerge_cells(std::size_t start_row, std::size_t start_col,
                        std::size_t end_row, std::size_t end_col);
+
+public:
+    /**
+     * @brief 创建条件格式构建器
+     * @param range_str 应用范围（如 "A1:A10"）
+     * @return 条件格式构建器
+     */
+    ConditionalFormatBuilder conditional_format(const std::string& range_str);
+
+    /**
+     * @brief 添加条件格式（内部使用）
+     * @param format 条件格式
+     */
+    void add_conditional_format(const ConditionalFormat& format);
+
+    /**
+     * @brief 获取所有条件格式（内部使用）
+     * @return 条件格式列表
+     */
+    const std::vector<ConditionalFormat>& get_conditional_formats() const;
+
+    /**
+     * @brief 获取样式管理器（内部使用）
+     * @return 样式管理器引用
+     */
+    StyleManager& style_manager();
 
     /**
      * @brief 检查是否为空

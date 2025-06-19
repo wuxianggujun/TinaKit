@@ -12,6 +12,10 @@
 
 namespace tinakit::excel {
 
+// 前向声明
+class Worksheet;
+class ConditionalFormatBuilder;
+
 /**
  * @class Range
  * @brief Excel 范围类
@@ -85,6 +89,13 @@ public:
      * @return 如果不等返回true
      */
     bool operator!=(const Range& other) const;
+
+    /**
+     * @brief 创建条件格式构建器（需要工作表上下文）
+     * @param worksheet 工作表引用
+     * @return 条件格式构建器
+     */
+    ConditionalFormatBuilder conditional_format(Worksheet& worksheet) const;
 
 private:
     Position start_;

@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <optional>
+#include <vector>
 
 namespace tinakit::excel {
 
@@ -240,14 +241,81 @@ struct CellStyle {
     std::optional<std::uint32_t> border_id;
     std::optional<std::uint32_t> number_format_id;
     std::optional<Alignment> alignment;
-    
+
     bool apply_font = false;
     bool apply_fill = false;
     bool apply_border = false;
     bool apply_number_format = false;
     bool apply_alignment = false;
-    
+
     bool operator==(const CellStyle& other) const;
+};
+
+/**
+ * @brief 条件格式类型
+ */
+enum class ConditionalFormatType {
+    CellValue = 0,          ///< 单元格值比较
+    Expression = 1,         ///< 表达式
+    ColorScale = 2,         ///< 色阶
+    DataBar = 3,            ///< 数据条
+    IconSet = 4,            ///< 图标集
+    Top10 = 5,              ///< 前N项
+    UniqueValues = 6,       ///< 唯一值
+    DuplicateValues = 7,    ///< 重复值
+    ContainsText = 8,       ///< 包含文本
+    NotContainsText = 9,    ///< 不包含文本
+    BeginsWith = 10,        ///< 开始于
+    EndsWith = 11           ///< 结束于
+};
+
+/**
+ * @brief 条件格式操作符
+ */
+enum class ConditionalFormatOperator {
+    LessThan = 0,           ///< 小于
+    LessThanOrEqual = 1,    ///< 小于等于
+    Equal = 2,              ///< 等于
+    NotEqual = 3,           ///< 不等于
+    GreaterThanOrEqual = 4, ///< 大于等于
+    GreaterThan = 5,        ///< 大于
+    Between = 6,            ///< 介于
+    NotBetween = 7,         ///< 不介于
+    ContainsText = 8,       ///< 包含文本
+    NotContains = 9,        ///< 不包含文本
+    BeginsWith = 10,        ///< 开始于
+    EndsWith = 11           ///< 结束于
+};
+
+/**
+ * @brief 条件格式规则
+ */
+struct ConditionalFormatRule {
+    ConditionalFormatType type = ConditionalFormatType::CellValue;
+    ConditionalFormatOperator operator_type = ConditionalFormatOperator::GreaterThan;
+    std::vector<std::string> formulas;  ///< 条件公式或值
+    std::string text;                   ///< 文本条件
+
+    // 格式设置（用于构建时，最终会转换为dxf_id）
+    std::optional<Font> font;
+    std::optional<Fill> fill;
+    std::optional<Border> border;
+
+    // dxf引用ID（用于XML生成）
+    std::optional<std::uint32_t> dxf_id;
+
+    bool operator==(const ConditionalFormatRule& other) const;
+};
+
+/**
+ * @brief 条件格式
+ */
+struct ConditionalFormat {
+    std::string range;                              ///< 应用范围
+    std::vector<ConditionalFormatRule> rules;       ///< 规则列表
+    int priority = 1;                               ///< 优先级
+
+    bool operator==(const ConditionalFormat& other) const;
 };
 
 /**

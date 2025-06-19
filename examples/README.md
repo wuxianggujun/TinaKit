@@ -15,6 +15,8 @@
   - ✅ 文本缩进（`indent()` - 支持任意调用顺序）
   - ✅ 行高设置（`row().height()`）
   - ✅ 列宽设置（`set_column_width()`）
+  - ✅ 合并单元格（`merge_cells()` / `unmerge_cells()`）
+  - ✅ 条件格式（`conditional_format().when_xxx().apply()`）
 
 ### 🔧 **底层API演示**
 - **`excel_with_styles.cpp`** - **StyleManager底层API演示**

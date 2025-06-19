@@ -54,39 +54,18 @@ function(add_tinakit_example target_name source_file)
     copy_runtime_dependencies(${target_name})
 endfunction()
 
-# 使用新函数添加测试程序
+# 核心示例程序
 add_tinakit_example(tinakit_xml_parser_example main.cpp)
+add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
+add_tinakit_example(excel_with_styles excel_with_styles.cpp)
+add_tinakit_example(stream_demo stream_demo.cpp)
+
+# 工具和测试程序
 add_tinakit_example(xlsx_archiver_demo xlsx_archiver_demo.cpp)
 add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
-add_tinakit_example(workbook_test workbook_test.cpp)
-add_tinakit_example(stream_demo stream_demo.cpp)
-add_tinakit_example(excel_with_styles excel_with_styles.cpp)
-add_tinakit_example(tinakit_comprehensive_demo tinakit_comprehensive_demo.cpp)
-add_tinakit_example(final_test final_test.cpp)
-# 综合样式测试（替代之前的多个单独测试）
-add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
-
-# Excel读取编辑测试
 add_tinakit_example(excel_read_edit_test excel_read_edit_test.cpp)
-
-# 样式XML提取工具
-add_executable(extract_styles extract_styles.cpp)
-target_link_libraries(extract_styles PRIVATE minizip zlib)
-set_target_properties(extract_styles
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
-copy_runtime_dependencies(extract_styles)
-
-# 保留一些重要的演示
-add_tinakit_example(styled_report_demo styled_report_demo.cpp)
-
-# 调试测试程序（不依赖 tinakit 库）
-add_executable(debug_position debug_position.cpp)
-set_target_properties(debug_position
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
-)
+add_tinakit_example(debug_excel_xml debug_excel_xml.cpp)
+add_tinakit_example(conditional_format_test conditional_format_test.cpp)
 
 # 特殊的测试程序（不使用 tinakit 库）
 function(add_special_example target_name source_file libraries)
