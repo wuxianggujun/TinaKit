@@ -137,7 +137,16 @@ public:
     };
 
     std::uint32_t get_or_create_style(const StyleKey& key) {
+        std::shared_lock read_lock(mutex_);
         auto it = style_cache_.find(key);
+        if (it != style_cache_.end()) {
+            return it->second;
+        }
+        read_lock.unlock();
+
+        std::unique_lock write_lock(mutex_);
+        // 双重检查锁定模式
+        it = style_cache_.find(key);
         if (it != style_cache_.end()) {
             return it->second;
         }
@@ -148,15 +157,18 @@ public:
     }
 
     void clear() {
+        std::unique_lock lock(mutex_);
         style_cache_.clear();
         next_style_id_ = 1;
     }
 
     std::size_t size() const {
+        std::shared_lock lock(mutex_);
         return style_cache_.size();
     }
 
 private:
+    mutable std::shared_mutex mutex_;  // 添加线程安全保护
     std::unordered_map<StyleKey, std::uint32_t, StyleKeyHash> style_cache_;
     std::uint32_t next_style_id_ = 1;
 };
@@ -178,12 +190,17 @@ public:
     bool should_use_shared_string(std::string_view str) const;
     void optimize_shared_strings();
 
+    // 线程安全的访问接口
+    std::size_t size() const;
+    void clear();
+
 public:
     StringPool string_pool_;  // 改为public以便访问
 
 private:
+    mutable std::shared_mutex mutex_;  // 添加线程安全保护
     std::unordered_map<std::string, StringStats> string_stats_;
-    
+
     static constexpr std::size_t MIN_SHARE_LENGTH = 3;
     static constexpr std::size_t MIN_USAGE_COUNT = 2;
 };

@@ -45,21 +45,21 @@ FetchContent_MakeAvailable(TinaKit)
 
 int main() {
     using namespace tinakit;
-    
+
     // 读取 Excel 文件
-    auto workbook = Workbook::open("example.xlsx");
+    auto workbook = excel::workbook::load("example.xlsx");
     auto worksheet = workbook.active_sheet();
-    
+
     // 读取单元格值
     auto value = worksheet.cell("A1").value<std::string>();
     std::cout << "A1 的值: " << value << std::endl;
-    
+
     // 写入新值
     worksheet.cell("B1").value("Hello, TinaKit!");
-    
+
     // 保存文件
     workbook.save("output.xlsx");
-    
+
     return 0;
 }
 ```

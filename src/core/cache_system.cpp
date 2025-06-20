@@ -71,6 +71,7 @@ std::string_view StringCache::get_string(StringPool::StringId id) const {
 }
 
 void StringCache::record_usage(std::string_view str) {
+    std::unique_lock lock(mutex_);
     std::string str_copy(str);  // 转换为string避免string_view失效
     auto& stats = string_stats_[str_copy];
     stats.usage_count++;
@@ -83,6 +84,7 @@ bool StringCache::should_use_shared_string(std::string_view str) const {
         return false;
     }
 
+    std::shared_lock lock(mutex_);
     std::string str_copy(str);  // 转换为string避免string_view失效
     auto it = string_stats_.find(str_copy);
     if (it != string_stats_.end()) {
@@ -92,8 +94,21 @@ bool StringCache::should_use_shared_string(std::string_view str) const {
     return false;
 }
 
+std::size_t StringCache::size() const {
+    std::shared_lock lock(mutex_);
+    return string_stats_.size();
+}
+
+void StringCache::clear() {
+    std::unique_lock lock(mutex_);
+    string_stats_.clear();
+    string_pool_.clear();
+}
+
 void StringCache::optimize_shared_strings() {
     TINAKIT_PROFILE("StringCache::optimize_shared_strings");
+
+    std::shared_lock lock(mutex_);
 
     // 分析字符串使用模式
     std::vector<std::pair<std::string, StringStats>> frequent_strings;
