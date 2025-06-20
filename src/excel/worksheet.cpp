@@ -9,7 +9,6 @@
 #include "tinakit/excel/cell.hpp"
 #include "tinakit/excel/row.hpp"
 #include "tinakit/excel/range.hpp"
-#include "tinakit/excel/worksheet_range.hpp"
 #include "tinakit/internal/workbook_impl.hpp"
 #include "tinakit/internal/worksheet_impl.hpp"
 #include "tinakit/internal/coordinate_utils.hpp"
@@ -171,9 +170,9 @@ Worksheet::RowRange Worksheet::rows() {
     return RowRange(*this, 1, max_row());
 }
 
-WorksheetRange Worksheet::range(const std::string& range_str) {
+Range Worksheet::range(const std::string& range_str) {
     auto range_addr = internal::utils::CoordinateUtils::string_to_range_address(range_str);
-    return WorksheetRange(workbook_impl_, sheet_name_, Range(workbook_impl_, sheet_name_, range_addr));
+    return Range(workbook_impl_, sheet_name_, range_addr);
 }
 
 Range Worksheet::basic_range(const std::string& range_str) {
