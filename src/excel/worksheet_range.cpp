@@ -31,23 +31,23 @@ WorksheetRange::WorksheetRange(std::shared_ptr<internal::workbook_impl> workbook
 // ========================================
 
 std::string WorksheetRange::address() const {
-    return range_.to_string();
+    return range_.address();
 }
 
 std::size_t WorksheetRange::start_row() const {
-    return range_.start().row;
+    return range_.start_position().row;
 }
 
 std::size_t WorksheetRange::start_column() const {
-    return range_.start().column;
+    return range_.start_position().column;
 }
 
 std::size_t WorksheetRange::end_row() const {
-    return range_.end().row;
+    return range_.end_coord().row;
 }
 
 std::size_t WorksheetRange::end_column() const {
-    return range_.end().column;
+    return range_.end_coord().column;
 }
 
 std::size_t WorksheetRange::row_count() const {
@@ -151,8 +151,8 @@ WorksheetRange& WorksheetRange::border(BorderType type, BorderStyle style) {
 
 WorksheetRange& WorksheetRange::border(BorderType type, BorderStyle style, const Color& color) {
     // 为范围内的每个单元格设置边框样式
-    for (std::size_t row = range_.start().row; row <= range_.end().row; ++row) {
-        for (std::size_t col = range_.start().column; col <= range_.end().column; ++col) {
+    for (std::size_t row = range_.start().row; row <= range_.end_coord().row; ++row) {
+        for (std::size_t col = range_.start().column; col <= range_.end_coord().column; ++col) {
             core::Coordinate pos(row, col);
             // 这里需要通过样式管理器设置边框
             // 暂时跳过实现，因为需要更复杂的样式系统
@@ -163,8 +163,8 @@ WorksheetRange& WorksheetRange::border(BorderType type, BorderStyle style, const
 
 WorksheetRange& WorksheetRange::number_format(const std::string& format_code) {
     // 为范围内的每个单元格设置数字格式
-    for (std::size_t row = range_.start().row; row <= range_.end().row; ++row) {
-        for (std::size_t col = range_.start().column; col <= range_.end().column; ++col) {
+    for (std::size_t row = range_.start().row; row <= range_.end_coord().row; ++row) {
+        for (std::size_t col = range_.start().column; col <= range_.end_coord().column; ++col) {
             core::Coordinate pos(row, col);
             // 这里需要通过样式管理器设置数字格式
             // 暂时跳过实现，因为需要更复杂的样式系统

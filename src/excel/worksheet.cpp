@@ -12,6 +12,7 @@
 #include "tinakit/excel/worksheet_range.hpp"
 #include "tinakit/internal/workbook_impl.hpp"
 #include "tinakit/internal/worksheet_impl.hpp"
+#include "tinakit/internal/coordinate_utils.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/types.hpp"
 #include "tinakit/excel/types.hpp"
@@ -171,8 +172,8 @@ Worksheet::RowRange Worksheet::rows() {
 }
 
 WorksheetRange Worksheet::range(const std::string& range_str) {
-    auto basic_range = Range::from_string(range_str);
-    return WorksheetRange(workbook_impl_, sheet_name_, basic_range);
+    auto range_addr = internal::utils::CoordinateUtils::string_to_range_address(range_str);
+    return WorksheetRange(workbook_impl_, sheet_name_, Range(workbook_impl_, sheet_name_, range_addr));
 }
 
 Range Worksheet::basic_range(const std::string& range_str) {
@@ -193,7 +194,7 @@ async::Task<void> Worksheet::process_rows_async(std::function<async::Task<void>(
     }
 
     // 逐行处理
-    for (std::size_t row_num = range.start().row; row_num <= range.end().row; ++row_num) {
+    for (std::size_t row_num = range.start_position().row; row_num <= range.end_position().row; ++row_num) {
         auto& row = this->row(row_num);
         co_await processor(row);
     }

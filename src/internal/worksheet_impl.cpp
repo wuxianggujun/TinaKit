@@ -67,11 +67,14 @@ excel::Range worksheet_impl::get_used_range() const {
         max_col = std::max(max_col, pos.column);
     }
 
-    // 创建范围
-    excel::Position top_left(min_row, min_col);
-    excel::Position bottom_right(max_row, max_col);
+    // 创建范围地址
+    core::Coordinate top_left(min_row, min_col);
+    core::Coordinate bottom_right(max_row, max_col);
+    core::range_address range_addr(top_left, bottom_right);
 
-    return excel::Range(top_left, bottom_right);
+    // 返回空的Range（因为新的Range需要workbook_impl参数）
+    // TODO: 这个方法需要重新设计，因为新的Range需要workbook_impl
+    return excel::Range();
 }
 
 LoadState worksheet_impl::load_state() const {

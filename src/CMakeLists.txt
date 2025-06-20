@@ -20,6 +20,7 @@ target_sources(tinakit PRIVATE
         excel/types.cpp
         excel/conditional_format.cpp
         excel/style_template.cpp
+        excel/range_view.cpp
         excel/worksheet_range.cpp
         internal/workbook_impl.cpp
         internal/worksheet_impl.cpp

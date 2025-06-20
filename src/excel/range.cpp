@@ -1,90 +1,122 @@
 /**
  * @file range.cpp
- * @brief Excel 范围类实现
+ * @brief Excel 范围句柄类实现 - 重构后的唯一用户接口
  * @author TinaKit Team
- * @date 2025-6-16
+ * @date 2025-6-20
  */
 
 #include "tinakit/excel/range.hpp"
-#include "tinakit/excel/worksheet.hpp"
-#include "tinakit/excel/conditional_format.hpp"
+#include "tinakit/excel/style_template.hpp"
+#include "tinakit/internal/workbook_impl.hpp"
+#include "tinakit/internal/coordinate_utils.hpp"
 #include "tinakit/core/exceptions.hpp"
-#include <sstream>
 
 namespace tinakit::excel {
 
-Range::Range(const Position& start, const Position& end) 
-    : start_(start), end_(end) {
+// ========================================
+// Range 构造函数
+// ========================================
+
+Range::Range(std::shared_ptr<internal::workbook_impl> workbook_impl,
+             std::string sheet_name,
+             core::range_address range_addr)
+    : workbook_impl_(std::move(workbook_impl))
+    , sheet_name_(std::move(sheet_name))
+    , range_addr_(range_addr)
+    , view_(RangeView(workbook_impl_, sheet_name_, range_addr)) {
 }
 
-Range Range::from_string(const std::string& range_str) {
-    // 简单的范围解析实现
-    auto colon_pos = range_str.find(':');
-    if (colon_pos == std::string::npos) {
-        // 单个单元格
-        auto pos = Position::from_address(range_str);
-        return Range(pos, pos);
-    } else {
-        // 范围
-        auto start_str = range_str.substr(0, colon_pos);
-        auto end_str = range_str.substr(colon_pos + 1);
-        auto start_pos = Position::from_address(start_str);
-        auto end_pos = Position::from_address(end_str);
-        return Range(start_pos, end_pos);
-    }
-}
+// ========================================
+// 范围信息
+// ========================================
 
-const Position& Range::start() const noexcept {
-    return start_;
-}
-
-const Position& Range::end() const noexcept {
-    return end_;
+std::string Range::address() const {
+    return internal::utils::CoordinateUtils::range_address_to_string(range_addr_);
 }
 
 std::string Range::to_string() const {
-    if (start_ == end_) {
-        return start_.to_address();
-    } else {
-        return start_.to_address() + ":" + end_.to_address();
-    }
+    return address(); // 向后兼容方法
 }
 
-bool Range::contains(const Position& pos) const {
-    return pos.row >= start_.row && pos.row <= end_.row &&
-           pos.column >= start_.column && pos.column <= end_.column;
+core::Coordinate Range::start_position() const {
+    return range_addr_.start;
+}
+
+core::Coordinate Range::end_position() const {
+    return range_addr_.end;
+}
+
+bool Range::contains(const core::Coordinate& pos) const {
+    return range_addr_.contains(pos);
 }
 
 std::pair<std::size_t, std::size_t> Range::size() const {
-    return {
-        end_.row - start_.row + 1,
-        end_.column - start_.column + 1
-    };
+    return range_addr_.size();
 }
 
 bool Range::overlaps(const Range& other) const {
-    // 两个矩形重叠的条件：
-    // 1. 第一个矩形的左边界 <= 第二个矩形的右边界
-    // 2. 第一个矩形的右边界 >= 第二个矩形的左边界
-    // 3. 第一个矩形的上边界 <= 第二个矩形的下边界
-    // 4. 第一个矩形的下边界 >= 第二个矩形的上边界
-
-    return start_.column <= other.end_.column &&
-           end_.column >= other.start_.column &&
-           start_.row <= other.end_.row &&
-           end_.row >= other.start_.row;
+    return range_addr_.overlaps(other.range_addr_);
 }
 
+// ========================================
+// 批量操作 - 委托给 workbook_impl
+// ========================================
+
+template<typename T>
+Range& Range::set_value(const T& value) {
+    // 委托给workbook_impl进行批量值设置
+    workbook_impl_->set_range_values(sheet_name_, range_addr_, {{value}});
+    return *this;
+}
+
+// 显式实例化常用类型
+template Range& Range::set_value<std::string>(const std::string& value);
+template Range& Range::set_value<int>(const int& value);
+template Range& Range::set_value<double>(const double& value);
+template Range& Range::set_value<bool>(const bool& value);
+
+Range& Range::set_style(const StyleTemplate& style_template) {
+    // 委托给workbook_impl进行批量样式设置
+    // TODO: 实现StyleTemplate到style_id的转换
+    auto style_id = 1; // 临时使用默认样式ID
+    return set_style(style_id);
+}
+
+Range& Range::set_style(std::uint32_t style_id) {
+    // 委托给workbook_impl进行批量样式设置
+    workbook_impl_->set_range_style(sheet_name_, range_addr_, style_id);
+    return *this;
+}
+
+Range& Range::clear() {
+    // 委托给workbook_impl进行批量清除
+    // TODO: 实现clear_range方法
+    // workbook_impl_->clear_range(sheet_name_, range_addr_);
+    return *this;
+}
+
+// ========================================
+// 静态工厂方法实现
+// ========================================
+
+Range Range::from_string(const std::string& range_str,
+                         std::shared_ptr<internal::workbook_impl> workbook_impl,
+                         const std::string& sheet_name) {
+    auto range_addr = internal::utils::CoordinateUtils::string_to_range_address(range_str);
+    return Range(std::move(workbook_impl), sheet_name, range_addr);
+}
+
+// ========================================
+// 比较运算符实现
+// ========================================
+
 bool Range::operator==(const Range& other) const {
-    return start_ == other.start_ && end_ == other.end_;
+    return range_addr_ == other.range_addr_ &&
+           sheet_name_ == other.sheet_name_;
 }
 
 bool Range::operator!=(const Range& other) const {
     return !(*this == other);
-}
-
-ConditionalFormatBuilder Range::conditional_format(Worksheet& worksheet) const {
-    return worksheet.conditional_format(this->to_string());
 }
 
 } // namespace tinakit::excel
