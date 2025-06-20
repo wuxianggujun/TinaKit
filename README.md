@@ -46,19 +46,40 @@ FetchContent_MakeAvailable(TinaKit)
 int main() {
     using namespace tinakit;
 
-    // 读取 Excel 文件
-    auto workbook = excel::Workbook::load("example.xlsx");
-    auto worksheet = workbook.active_sheet();
+    try {
+        // 创建新的 Excel 文件
+        auto workbook = excel::Workbook::create();
+        auto worksheet = workbook.active_sheet();
 
-    // 读取单元格值
-    auto value = worksheet.cell("A1").value<std::string>();
-    std::cout << "A1 的值: " << value << std::endl;
+        // 写入数据
+        worksheet.cell("A1").value("姓名");
+        worksheet.cell("B1").value("年龄");
+        worksheet.cell("A2").value("张三");
+        worksheet.cell("B2").value(25);
 
-    // 写入新值
-    worksheet.cell("B1").value("Hello, TinaKit!");
+        // 应用样式
+        worksheet.cell("A1").bold().color(Color::Blue);
+        worksheet.cell("B1").bold().color(Color::Blue);
 
-    // 保存文件
-    workbook.save("output.xlsx");
+        // 保存文件
+        workbook.save("output.xlsx");
+        std::cout << "文件已保存到 output.xlsx" << std::endl;
+
+        // 读取文件（如果存在）
+        if (std::filesystem::exists("output.xlsx")) {
+            auto loaded_workbook = excel::Workbook::load("output.xlsx");
+            auto loaded_sheet = loaded_workbook.active_sheet();
+
+            auto name = loaded_sheet.cell("A2").as<std::string>();
+            auto age = loaded_sheet.cell("B2").as<int>();
+
+            std::cout << "读取到的数据: " << name << ", " << age << " 岁" << std::endl;
+        }
+
+    } catch (const std::exception& e) {
+        std::cerr << "错误: " << e.what() << std::endl;
+        return 1;
+    }
 
     return 0;
 }
@@ -74,22 +95,56 @@ int main() {
 
 ## 🏗️ 项目状态
 
-TinaKit 目前处于积极开发阶段。我们正在构建一个强大而灵活的 OpenXML 处理框架。
+TinaKit 目前处于积极开发阶段，核心功能已基本完成。
 
 ### 支持的格式
 
-- ✅ Excel (.xlsx) - 基础读写支持
-- 🚧 Word (.docx) - 开发中
+- ✅ Excel (.xlsx) - 完整的读写支持
+  - ✅ 单元格数据读写（字符串、数字、布尔值）
+  - ✅ 基础样式（字体、颜色、对齐、边框）
+  - ✅ 工作表管理（创建、删除、重命名）
+  - ✅ Range操作（批量数据处理）
+  - ✅ 共享字符串优化
+  - ✅ 样式管理器
+  - 🚧 公式支持（基础框架已完成）
+  - 🚧 条件格式（开发中）
+  - 🚧 图表支持（计划中）
+- 📋 Word (.docx) - 计划中
 - 📋 PowerPoint (.pptx) - 计划中
+
+### 当前版本功能
+
+**v0.1.0 (当前开发版本)**
+- ✅ 核心架构和PIMPL设计模式
+- ✅ 现代C++20特性支持
+- ✅ 异步操作框架
+- ✅ 完整的异常处理体系
+- ✅ 性能优化（内存池、缓存系统）
+- ✅ 跨平台CMake构建系统
+- ✅ 完整的测试套件
 
 ### 路线图
 
+**v0.1.x (短期目标)**
 - [x] 核心架构设计
-- [x] Excel 基础读取功能
-- [ ] Excel 完整写入功能
-- [ ] Word 文档支持
+- [x] Excel 基础读写功能
+- [x] 样式系统基础实现
+- [x] 工作表和单元格操作
+- [ ] Row类完整实现
+- [ ] 公式计算引擎
+- [ ] 条件格式完整支持
+
+**v0.2.x (中期目标)**
+- [ ] Word 文档基础支持
 - [ ] 图表和图像处理
 - [ ] 高级格式化功能
+- [ ] 数据验证和保护功能
+
+**v1.0.x (长期目标)**
+- [ ] PowerPoint 支持
+- [ ] 插件系统
+- [ ] 完整的异步操作
+- [ ] 性能基准达到行业标准
 
 ## 🤝 贡献
 
