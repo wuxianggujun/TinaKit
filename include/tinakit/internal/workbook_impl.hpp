@@ -213,6 +213,23 @@ public:
      * @brief 批量设置范围内的样式
      */
     void set_range_style(const std::string& sheet_name, const core::range_address& range, std::uint32_t style_id);
+
+    /**
+     * @brief 高性能批量设置单元格值
+     */
+    void batch_set_cell_values(const std::string& sheet_name,
+                              const std::vector<std::tuple<core::Position, cell_data::CellValue>>& operations);
+
+    /**
+     * @brief 获取性能统计信息
+     */
+    struct PerformanceStats {
+        std::size_t string_pool_size;
+        std::size_t cell_cache_hits;
+        std::size_t cell_cache_misses;
+        double cache_hit_ratio;
+    };
+    PerformanceStats get_performance_stats() const;
     
     // ========================================
     // 样式管理
@@ -283,6 +300,10 @@ private:
     // 样式和共享字符串管理
     std::shared_ptr<excel::StyleManager> style_manager_;
     std::shared_ptr<excel::SharedStrings> shared_strings_;
+
+    // 性能优化组件
+    std::unique_ptr<core::StringPool> string_pool_;
+    std::unique_ptr<core::MemoryPool<cell_data>> cell_data_pool_;
     
     // 工作表实现映射
     std::map<std::string, std::unique_ptr<worksheet_impl>> worksheets_;

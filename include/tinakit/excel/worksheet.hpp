@@ -370,6 +370,21 @@ public:
     }
 
     /**
+     * @brief 批量设置单元格值（高性能API）
+     */
+    void batch_set_values(const std::vector<std::tuple<std::string, std::string>>& address_value_pairs);
+
+    /**
+     * @brief 批量设置单元格值（使用Position）
+     */
+    void batch_set_values(const std::vector<std::tuple<std::size_t, std::size_t, std::string>>& row_col_value_tuples);
+
+    /**
+     * @brief 清空缓存（用于测试和性能分析）
+     */
+    void clear_cache();
+
+    /**
      * @brief 清空缓存
      */
     void clear_cache() const {

@@ -73,6 +73,7 @@ add_tinakit_example(debug_style_test debug_style_test.cpp)
 add_tinakit_example(performance_benchmark performance_benchmark.cpp)
 add_tinakit_example(performance_demo performance_demo.cpp)
 add_tinakit_example(performance_comparison performance_comparison.cpp)
+add_tinakit_example(real_world_performance_test real_world_performance_test.cpp)
 
 # 特殊的测试程序（不使用 tinakit 库）
 function(add_special_example target_name source_file libraries)

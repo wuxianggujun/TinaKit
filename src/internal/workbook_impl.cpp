@@ -26,14 +26,18 @@ namespace tinakit::internal {
 
 workbook_impl::workbook_impl()
     : style_manager_(std::make_shared<excel::StyleManager>()),
-      shared_strings_(std::make_shared<excel::SharedStrings>()) {
+      shared_strings_(std::make_shared<excel::SharedStrings>()),
+      string_pool_(std::make_unique<core::StringPool>()),
+      cell_data_pool_(std::make_unique<core::MemoryPool<cell_data>>()) {
     // 不在构造函数中创建默认结构，延迟到需要时创建
 }
 
 workbook_impl::workbook_impl(const std::filesystem::path& file_path)
     : file_path_(file_path),
       style_manager_(std::make_shared<excel::StyleManager>()),
-      shared_strings_(std::make_shared<excel::SharedStrings>()) {
+      shared_strings_(std::make_shared<excel::SharedStrings>()),
+      string_pool_(std::make_unique<core::StringPool>()),
+      cell_data_pool_(std::make_unique<core::MemoryPool<cell_data>>()) {
     load_from_file();
 }
 
@@ -171,9 +175,19 @@ void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Po
     auto& worksheet = get_worksheet_impl(sheet_name);
 
     cell_data data;
-    data.value = value;
-    worksheet.set_cell_data(pos, data);
 
+    // 性能优化：对字符串值使用字符串池
+    if (std::holds_alternative<std::string>(value)) {
+        const auto& str_value = std::get<std::string>(value);
+        // 使用字符串池优化存储
+        auto string_id = string_pool_->intern(str_value);
+        auto optimized_str = string_pool_->get_string(string_id);
+        data.value = std::string(optimized_str);
+    } else {
+        data.value = value;
+    }
+
+    worksheet.set_cell_data(pos, data);
     mark_worksheet_dirty(sheet_name);
 }
 
@@ -231,7 +245,7 @@ void workbook_impl::set_range_style(const std::string& sheet_name, const core::r
                                    std::uint32_t style_id) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
-    
+
     // 遍历范围内的所有单元格
     for (std::size_t row = range.start.row; row <= range.end.row; ++row) {
         for (std::size_t col = range.start.column; col <= range.end.column; ++col) {
@@ -241,8 +255,50 @@ void workbook_impl::set_range_style(const std::string& sheet_name, const core::r
             worksheet.set_cell_data(pos, data);
         }
     }
-    
+
     mark_worksheet_dirty(sheet_name);
+}
+
+void workbook_impl::batch_set_cell_values(const std::string& sheet_name,
+                                         const std::vector<std::tuple<core::Position, cell_data::CellValue>>& operations) {
+    ensure_worksheet_loaded(sheet_name);
+    auto& worksheet = get_worksheet_impl(sheet_name);
+
+    // 性能优化：批量处理，减少重复的查找和验证
+    for (const auto& [pos, value] : operations) {
+        cell_data data;
+
+        // 使用字符串池优化字符串存储
+        if (std::holds_alternative<std::string>(value)) {
+            const auto& str_value = std::get<std::string>(value);
+            auto string_id = string_pool_->intern(str_value);
+            auto optimized_str = string_pool_->get_string(string_id);
+            data.value = std::string(optimized_str);
+        } else {
+            data.value = value;
+        }
+
+        worksheet.set_cell_data(pos, data);
+    }
+
+    mark_worksheet_dirty(sheet_name);
+}
+
+workbook_impl::PerformanceStats workbook_impl::get_performance_stats() const {
+    PerformanceStats stats;
+    stats.string_pool_size = string_pool_->size();
+
+    // 从所有工作表收集缓存统计
+    std::size_t total_hits = 0;
+    std::size_t total_misses = 0;
+
+    // 这里需要从worksheet中获取缓存统计，暂时返回基本信息
+    stats.cell_cache_hits = total_hits;
+    stats.cell_cache_misses = total_misses;
+    stats.cache_hit_ratio = (total_hits + total_misses) > 0 ?
+        static_cast<double>(total_hits) / (total_hits + total_misses) : 0.0;
+
+    return stats;
 }
 
 // ========================================
