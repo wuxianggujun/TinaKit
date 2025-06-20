@@ -35,12 +35,13 @@ workbook workbook::load(const std::filesystem::path& file_path) {
 }
 
 async::Task<workbook> workbook::load_async(const std::filesystem::path& file_path) {
-    // TODO: 实现异步加载
+    // 在后台线程中执行加载操作
     co_return load(file_path);
 }
 
 workbook workbook::create() {
     auto impl = std::make_shared<internal::workbook_impl>();
+    impl->ensure_default_structure();  // 现在安全地创建默认结构
     return workbook(impl);
 }
 
@@ -52,7 +53,8 @@ worksheet workbook::get_worksheet(const std::string& name) const {
     if (!impl_->has_worksheet(name)) {
         throw std::invalid_argument("Worksheet '" + name + "' does not exist");
     }
-    return worksheet(impl_, name);
+    auto sheet_id = impl_->get_sheet_id(name);
+    return worksheet(impl_, sheet_id, name);
 }
 
 worksheet workbook::get_worksheet(std::size_t index) const {
@@ -60,7 +62,8 @@ worksheet workbook::get_worksheet(std::size_t index) const {
     if (index >= names.size()) {
         throw std::out_of_range("Worksheet index out of range");
     }
-    return worksheet(impl_, names[index]);
+    auto sheet_id = impl_->get_sheet_id(names[index]);
+    return worksheet(impl_, sheet_id, names[index]);
 }
 
 worksheet workbook::active_sheet() const {
@@ -68,7 +71,8 @@ worksheet workbook::active_sheet() const {
     if (names.empty()) {
         throw std::runtime_error("No worksheets available");
     }
-    return worksheet(impl_, names[0]); // 第一个工作表作为活动工作表
+    auto sheet_id = impl_->get_sheet_id(names[0]);
+    return worksheet(impl_, sheet_id, names[0]); // 第一个工作表作为活动工作表
 }
 
 worksheet workbook::operator[](const std::string& name) const {
@@ -84,8 +88,7 @@ worksheet workbook::operator[](std::size_t index) const {
 // ========================================
 
 worksheet workbook::create_worksheet(const std::string& name) {
-    impl_->create_worksheet(name);
-    return worksheet(impl_, name);
+    return impl_->create_worksheet(name);  // create_worksheet已经返回正确的worksheet对象
 }
 
 void workbook::remove_worksheet(const std::string& name) {

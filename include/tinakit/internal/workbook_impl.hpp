@@ -9,6 +9,8 @@
 
 #include "tinakit/core/types.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
+#include "tinakit/core/performance_optimizations.hpp"
+#include "tinakit/core/cache_system.hpp"
 #include "tinakit/excel/types.hpp"
 #include "tinakit/excel/shared_strings.hpp"
 #include "tinakit/excel/style_manager.hpp"
@@ -17,6 +19,14 @@
 #include <map>
 #include <variant>
 #include <filesystem>
+#include <cstdint>
+
+// 前向声明
+namespace tinakit::excel {
+    class Worksheet;
+    class Range;
+    struct ConditionalFormat;  // 使用struct而不是class
+}
 
 namespace tinakit::internal {
 
@@ -51,7 +61,7 @@ struct cell_data {
  * 4. 处理文件 I/O 操作
  * 5. 维护数据一致性
  */
-class workbook_impl {
+class workbook_impl : public std::enable_shared_from_this<workbook_impl> {
 public:
     /**
      * @brief 构造函数（用于创建新工作簿）
@@ -93,21 +103,41 @@ public:
      * @brief 检查工作表是否存在
      */
     bool has_worksheet(const std::string& name) const;
-    
+
+    /**
+     * @brief 检查工作表是否存在（通过ID）
+     */
+    bool has_worksheet(std::uint32_t sheet_id) const;
+
     /**
      * @brief 创建新工作表
      */
-    void create_worksheet(const std::string& name);
-    
+    excel::Worksheet create_worksheet(const std::string& name);
+
     /**
      * @brief 删除工作表
      */
     void remove_worksheet(const std::string& name);
-    
+
     /**
      * @brief 重命名工作表
      */
     void rename_worksheet(const std::string& old_name, const std::string& new_name);
+
+    /**
+     * @brief 获取工作表名称（通过ID）
+     */
+    std::string get_sheet_name(std::uint32_t sheet_id) const;
+
+    /**
+     * @brief 获取工作表ID（通过名称）
+     */
+    std::uint32_t get_sheet_id(const std::string& name) const;
+
+    /**
+     * @brief 确保默认结构已创建
+     */
+    void ensure_default_structure();
     
     // ========================================
     // 单元格数据访问（核心API）
@@ -117,21 +147,61 @@ public:
      * @brief 获取单元格值
      */
     cell_data get_cell_data(const std::string& sheet_name, const core::Position& pos);
+
+    /**
+     * @brief 获取单元格值（通过sheet_id）
+     */
+    cell_data get_cell_data(std::uint32_t sheet_id, const core::Position& pos);
+
+    /**
+     * @brief 获取单元格值（重载版本）
+     */
+    std::optional<cell_data> get_cell_data(const core::Position& pos);
+
+    /**
+     * @brief 获取工作表的使用范围
+     */
+    excel::Range get_used_range(const std::string& sheet_name);
+
+    /**
+     * @brief 添加条件格式
+     */
+    void add_conditional_format(const std::string& sheet_name, const excel::ConditionalFormat& format);
+
+    /**
+     * @brief 获取工作表实现（公开版本）
+     */
+    worksheet_impl& get_worksheet_impl_public(const std::string& sheet_name);
     
     /**
      * @brief 设置单元格值
      */
     void set_cell_value(const std::string& sheet_name, const core::Position& pos, const cell_data::CellValue& value);
-    
+
+    /**
+     * @brief 设置单元格值（通过sheet_id）
+     */
+    void set_cell_value(std::uint32_t sheet_id, const core::Position& pos, const cell_data::CellValue& value);
+
     /**
      * @brief 设置单元格公式
      */
     void set_cell_formula(const std::string& sheet_name, const core::Position& pos, const std::string& formula);
-    
+
+    /**
+     * @brief 设置单元格公式（通过sheet_id）
+     */
+    void set_cell_formula(std::uint32_t sheet_id, const core::Position& pos, const std::string& formula);
+
     /**
      * @brief 设置单元格样式
      */
     void set_cell_style(const std::string& sheet_name, const core::Position& pos, std::uint32_t style_id);
+
+    /**
+     * @brief 设置单元格样式（通过sheet_id）
+     */
+    void set_cell_style(std::uint32_t sheet_id, const core::Position& pos, std::uint32_t style_id);
     
     /**
      * @brief 批量设置范围内的值
@@ -216,9 +286,14 @@ private:
     
     // 工作表实现映射
     std::map<std::string, std::unique_ptr<worksheet_impl>> worksheets_;
-    
+
     // 工作表名称顺序
     std::vector<std::string> worksheet_order_;
+
+    // 工作表ID映射
+    std::map<std::string, std::uint32_t> sheet_name_to_id_;
+    std::map<std::uint32_t, std::string> sheet_id_to_name_;
+    std::uint32_t next_sheet_id_ = 1;
 
     // 活动工作表名称
     std::string active_sheet_name_;
@@ -241,7 +316,7 @@ private:
     void generate_styles_xml();
     void generate_shared_strings_xml();
     
-    // 获取或创建工作表实现
+    // 获取或创建工作表实现（私有版本）
     worksheet_impl& get_worksheet_impl(const std::string& sheet_name);
 };
 

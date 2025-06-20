@@ -6,6 +6,7 @@
  */
 
 #include "tinakit/internal/worksheet_impl.hpp"
+#include "tinakit/excel/range.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <limits>
 
 namespace tinakit::internal {
 
@@ -45,6 +47,31 @@ std::size_t worksheet_impl::max_row() const {
 
 std::size_t worksheet_impl::max_column() const {
     return max_column_;
+}
+
+excel::Range worksheet_impl::get_used_range() const {
+    if (cells_.empty()) {
+        return excel::Range(); // 返回空范围
+    }
+
+    // 找到最小和最大的行列
+    std::size_t min_row = std::numeric_limits<std::size_t>::max();
+    std::size_t max_row = 0;
+    std::size_t min_col = std::numeric_limits<std::size_t>::max();
+    std::size_t max_col = 0;
+
+    for (const auto& [pos, data] : cells_) {
+        min_row = std::min(min_row, pos.row);
+        max_row = std::max(max_row, pos.row);
+        min_col = std::min(min_col, pos.column);
+        max_col = std::max(max_col, pos.column);
+    }
+
+    // 创建范围
+    excel::Position top_left(min_row, min_col);
+    excel::Position bottom_right(max_row, max_col);
+
+    return excel::Range(top_left, bottom_right);
 }
 
 LoadState worksheet_impl::load_state() const {

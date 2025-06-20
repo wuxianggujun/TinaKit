@@ -85,7 +85,12 @@ public:
      * @brief 获取最大列数
      */
     std::size_t max_column() const;
-    
+
+    /**
+     * @brief 获取使用范围
+     */
+    excel::Range get_used_range() const;
+
     /**
      * @brief 获取加载状态
      */

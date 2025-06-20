@@ -7,6 +7,8 @@
 
 #include "tinakit/internal/workbook_impl.hpp"
 #include "tinakit/internal/worksheet_impl.hpp"
+#include "tinakit/excel/worksheet.hpp"
+#include "tinakit/excel/range.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
@@ -22,10 +24,10 @@ namespace tinakit::internal {
 // 构造函数和析构函数
 // ========================================
 
-workbook_impl::workbook_impl() 
+workbook_impl::workbook_impl()
     : style_manager_(std::make_shared<excel::StyleManager>()),
       shared_strings_(std::make_shared<excel::SharedStrings>()) {
-    create_default_structure();
+    // 不在构造函数中创建默认结构，延迟到需要时创建
 }
 
 workbook_impl::workbook_impl(const std::filesystem::path& file_path)
@@ -53,16 +55,57 @@ bool workbook_impl::has_worksheet(const std::string& name) const {
     return worksheets_.find(name) != worksheets_.end();
 }
 
-void workbook_impl::create_worksheet(const std::string& name) {
+bool workbook_impl::has_worksheet(std::uint32_t sheet_id) const {
+    return sheet_id_to_name_.find(sheet_id) != sheet_id_to_name_.end();
+}
+
+std::string workbook_impl::get_sheet_name(std::uint32_t sheet_id) const {
+    auto it = sheet_id_to_name_.find(sheet_id);
+    if (it != sheet_id_to_name_.end()) {
+        return it->second;
+    }
+    throw std::invalid_argument("Sheet ID " + std::to_string(sheet_id) + " does not exist");
+}
+
+std::uint32_t workbook_impl::get_sheet_id(const std::string& name) const {
+    auto it = sheet_name_to_id_.find(name);
+    if (it != sheet_name_to_id_.end()) {
+        return it->second;
+    }
+    throw std::invalid_argument("Sheet '" + name + "' does not exist");
+}
+
+void workbook_impl::ensure_default_structure() {
+    if (worksheets_.empty()) {
+        create_default_structure();
+    }
+}
+
+excel::Worksheet workbook_impl::create_worksheet(const std::string& name) {
     if (has_worksheet(name)) {
         throw std::invalid_argument("Worksheet '" + name + "' already exists");
     }
-    
+
+    // 分配新的sheet_id
+    std::uint32_t sheet_id = next_sheet_id_++;
+
+    // 建立映射关系
+    sheet_name_to_id_[name] = sheet_id;
+    sheet_id_to_name_[sheet_id] = name;
+
     auto worksheet = std::make_unique<worksheet_impl>(name, *this);
     worksheets_[name] = std::move(worksheet);
     worksheet_order_.push_back(name);
-    
+
+    // 如果这是第一个工作表，设为活动工作表
+    if (active_sheet_name_.empty()) {
+        active_sheet_name_ = name;
+    }
+
     is_dirty_ = true;
+
+    // 返回工作表对象
+    return excel::Worksheet(shared_from_this(), sheet_id, name);
 }
 
 void workbook_impl::remove_worksheet(const std::string& name) {
@@ -117,40 +160,63 @@ cell_data workbook_impl::get_cell_data(const std::string& sheet_name, const core
     return worksheet.get_cell_data(pos);
 }
 
-void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Position& pos, 
+cell_data workbook_impl::get_cell_data(std::uint32_t sheet_id, const core::Position& pos) {
+    std::string sheet_name = get_sheet_name(sheet_id);
+    return get_cell_data(sheet_name, pos);
+}
+
+void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Position& pos,
                                   const cell_data::CellValue& value) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
-    
+
     cell_data data;
     data.value = value;
     worksheet.set_cell_data(pos, data);
-    
+
     mark_worksheet_dirty(sheet_name);
 }
 
-void workbook_impl::set_cell_formula(const std::string& sheet_name, const core::Position& pos, 
+void workbook_impl::set_cell_value(std::uint32_t sheet_id, const core::Position& pos,
+                                  const cell_data::CellValue& value) {
+    std::string sheet_name = get_sheet_name(sheet_id);
+    set_cell_value(sheet_name, pos, value);
+}
+
+void workbook_impl::set_cell_formula(const std::string& sheet_name, const core::Position& pos,
                                     const std::string& formula) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
-    
+
     auto data = worksheet.get_cell_data(pos);
     data.formula = formula;
     worksheet.set_cell_data(pos, data);
-    
+
     mark_worksheet_dirty(sheet_name);
 }
 
-void workbook_impl::set_cell_style(const std::string& sheet_name, const core::Position& pos, 
+void workbook_impl::set_cell_formula(std::uint32_t sheet_id, const core::Position& pos,
+                                    const std::string& formula) {
+    std::string sheet_name = get_sheet_name(sheet_id);
+    set_cell_formula(sheet_name, pos, formula);
+}
+
+void workbook_impl::set_cell_style(const std::string& sheet_name, const core::Position& pos,
                                   std::uint32_t style_id) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
-    
+
     auto data = worksheet.get_cell_data(pos);
     data.style_id = style_id;
     worksheet.set_cell_data(pos, data);
-    
+
     mark_worksheet_dirty(sheet_name);
+}
+
+void workbook_impl::set_cell_style(std::uint32_t sheet_id, const core::Position& pos,
+                                  std::uint32_t style_id) {
+    std::string sheet_name = get_sheet_name(sheet_id);
+    set_cell_style(sheet_name, pos, style_id);
 }
 
 void workbook_impl::set_range_values(const std::string& sheet_name, const core::range_address& range,
@@ -608,6 +674,59 @@ void workbook_impl::save_to_archiver() {
 
     // 7. 保存到文件
     async::sync_wait(archiver_->save_to_file(file_path_.string()));
+}
+
+// ========================================
+// 新增的委托方法实现
+// ========================================
+
+
+
+std::optional<cell_data> workbook_impl::get_cell_data(const core::Position& pos) {
+    if (active_sheet_name_.empty()) {
+        return std::nullopt;
+    }
+
+    try {
+        auto data = get_cell_data(active_sheet_name_, pos);
+        return data;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
+excel::Range workbook_impl::get_used_range(const std::string& sheet_name) {
+    ensure_worksheet_loaded(sheet_name);
+
+    auto it = worksheets_.find(sheet_name);
+    if (it == worksheets_.end()) {
+        return excel::Range(); // 返回空范围
+    }
+
+    // 获取工作表的使用范围
+    auto& worksheet = *it->second;
+    auto used_range = worksheet.get_used_range();
+
+    return used_range;
+}
+
+void workbook_impl::add_conditional_format(const std::string& sheet_name, const excel::ConditionalFormat& format) {
+    ensure_worksheet_loaded(sheet_name);
+
+    auto it = worksheets_.find(sheet_name);
+    if (it != worksheets_.end()) {
+        // 这里应该将条件格式添加到工作表中
+        // 暂时只标记为已修改
+        it->second->mark_dirty();
+        is_dirty_ = true;
+    }
+}
+
+
+
+worksheet_impl& workbook_impl::get_worksheet_impl_public(const std::string& sheet_name) {
+    ensure_worksheet_loaded(sheet_name);
+    return get_worksheet_impl(sheet_name);
 }
 
 } // namespace tinakit::internal

@@ -11,6 +11,7 @@
 #include "tinakit/excel/range.hpp"
 #include "tinakit/excel/worksheet_range.hpp"
 #include "tinakit/internal/workbook_impl.hpp"
+#include "tinakit/internal/worksheet_impl.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/types.hpp"
 #include "tinakit/excel/style_manager.hpp"
@@ -22,8 +23,10 @@ namespace tinakit::excel {
 // ========================================
 // 构造函数和析构函数
 // ========================================
-Worksheet::Worksheet(std::shared_ptr<internal::workbook_impl> workbook_impl, std::string sheet_name)
-    : workbook_impl_(std::move(workbook_impl)), sheet_name_(std::move(sheet_name)) {
+Worksheet::Worksheet(std::shared_ptr<internal::workbook_impl> workbook_impl,
+                     std::uint32_t sheet_id,
+                     std::string sheet_name)
+    : workbook_impl_(std::move(workbook_impl)), sheet_id_(sheet_id), sheet_name_(std::move(sheet_name)) {
 }
 
 // ========================================
@@ -40,18 +43,20 @@ void Worksheet::set_name(const std::string& name) {
 }
 
 std::size_t Worksheet::max_row() const noexcept {
-    // TODO: 委托给 workbook_impl
-    return 0;
+    workbook_impl_->ensure_worksheet_loaded(sheet_name_);
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+    return worksheet_impl.max_row();
 }
 
 std::size_t Worksheet::max_column() const noexcept {
-    // TODO: 委托给 workbook_impl
-    return 0;
+    workbook_impl_->ensure_worksheet_loaded(sheet_name_);
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+    return worksheet_impl.max_column();
 }
 
 bool Worksheet::empty() const noexcept {
-    // TODO: 委托给 workbook_impl
-    return true;
+    auto range = used_range();
+    return range == Range(); // 比较是否为空范围
 }
 
 // ========================================
@@ -79,24 +84,40 @@ const Cell& Worksheet::cell(const std::string& address) const {
 }
 
 Cell& Worksheet::cell(std::size_t row, std::size_t column) {
-    // 使用缓存来避免重复创建Cell对象
-    auto key = std::make_pair(row, column);
-    auto it = cell_cache_.find(key);
-    if (it != cell_cache_.end()) {
+    // 性能优化：使用FastPosition和unordered_map
+    core::FastPosition pos(static_cast<std::uint32_t>(row), static_cast<std::uint32_t>(column));
+
+    // 使用unordered_map进行O(1)查找
+    auto it = fast_cell_cache_.find(pos);
+    if (it != fast_cell_cache_.end()) {
+        cache_hits_++;
         return it->second;
     }
 
+    cache_misses_++;
     // 创建新的Cell对象并缓存
-    auto [inserted_it, success] = cell_cache_.emplace(
-        key, Cell(workbook_impl_, sheet_name_, row, column)
+    auto [inserted_it, success] = fast_cell_cache_.emplace(
+        pos, Cell(workbook_impl_.get(), sheet_id_, row, column)
     );
     return inserted_it->second;
 }
 
 const Cell& Worksheet::cell(std::size_t row, std::size_t column) const {
-    // 对于const版本，我们需要一个可变的缓存
-    // 这里使用mutable关键字或者创建临时对象
-    return const_cast<Worksheet*>(this)->cell(row, column);
+    // 性能优化：使用FastPosition和unordered_map
+    core::FastPosition pos(static_cast<std::uint32_t>(row), static_cast<std::uint32_t>(column));
+
+    auto it = fast_cell_cache_.find(pos);
+    if (it != fast_cell_cache_.end()) {
+        cache_hits_++;
+        return it->second;
+    }
+
+    cache_misses_++;
+    // 创建新的Cell对象并缓存
+    auto [inserted_it, success] = fast_cell_cache_.emplace(
+        pos, Cell(workbook_impl_.get(), sheet_id_, row, column)
+    );
+    return inserted_it->second;
 }
 
 // ========================================
@@ -137,8 +158,7 @@ std::size_t Worksheet::replace(const std::string& old_value, const std::string& 
 // ========================================
 
 Range Worksheet::used_range() const {
-    // TODO: 委托给 workbook_impl
-    return Range();
+    return workbook_impl_->get_used_range(sheet_name_);
 }
 
 Worksheet::RowRange Worksheet::rows(std::size_t start_row, std::size_t end_row) {
@@ -165,9 +185,17 @@ Range Worksheet::basic_range(const std::string& range_str) {
 // ========================================
 
 async::Task<void> Worksheet::process_rows_async(std::function<async::Task<void>(const Row&)> processor) {
-    // TODO: 委托给 workbook_impl
-    (void)processor;
-    co_return;
+    // 获取使用范围
+    auto range = used_range();
+    if (range == Range()) { // 检查是否为空范围
+        co_return;
+    }
+
+    // 逐行处理
+    for (std::size_t row_num = range.start().row; row_num <= range.end().row; ++row_num) {
+        auto& row = this->row(row_num);
+        co_await processor(row);
+    }
 }
 
 // ========================================
@@ -187,27 +215,23 @@ StyleManager& Worksheet::style_manager() {
 // ========================================
 
 void Worksheet::set_column_width(const std::string& column_name, double width) {
-    // TODO: 委托给 workbook_impl
-    (void)column_name;
-    (void)width;
+    std::size_t column_index = column_name_to_number(column_name);
+    set_column_width(column_index, width);
 }
 
 void Worksheet::set_column_width(std::size_t column_index, double width) {
-    // TODO: 委托给 workbook_impl
-    (void)column_index;
-    (void)width;
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+    worksheet_impl.set_column_width(column_index, width);
 }
 
 double Worksheet::get_column_width(const std::string& column_name) const {
-    // TODO: 委托给 workbook_impl
-    (void)column_name;
-    return 8.43; // Excel 默认列宽
+    std::size_t column_index = column_name_to_number(column_name);
+    return get_column_width(column_index);
 }
 
 double Worksheet::get_column_width(std::size_t column_index) const {
-    // TODO: 委托给 workbook_impl
-    (void)column_index;
-    return 8.43; // Excel 默认列宽
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+    return worksheet_impl.get_column_width(column_index);
 }
 
 // ========================================
@@ -253,14 +277,11 @@ const std::vector<Range>& Worksheet::get_merged_ranges() const {
 // ========================================
 
 ConditionalFormatBuilder Worksheet::conditional_format(const std::string& range_str) {
-    // TODO: 实现 ConditionalFormatBuilder
-    (void)range_str;
-    throw std::runtime_error("Not implemented yet");
+    return ConditionalFormatBuilder(*this, range_str);
 }
 
 void Worksheet::add_conditional_format(const ConditionalFormat& format) {
-    // TODO: 委托给 workbook_impl
-    (void)format;
+    workbook_impl_->add_conditional_format(sheet_name_, format);
 }
 
 const std::vector<ConditionalFormat>& Worksheet::get_conditional_formats() const {

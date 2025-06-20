@@ -14,6 +14,7 @@
 #include <optional>
 #include <variant>
 #include <type_traits>
+#include <cstdint>
 
 namespace tinakit::internal {
 class workbook_impl;
@@ -46,18 +47,23 @@ public:
      */
     using CellValue = std::variant<std::string, double, int, bool>;
 
+    /**
+     * @brief 轻量级句柄ID类型
+     */
+    using HandleId = std::uint64_t;
+
 public:
     /**
      * @brief 构造函数（由 worksheet 内部创建）
-     * @param workbook_impl 工作簿实现的共享指针
-     * @param sheet_name 工作表名称
+     * @param workbook_impl 工作簿实现的原始指针（性能优化）
+     * @param sheet_id 工作表ID（避免字符串复制）
      * @param row 行号（1-based）
      * @param column 列号（1-based）
      */
-    Cell(std::shared_ptr<internal::workbook_impl> workbook_impl,
-         std::string sheet_name,
+    Cell(internal::workbook_impl* workbook_impl,
+         std::uint32_t sheet_id,
          std::size_t row,
-         std::size_t column);
+         std::size_t column) noexcept;
 
     /**
      * @brief 拷贝构造函数（轻量级，共享同一个实现）
@@ -278,9 +284,9 @@ public:
     bool has_custom_style() const;
 
 private:
-    // 轻量级句柄：只包含工作簿实现指针、工作表名称和位置信息
-    std::shared_ptr<internal::workbook_impl> workbook_impl_;
-    std::string sheet_name_;
+    // 轻量级句柄：只包含工作簿实现指针、工作表ID和位置信息
+    internal::workbook_impl* workbook_impl_;  // 使用原始指针提高性能
+    std::uint32_t sheet_id_;                  // 使用ID而不是字符串
     std::size_t row_;
     std::size_t column_;
 

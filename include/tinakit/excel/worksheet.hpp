@@ -9,6 +9,7 @@
 
 #include "tinakit/core/types.hpp"
 #include "tinakit/core/async.hpp"
+#include "tinakit/core/performance_optimizations.hpp"
 #include "cell.hpp"
 #include "row.hpp"
 #include "range.hpp"
@@ -17,8 +18,9 @@
 #include <string>
 #include <memory>
 #include <functional>
-#include <map>
+#include <unordered_map>
 #include <ranges>
+#include <atomic>
 
 namespace tinakit::internal {
 class workbook_impl;
@@ -63,9 +65,12 @@ public:
     /**
      * @brief 构造函数（由 workbook 内部创建）
      * @param workbook_impl 工作簿实现的共享指针
+     * @param sheet_id 工作表ID（性能优化）
      * @param sheet_name 工作表名称
      */
-    Worksheet(std::shared_ptr<internal::workbook_impl> workbook_impl, std::string sheet_name);
+    Worksheet(std::shared_ptr<internal::workbook_impl> workbook_impl,
+              std::uint32_t sheet_id,
+              std::string sheet_name);
 
     /**
      * @brief 拷贝构造函数（轻量级，共享同一个实现）
@@ -355,6 +360,24 @@ public:
      */
     bool empty() const noexcept;
 
+    /**
+     * @brief 获取缓存命中率
+     * @return 缓存命中率（0.0-1.0）
+     */
+    double cache_hit_ratio() const noexcept {
+        auto total = cache_hits_.load() + cache_misses_.load();
+        return total > 0 ? static_cast<double>(cache_hits_.load()) / total : 0.0;
+    }
+
+    /**
+     * @brief 清空缓存
+     */
+    void clear_cache() const {
+        fast_cell_cache_.clear();
+        cache_hits_ = 0;
+        cache_misses_ = 0;
+    }
+
 public:
     /**
      * @brief 迭代器支持
@@ -379,12 +402,17 @@ public:
     const std::vector<Range>& get_merged_ranges() const;
 
 private:
-    // 轻量级句柄：只包含工作簿实现指针和工作表名称
+    // 轻量级句柄：只包含工作簿实现指针和工作表ID
     std::shared_ptr<internal::workbook_impl> workbook_impl_;
+    std::uint32_t sheet_id_;
     std::string sheet_name_;
 
-    // Cell对象缓存，避免重复创建
-    mutable std::map<std::pair<std::size_t, std::size_t>, Cell> cell_cache_;
+    // 高性能Cell对象缓存，使用FastPosition和unordered_map
+    mutable std::unordered_map<core::FastPosition, Cell, core::FastPositionHash> fast_cell_cache_;
+
+    // 缓存统计
+    mutable std::atomic<std::size_t> cache_hits_{0};
+    mutable std::atomic<std::size_t> cache_misses_{0};
 
     friend class workbook;
 };
