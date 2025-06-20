@@ -10,8 +10,11 @@
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
+#include "tinakit/core/xml_parser.hpp"
 #include <algorithm>
+#include <iostream>
 #include <stdexcept>
+#include <sstream>
 
 namespace tinakit::internal {
 
@@ -268,6 +271,12 @@ void workbook_impl::load_from_file() {
         parse_workbook_xml();
         parse_workbook_rels();
 
+        // 加载样式信息
+        load_styles_xml();
+
+        // 加载共享字符串
+        load_shared_strings_xml();
+
         // 标记为未修改
         is_dirty_ = false;
 
@@ -278,8 +287,14 @@ void workbook_impl::load_from_file() {
 }
 
 void workbook_impl::create_default_structure() {
-    // 创建默认工作表
-    create_worksheet("Sheet1");
+    // 只有在没有工作表时才创建默认工作表
+    if (worksheets_.empty()) {
+        create_worksheet("Sheet1");
+        // 设置活动工作表
+        if (active_sheet_name_.empty()) {
+            active_sheet_name_ = "Sheet1";
+        }
+    }
 }
 
 void workbook_impl::parse_workbook_xml() {
@@ -289,8 +304,36 @@ void workbook_impl::parse_workbook_xml() {
         // 检查是否有 workbook.xml 文件
         if (async::sync_wait(archiver_->has_file("xl/workbook.xml"))) {
             auto xml_data = async::sync_wait(archiver_->read_file("xl/workbook.xml"));
-            // TODO: 解析 XML 内容，提取工作表信息
-            // 暂时创建默认工作表
+
+            // 将字节数据转换为字符串
+            std::string xml_content(
+                reinterpret_cast<const char*>(xml_data.data()),
+                xml_data.size()
+            );
+
+            // 使用 XmlParser 解析工作表信息
+            std::istringstream xml_stream(xml_content);
+            core::XmlParser parser(xml_stream, "workbook.xml");
+
+            // 解析工作表列表
+            parser.for_each_element("sheet", [this](core::XmlParser::iterator& it) {
+                auto name = it.attribute("name");
+                auto sheet_id = it.attribute("sheetId");
+                // 尝试不同的r:id属性格式
+                auto r_id = it.attribute("r:id");
+                if (!r_id) {
+                    r_id = it.attribute("http://schemas.openxmlformats.org/officeDocument/2006/relationships#id");
+                }
+
+                if (name && !name->empty()) {
+                    // 创建工作表（如果不存在）
+                    if (!has_worksheet(*name)) {
+                        create_worksheet(*name);
+                    }
+                }
+            });
+
+            // 如果没有找到工作表，创建默认工作表
             if (worksheets_.empty()) {
                 create_worksheet("Sheet1");
             }
@@ -309,10 +352,89 @@ void workbook_impl::parse_workbook_rels() {
         // 检查是否有 workbook.xml.rels 文件
         if (async::sync_wait(archiver_->has_file("xl/_rels/workbook.xml.rels"))) {
             auto xml_data = async::sync_wait(archiver_->read_file("xl/_rels/workbook.xml.rels"));
-            // TODO: 解析关系文件，建立工作表与XML文件的映射
+
+            // 将字节数据转换为字符串
+            std::string xml_content(
+                reinterpret_cast<const char*>(xml_data.data()),
+                xml_data.size()
+            );
+
+            // 使用 XmlParser 解析关系信息
+            std::istringstream xml_stream(xml_content);
+            core::XmlParser parser(xml_stream, "workbook.xml.rels");
+
+            // 解析关系映射
+            parser.for_each_element("Relationship", [this](core::XmlParser::iterator& it) {
+                auto id = it.attribute("Id");
+                auto type = it.attribute("Type");
+                auto target = it.attribute("Target");
+
+                // 检查是否是工作表关系
+                if (type && target && type->find("worksheet") != std::string::npos && !target->empty()) {
+                    // 存储关系映射（可以用于后续的工作表加载）
+                    // 这里可以建立 rId 到工作表文件路径的映射
+                }
+            });
         }
     } catch (const std::exception&) {
         // 忽略解析错误
+    }
+}
+
+void workbook_impl::load_styles_xml() {
+    if (!archiver_) return;
+
+    try {
+        // 检查是否有 styles.xml 文件
+        if (async::sync_wait(archiver_->has_file("xl/styles.xml"))) {
+            auto xml_data = async::sync_wait(archiver_->read_file("xl/styles.xml"));
+
+            // 将字节数据转换为字符串
+            std::string xml_content(
+                reinterpret_cast<const char*>(xml_data.data()),
+                xml_data.size()
+            );
+
+            // 使用 StyleManager 加载样式
+            style_manager_->load_from_xml(xml_content);
+
+            std::cout << "✅ 样式文件加载成功，样式数量: " << style_manager_->cell_style_count() << std::endl;
+        } else {
+            std::cout << "⚠️  未找到样式文件，使用默认样式" << std::endl;
+            // 如果没有样式文件，确保有默认样式
+            style_manager_->initialize_defaults();
+        }
+    } catch (const std::exception& e) {
+        std::cout << "❌ 加载样式文件失败: " << e.what() << "，使用默认样式" << std::endl;
+        // 如果加载失败，使用默认样式
+        style_manager_->clear();
+        style_manager_->initialize_defaults();
+    }
+}
+
+void workbook_impl::load_shared_strings_xml() {
+    if (!archiver_) return;
+
+    try {
+        // 检查是否有 sharedStrings.xml 文件
+        if (async::sync_wait(archiver_->has_file("xl/sharedStrings.xml"))) {
+            auto xml_data = async::sync_wait(archiver_->read_file("xl/sharedStrings.xml"));
+
+            // 将字节数据转换为字符串
+            std::string xml_content(
+                reinterpret_cast<const char*>(xml_data.data()),
+                xml_data.size()
+            );
+
+            // 加载共享字符串数据
+            shared_strings_->load_from_xml(xml_content);
+
+            std::cout << "✅ 共享字符串文件加载成功，字符串数量: " << shared_strings_->count() << std::endl;
+        } else {
+            std::cout << "⚠️  未找到共享字符串文件" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "❌ 加载共享字符串文件失败: " << e.what() << std::endl;
     }
 }
 
@@ -352,6 +474,13 @@ void workbook_impl::generate_workbook_rels() {
         ++rel_id;
     }
 
+    // 添加样式关系（关键！）
+    xml_content += "<Relationship Id=\"rId" + std::to_string(rel_id) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>";
+    ++rel_id;
+
+    // 添加共享字符串关系
+    xml_content += "<Relationship Id=\"rId" + std::to_string(rel_id) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"sharedStrings.xml\"/>";
+
     xml_content += "</Relationships>";
 
     // 保存到归档器
@@ -362,6 +491,93 @@ void workbook_impl::generate_workbook_rels() {
     async::sync_wait(archiver_->add_file("xl/_rels/workbook.xml.rels", std::move(xml_bytes)));
 }
 
+void workbook_impl::generate_content_types() {
+    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>)";
+
+    // 添加工作表内容类型
+    std::uint32_t sheet_id = 1;
+    for (const auto& sheet_name : worksheet_order_) {
+        xml_content += "<Override PartName=\"/xl/worksheets/sheet" + std::to_string(sheet_id) + ".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>";
+        ++sheet_id;
+    }
+
+    xml_content += "</Types>";
+
+    // 保存到归档器
+    std::vector<std::byte> xml_bytes;
+    for (char c : xml_content) {
+        xml_bytes.push_back(static_cast<std::byte>(c));
+    }
+    async::sync_wait(archiver_->add_file("[Content_Types].xml", std::move(xml_bytes)));
+}
+
+void workbook_impl::generate_main_rels() {
+    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>)";
+
+    // 保存到归档器
+    std::vector<std::byte> xml_bytes;
+    for (char c : xml_content) {
+        xml_bytes.push_back(static_cast<std::byte>(c));
+    }
+    async::sync_wait(archiver_->add_file("_rels/.rels", std::move(xml_bytes)));
+}
+
+void workbook_impl::generate_styles_xml() {
+    // 使用 StyleManager 生成完整的样式XML
+    std::string xml_content = style_manager_->generate_xml();
+
+    // 调试输出：打印生成的样式XML
+    std::cout << "\n=== 生成的样式XML (styles.xml) ===" << std::endl;
+    std::cout << xml_content << std::endl;
+    std::cout << "=== 样式XML结束 ===" << std::endl;
+
+    // 保存到归档器
+    std::vector<std::byte> xml_bytes;
+    for (char c : xml_content) {
+        xml_bytes.push_back(static_cast<std::byte>(c));
+    }
+    async::sync_wait(archiver_->add_file("xl/styles.xml", std::move(xml_bytes)));
+}
+
+void workbook_impl::generate_shared_strings_xml() {
+    // 使用共享字符串管理器生成XML
+    std::string xml_content;
+
+    // 调试输出
+    if (shared_strings_) {
+        std::cout << "共享字符串管理器存在，字符串数量: " << shared_strings_->count() << std::endl;
+    } else {
+        std::cout << "共享字符串管理器不存在！" << std::endl;
+    }
+
+    if (shared_strings_ && shared_strings_->count() > 0) {
+        std::cout << "生成包含 " << shared_strings_->count() << " 个字符串的共享字符串XML" << std::endl;
+        xml_content = shared_strings_->generate_xml();
+    } else {
+        std::cout << "生成空的共享字符串XML" << std::endl;
+        // 如果没有共享字符串，生成空的共享字符串表
+        xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="0" uniqueCount="0">
+</sst>)";
+    }
+
+    // 保存到归档器
+    std::vector<std::byte> xml_bytes;
+    for (char c : xml_content) {
+        xml_bytes.push_back(static_cast<std::byte>(c));
+    }
+    async::sync_wait(archiver_->add_file("xl/sharedStrings.xml", std::move(xml_bytes)));
+}
+
 void workbook_impl::save_to_archiver() {
     if (!archiver_) {
         // 创建新的归档器
@@ -369,20 +585,28 @@ void workbook_impl::save_to_archiver() {
         archiver_ = std::make_shared<core::OpenXmlArchiver>(std::move(temp_archiver));
     }
 
-    // 生成并保存工作簿XML
+    // 1. 生成 [Content_Types].xml
+    generate_content_types();
+
+    // 2. 生成主关系文件 _rels/.rels
+    generate_main_rels();
+
+    // 3. 生成并保存工作簿XML
     generate_workbook_xml();
     generate_workbook_rels();
 
-    // 保存所有工作表
+    // 4. 生成样式文件
+    generate_styles_xml();
+
+    // 5. 先保存所有工作表（这会填充共享字符串表）
     for (auto& [name, worksheet] : worksheets_) {
-        if (worksheet->is_dirty()) {
-            // TODO: 实现 worksheet 保存
-        }
+        worksheet->save_to_archiver(*archiver_);
     }
 
-    // TODO: 实现样式和共享字符串保存
+    // 6. 最后生成共享字符串文件（包含所有字符串）
+    generate_shared_strings_xml();
 
-    // 保存到文件
+    // 7. 保存到文件
     async::sync_wait(archiver_->save_to_file(file_path_.string()));
 }
 

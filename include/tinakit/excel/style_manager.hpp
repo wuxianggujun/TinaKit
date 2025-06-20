@@ -51,6 +51,7 @@ public:
     
     // 数字格式管理
     std::uint32_t add_number_format(const NumberFormat& format);
+    std::uint32_t add_number_format(const std::string& format_code);
     const NumberFormat& get_number_format(std::uint32_t id) const;
     std::size_t number_format_count() const { return number_formats_.size(); }
     
@@ -126,6 +127,7 @@ private:
     std::size_t hash_font(const Font& font) const;
     std::size_t hash_fill(const Fill& fill) const;
     std::size_t hash_border(const Border& border) const;
+    void rebuild_caches();
 };
 
 } // namespace tinakit::excel

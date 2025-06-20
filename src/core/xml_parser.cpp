@@ -17,13 +17,18 @@ namespace tinakit::core
             // 工作表属性
             "tabSelected", "workbookViewId", "defaultRowHeight", "defaultColWidth",
             // 关系属性
-            "Id", "Type", "Target",
+            "Id", "Type", "Target", "r:id",
+            // 命名空间属性
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships#id",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
             // 样式属性
             "numFmtId", "fontId", "fillId", "borderId", "xfId",
             // 填充样式属性
             "patternType",
             // 单元格样式应用属性
             "applyFont", "applyFill", "applyBorder", "applyAlignment", "applyNumberFormat", "applyProtection",
+            // Excel兼容性属性
+            "pivotButton", "quotePrefix", "builtinId",
             // 其他常见属性
             "val", "sz", "b", "i", "u", "color", "rgb", "theme", "indexed"
         };

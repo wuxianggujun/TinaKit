@@ -56,7 +56,7 @@ void test_read_existing_file() {
     std::cout << "1. 创建测试文件..." << std::endl;
     try {
         auto workbook = excel::create();
-        auto& sheet = workbook.active_sheet();
+        auto sheet = workbook.active_sheet();
         sheet.set_name("测试数据");
         
         // 添加一些测试数据
@@ -88,9 +88,9 @@ void test_read_existing_file() {
         auto workbook = excel::open("test_data.xlsx");
         std::cout << "   ✅ 文件读取成功" << std::endl;
         
-        std::cout << "   工作表数量: " << workbook.sheet_count() << std::endl;
-        
-        auto& sheet = workbook.active_sheet();
+        std::cout << "   工作表数量: " << workbook.worksheet_count() << std::endl;
+
+        auto sheet = workbook.active_sheet();
         std::cout << "   活动工作表: \"" << sheet.name() << "\"" << std::endl;
         std::cout << "   最大行数: " << sheet.max_row() << std::endl;
         std::cout << "   最大列数: " << sheet.max_column() << std::endl;
@@ -127,7 +127,7 @@ void test_edit_existing_file() {
     try {
         std::cout << "1. 打开现有文件..." << std::endl;
         auto workbook = excel::open("test_data.xlsx");
-        auto& sheet = workbook.active_sheet();
+        auto sheet = workbook.active_sheet();
         std::cout << "   ✅ 文件打开成功" << std::endl;
         
         std::cout << "\n2. 编辑数据..." << std::endl;
@@ -192,7 +192,7 @@ void test_edit_existing_file() {
         // 验证修改
         std::cout << "\n4. 验证修改结果..." << std::endl;
         auto verify_workbook = excel::open("test_data_modified.xlsx");
-        auto& verify_sheet = verify_workbook.active_sheet();
+        auto verify_sheet = verify_workbook.active_sheet();
         
         std::cout << "   修改后的数据:" << std::endl;
         std::cout << "   B2 (张三年龄): " << verify_sheet["B2"].to_string() << std::endl;
@@ -210,7 +210,7 @@ void test_cell_operations() {
     
     try {
         auto workbook = excel::create();
-        auto& sheet = workbook.active_sheet();
+        auto sheet = workbook.active_sheet();
         sheet.set_name("单元格操作测试");
         
         std::cout << "1. 测试不同类型的值..." << std::endl;

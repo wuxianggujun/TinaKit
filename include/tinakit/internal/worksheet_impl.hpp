@@ -219,6 +219,12 @@ public:
     void save_to_archiver(core::OpenXmlArchiver& archiver);
 
 private:
+    /**
+     * @brief 判断字符串是否应该使用内联存储
+     * @param str 字符串
+     * @return true 如果应该使用内联存储
+     */
+    bool should_use_inline_string(const std::string& str) const;
     // 基本属性
     std::string name_;
     workbook_impl& workbook_;

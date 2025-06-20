@@ -256,8 +256,39 @@ Cell& Cell::font(const std::string& font_name, double size) {
 }
 
 Cell& Cell::bold(bool bold) {
-    // TODO: 委托给 workbook_impl
-    (void)bold;
+    // 获取当前样式
+    auto pos = core::Position(row_, column_);
+    auto current_data = workbook_impl_->get_cell_data(sheet_name_, pos);
+    auto& style_mgr = workbook_impl_->style_manager();
+
+    // 获取当前样式或创建新样式
+    excel::CellStyle new_style;
+    if (current_data.style_id > 0) {
+        new_style = style_mgr.get_cell_style(current_data.style_id);
+    }
+
+    // 获取当前字体或创建新字体
+    excel::Font font;
+    if (new_style.font_id) {
+        font = style_mgr.get_font(*new_style.font_id);
+    }
+
+    // 修改字体属性
+    font.bold = bold;
+
+    // 添加字体到样式管理器
+    auto font_id = style_mgr.add_font(font);
+
+    // 更新样式
+    new_style.font_id = font_id;
+    new_style.apply_font = true;
+
+    // 添加样式到样式管理器
+    auto style_id = style_mgr.add_cell_style(new_style);
+
+    // 设置单元格样式
+    workbook_impl_->set_cell_style(sheet_name_, pos, style_id);
+
     return *this;
 }
 
@@ -268,14 +299,72 @@ Cell& Cell::italic(bool italic) {
 }
 
 Cell& Cell::color(const Color& color) {
-    // TODO: 委托给 workbook_impl
-    (void)color;
+    // 获取当前样式
+    auto pos = core::Position(row_, column_);
+    auto current_data = workbook_impl_->get_cell_data(sheet_name_, pos);
+    auto& style_mgr = workbook_impl_->style_manager();
+
+    // 获取当前样式或创建新样式
+    excel::CellStyle new_style;
+    if (current_data.style_id > 0) {
+        new_style = style_mgr.get_cell_style(current_data.style_id);
+    }
+
+    // 获取当前字体或创建新字体
+    excel::Font font;
+    if (new_style.font_id) {
+        font = style_mgr.get_font(*new_style.font_id);
+    }
+
+    // 修改字体颜色
+    font.color = color;
+
+    // 添加字体到样式管理器
+    auto font_id = style_mgr.add_font(font);
+
+    // 更新样式
+    new_style.font_id = font_id;
+    new_style.apply_font = true;
+
+    // 添加样式到样式管理器
+    auto style_id = style_mgr.add_cell_style(new_style);
+
+    // 设置单元格样式
+    workbook_impl_->set_cell_style(sheet_name_, pos, style_id);
+
     return *this;
 }
 
 Cell& Cell::background_color(const Color& color) {
-    // TODO: 委托给 workbook_impl
-    (void)color;
+    // 获取当前样式
+    auto pos = core::Position(row_, column_);
+    auto current_data = workbook_impl_->get_cell_data(sheet_name_, pos);
+    auto& style_mgr = workbook_impl_->style_manager();
+
+    // 获取当前样式或创建新样式
+    excel::CellStyle new_style;
+    if (current_data.style_id > 0) {
+        new_style = style_mgr.get_cell_style(current_data.style_id);
+    }
+
+    // 创建填充样式
+    excel::Fill fill;
+    fill.pattern_type = excel::Fill::PatternType::Solid;
+    fill.fg_color = color;
+
+    // 添加填充到样式管理器
+    auto fill_id = style_mgr.add_fill(fill);
+
+    // 更新样式
+    new_style.fill_id = fill_id;
+    new_style.apply_fill = true;
+
+    // 添加样式到样式管理器
+    auto style_id = style_mgr.add_cell_style(new_style);
+
+    // 设置单元格样式
+    workbook_impl_->set_cell_style(sheet_name_, pos, style_id);
+
     return *this;
 }
 
@@ -301,8 +390,30 @@ Cell& Cell::border(BorderType border_type, BorderStyle style, const Color& color
 }
 
 Cell& Cell::number_format(const std::string& format_code) {
-    // TODO: 委托给 workbook_impl
-    (void)format_code;
+    // 获取当前样式
+    auto pos = core::Position(row_, column_);
+    auto current_data = workbook_impl_->get_cell_data(sheet_name_, pos);
+    auto& style_mgr = workbook_impl_->style_manager();
+
+    // 获取当前样式或创建新样式
+    excel::CellStyle new_style;
+    if (current_data.style_id > 0) {
+        new_style = style_mgr.get_cell_style(current_data.style_id);
+    }
+
+    // 添加数字格式到样式管理器
+    auto format_id = style_mgr.add_number_format(format_code);
+
+    // 更新样式
+    new_style.number_format_id = format_id;
+    new_style.apply_number_format = true;
+
+    // 添加样式到样式管理器
+    auto style_id = style_mgr.add_cell_style(new_style);
+
+    // 设置单元格样式
+    workbook_impl_->set_cell_style(sheet_name_, pos, style_id);
+
     return *this;
 }
 

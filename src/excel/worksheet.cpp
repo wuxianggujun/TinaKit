@@ -79,17 +79,24 @@ const Cell& Worksheet::cell(const std::string& address) const {
 }
 
 Cell& Worksheet::cell(std::size_t row, std::size_t column) {
-    // 创建 Cell 句柄，委托给 workbook_impl
-    static thread_local Cell cell_handle(workbook_impl_, sheet_name_, row, column);
-    cell_handle = Cell(workbook_impl_, sheet_name_, row, column);
-    return cell_handle;
+    // 使用缓存来避免重复创建Cell对象
+    auto key = std::make_pair(row, column);
+    auto it = cell_cache_.find(key);
+    if (it != cell_cache_.end()) {
+        return it->second;
+    }
+
+    // 创建新的Cell对象并缓存
+    auto [inserted_it, success] = cell_cache_.emplace(
+        key, Cell(workbook_impl_, sheet_name_, row, column)
+    );
+    return inserted_it->second;
 }
 
 const Cell& Worksheet::cell(std::size_t row, std::size_t column) const {
-    // 创建 Cell 句柄，委托给 workbook_impl
-    static thread_local Cell cell_handle(workbook_impl_, sheet_name_, row, column);
-    cell_handle = Cell(workbook_impl_, sheet_name_, row, column);
-    return cell_handle;
+    // 对于const版本，我们需要一个可变的缓存
+    // 这里使用mutable关键字或者创建临时对象
+    return const_cast<Worksheet*>(this)->cell(row, column);
 }
 
 // ========================================

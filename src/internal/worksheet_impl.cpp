@@ -9,7 +9,10 @@
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
+#include "tinakit/core/xml_parser.hpp"
 #include <algorithm>
+#include <iostream>
+#include <sstream>
 
 namespace tinakit::internal {
 
@@ -128,14 +131,14 @@ void worksheet_impl::set_range_data(const core::range_address& range,
 // 惰性加载管理
 // ========================================
 
-void worksheet_impl::ensure_loaded(const core::Position& pos) {
+void worksheet_impl::ensure_loaded(const core::Position& /* pos */) {
     if (load_state_ == LoadState::NotLoaded) {
         load_from_xml();
     }
     // TODO: 实现按需加载特定位置的数据
 }
 
-void worksheet_impl::ensure_range_loaded(const core::range_address& range) {
+void worksheet_impl::ensure_range_loaded(const core::range_address& /* range */) {
     if (load_state_ == LoadState::NotLoaded) {
         load_from_xml();
     }
@@ -295,8 +298,53 @@ void worksheet_impl::clear_dirty() {
 // ========================================
 
 void worksheet_impl::load_from_xml() {
-    // TODO: 实现从 XML 加载数据的逻辑
-    load_state_ = LoadState::FullyLoaded;
+    try {
+        // 确定工作表文件路径
+        const auto workbook_names = workbook_.worksheet_names();
+        auto it = std::find(workbook_names.begin(), workbook_names.end(), name_);
+        std::size_t sheet_index = (it != workbook_names.end()) ?
+            std::distance(workbook_names.begin(), it) + 1 : 1;
+
+        std::string file_path = "xl/worksheets/sheet" + std::to_string(sheet_index) + ".xml";
+
+        // 从归档器中读取工作表XML
+        auto archiver = workbook_.get_archiver();
+        if (archiver && async::sync_wait(archiver->has_file(file_path))) {
+            auto xml_data = async::sync_wait(archiver->read_file(file_path));
+
+            // 将字节数据转换为字符串
+            std::string xml_content(
+                reinterpret_cast<const char*>(xml_data.data()),
+                xml_data.size()
+            );
+
+            // 解析单元格数据
+            parse_cell_data(xml_content);
+        } else {
+            // 尝试其他可能的文件路径
+            std::vector<std::string> possible_paths = {
+                "xl/worksheets/sheet1.xml",
+                "xl/worksheets/" + name_ + ".xml"
+            };
+
+            for (const auto& path : possible_paths) {
+                if (archiver && async::sync_wait(archiver->has_file(path))) {
+                    auto xml_data = async::sync_wait(archiver->read_file(path));
+                    std::string xml_content(
+                        reinterpret_cast<const char*>(xml_data.data()),
+                        xml_data.size()
+                    );
+                    parse_cell_data(xml_content);
+                    break;
+                }
+            }
+        }
+
+        load_state_ = LoadState::FullyLoaded;
+    } catch (const std::exception&) {
+        // 如果加载失败，标记为已加载但保持空状态
+        load_state_ = LoadState::FullyLoaded;
+    }
 }
 
 void worksheet_impl::update_dimensions(const core::Position& pos) {
@@ -305,7 +353,120 @@ void worksheet_impl::update_dimensions(const core::Position& pos) {
 }
 
 void worksheet_impl::parse_cell_data(const std::string& xml_content) {
-    // TODO: 实现 XML 解析逻辑
+    try {
+        // 使用 XmlParser 解析工作表数据
+        std::istringstream xml_stream(xml_content);
+        core::XmlParser parser(xml_stream, name_ + ".xml");
+
+        // 解析单元格数据
+        parser.for_each_element("c", [this, &parser](core::XmlParser::iterator& it) {
+            // 获取单元格引用（如 A1, B2 等）
+            auto cell_ref = it.attribute("r");
+            auto cell_type = it.attribute("t");
+            auto style_id = it.attribute("s");
+
+            if (cell_ref && !cell_ref->empty()) {
+                // 解析单元格位置
+                auto pos = core::Position::from_address(*cell_ref);
+
+                // 创建单元格数据
+                cell_data data;
+                data.style_id = style_id ? std::stoul(*style_id) : 0;
+
+                // 查找单元格值
+                std::string cell_value;
+
+                // 在当前单元格元素中查找值
+                auto current_it = it;
+                ++current_it; // 移动到单元格内容
+
+                while (current_it != parser.end() &&
+                       !(current_it.is_end_element() && current_it.name() == "c")) {
+
+                    if (current_it.is_start_element() && current_it.name() == "v") {
+                        cell_value = current_it.text_content();
+                        break;
+                    } else if (current_it.is_start_element() && current_it.name() == "f") {
+                        // 处理公式
+                        data.formula = current_it.text_content();
+                    } else if (current_it.is_start_element() && current_it.name() == "is") {
+                        // 处理内联字符串：查找 <is><t>...</t></is> 结构
+                        auto is_it = current_it;
+                        ++is_it;
+                        while (is_it != parser.end() &&
+                               !(is_it.is_end_element() && is_it.name() == "is")) {
+                            if (is_it.is_start_element() && is_it.name() == "t") {
+                                cell_value = is_it.text_content();
+                                break;
+                            }
+                            ++is_it;
+                        }
+                        break;
+                    }
+                    ++current_it;
+                }
+
+                // 根据单元格类型设置值
+                if (cell_type && *cell_type == "s") {
+                    // 共享字符串：需要从共享字符串表中查找实际文本
+                    if (!cell_value.empty()) {
+                        try {
+                            std::uint32_t index = std::stoul(cell_value);
+                            auto shared_strings = workbook_.get_shared_strings();
+                            if (shared_strings && index < shared_strings->count()) {
+                                data.value = shared_strings->get_string(index);
+                            } else {
+                                // 如果索引无效，使用索引值作为后备
+                                data.value = cell_value;
+                            }
+                        } catch (...) {
+                            // 如果解析索引失败，使用原始值
+                            data.value = cell_value;
+                        }
+                    }
+                } else if (cell_type && *cell_type == "inlineStr") {
+                    // 内联字符串
+                    data.value = cell_value;
+                } else if (cell_type && *cell_type == "b") {
+                    // 布尔值
+                    data.value = (cell_value == "1");
+                } else if (!cell_type || cell_type->empty() || *cell_type == "n") {
+                    // 数字
+                    if (!cell_value.empty()) {
+                        try {
+                            if (cell_value.find('.') != std::string::npos) {
+                                data.value = std::stod(cell_value);
+                            } else {
+                                data.value = std::stoi(cell_value);
+                            }
+                        } catch (...) {
+                            data.value = cell_value;
+                        }
+                    }
+                } else {
+                    // 其他类型作为字符串处理
+                    data.value = cell_value;
+                }
+
+                // 存储单元格数据
+                // 只要有值或者有样式ID就存储单元格
+                bool has_value = false;
+                if (std::holds_alternative<std::string>(data.value)) {
+                    has_value = !std::get<std::string>(data.value).empty();
+                } else {
+                    has_value = true; // 非字符串值都认为有值
+                }
+
+                if (has_value || data.style_id != 0 || data.formula) {
+                    cells_[pos] = data;
+                    update_dimensions(pos);
+                }
+            }
+        });
+
+    } catch (const std::exception&) {
+        // 解析失败时忽略错误
+    }
 }
 
 void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
@@ -334,8 +495,8 @@ std::string worksheet_impl::generate_worksheet_xml() {
     std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">)";
 
-    // 添加工作表数据
-    if (max_row_ > 0 && max_column_ > 0) {
+    // 添加工作表数据 - 只要有单元格数据就生成
+    if (!cells_.empty()) {
         xml_content += "<sheetData>";
 
         // 按行组织单元格数据
@@ -368,27 +529,50 @@ std::string worksheet_impl::generate_worksheet_xml() {
                     xml_content += " s=\"" + std::to_string(cell_data.style_id) + "\"";
                 }
 
-                // 添加值
-                xml_content += ">";
-                if (cell_data.formula) {
-                    xml_content += "<f>" + *cell_data.formula + "</f>";
-                }
+                // 根据值类型添加类型属性和内容
+                // 为了避免lambda捕获问题，先获取需要的对象
+                auto shared_strings = workbook_.get_shared_strings();
 
-                // 根据值类型添加内容
-                std::visit([&xml_content](const auto& value) {
+                std::visit([&xml_content, shared_strings, this](const auto& value) {
                     using T = std::decay_t<decltype(value)>;
                     if constexpr (std::is_same_v<T, std::string>) {
                         if (!value.empty()) {
-                            xml_content += "<v>" + value + "</v>";
+                            // 智能选择字符串存储方式
+                            if (this->should_use_inline_string(value)) {
+                                // 使用内联字符串格式
+                                xml_content += " t=\"inlineStr\"><is><t>" + value + "</t></is>";
+                            } else {
+                                // 使用共享字符串格式
+                                if (shared_strings) {
+                                    std::uint32_t index = shared_strings->add_string(value);
+                                    xml_content += " t=\"s\"><v>" + std::to_string(index) + "</v>";
+                                } else {
+                                    // 回退到内联字符串
+                                    xml_content += " t=\"inlineStr\"><is><t>" + value + "</t></is>";
+                                }
+                            }
+                        } else {
+                            // 空字符串也要有结构
+                            xml_content += ">";
                         }
                     } else if constexpr (std::is_same_v<T, double>) {
-                        xml_content += "<v>" + std::to_string(value) + "</v>";
+                        // 数字类型：使用数值格式
+                        xml_content += " t=\"n\"><v>" + std::to_string(value) + "</v>";
                     } else if constexpr (std::is_same_v<T, int>) {
-                        xml_content += "<v>" + std::to_string(value) + "</v>";
+                        // 整数类型：使用数值格式
+                        xml_content += " t=\"n\"><v>" + std::to_string(value) + "</v>";
                     } else if constexpr (std::is_same_v<T, bool>) {
-                        xml_content += "<v>" + std::string(value ? "1" : "0") + "</v>";
+                        // 布尔类型：使用布尔格式
+                        xml_content += " t=\"b\"><v>" + std::string(value ? "1" : "0") + "</v>";
+                    } else {
+                        xml_content += ">";
                     }
                 }, cell_data.value);
+
+                // 添加公式（如果有）
+                if (cell_data.formula) {
+                    xml_content += "<f>" + *cell_data.formula + "</f>";
+                }
 
                 xml_content += "</c>";
             }
@@ -400,7 +584,56 @@ std::string worksheet_impl::generate_worksheet_xml() {
     }
 
     xml_content += "</worksheet>";
+
+    // 调试输出：打印生成的工作表XML
+    std::cout << "\n=== 生成的工作表XML (" << name_ << ") ===" << std::endl;
+    std::cout << xml_content << std::endl;
+    std::cout << "=== 工作表XML结束 ===" << std::endl;
+
     return xml_content;
+}
+
+bool worksheet_impl::should_use_inline_string(const std::string& str) const {
+    try {
+        // Excel的高效策略：简单规则，快速判断
+
+        // 1. 空字符串使用内联
+        if (str.empty()) {
+            return true;
+        }
+
+        // 2. 很短的字符串（≤3字符）使用内联
+        if (str.length() <= 3) {
+            return true;
+        }
+
+        // 3. 很长的字符串（>50字符）使用内联（避免共享字符串表过大）
+        if (str.length() > 50) {
+            return true;
+        }
+
+        // 4. 简化的数字检测：只检查前几个字符
+        std::size_t check_length = std::min(str.length(), static_cast<std::size_t>(10));
+        std::size_t digit_count = 0;
+
+        for (std::size_t i = 0; i < check_length; ++i) {
+            if (std::isdigit(static_cast<unsigned char>(str[i]))) {
+                digit_count++;
+            }
+        }
+
+        // 如果前面大部分是数字，使用内联
+        if (digit_count * 2 > check_length) {
+            return true;
+        }
+
+        // 5. 其他情况使用共享字符串（Excel的默认行为）
+        return false;
+
+    } catch (...) {
+        // 如果出现任何异常，默认使用内联字符串（更安全）
+        return true;
+    }
 }
 
 } // namespace tinakit::internal

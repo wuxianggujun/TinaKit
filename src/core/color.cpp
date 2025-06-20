@@ -60,7 +60,9 @@ std::string Color::to_hex() const {
 
 std::string Color::to_excel_rgb() const {
     std::ostringstream oss;
+    // Excel需要8位ARGB格式：FF + RGB
     oss << std::hex << std::setfill('0') << std::uppercase
+        << "FF"  // Alpha通道，完全不透明
         << std::setw(2) << static_cast<int>(r_)
         << std::setw(2) << static_cast<int>(g_)
         << std::setw(2) << static_cast<int>(b_);

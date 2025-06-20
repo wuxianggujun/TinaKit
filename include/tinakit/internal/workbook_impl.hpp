@@ -159,6 +159,11 @@ public:
      */
     excel::SharedStrings& shared_strings();
     const excel::SharedStrings& shared_strings() const;
+
+    /**
+     * @brief 获取共享字符串管理器指针
+     */
+    std::shared_ptr<excel::SharedStrings> get_shared_strings() const { return shared_strings_; }
     
     // ========================================
     // 文件操作
@@ -178,7 +183,12 @@ public:
      * @brief 获取文件路径
      */
     const std::filesystem::path& file_path() const;
-    
+
+    /**
+     * @brief 获取归档器（供 worksheet_impl 使用）
+     */
+    std::shared_ptr<core::OpenXmlArchiver> get_archiver() const { return archiver_; }
+
     // ========================================
     // 内部状态管理
     // ========================================
@@ -209,7 +219,10 @@ private:
     
     // 工作表名称顺序
     std::vector<std::string> worksheet_order_;
-    
+
+    // 活动工作表名称
+    std::string active_sheet_name_;
+
     // 修改标志
     bool is_dirty_ = false;
     
@@ -218,9 +231,15 @@ private:
     void create_default_structure();
     void parse_workbook_xml();
     void parse_workbook_rels();
+    void load_styles_xml();
+    void load_shared_strings_xml();
     void save_to_archiver();
+    void generate_content_types();
+    void generate_main_rels();
     void generate_workbook_xml();
     void generate_workbook_rels();
+    void generate_styles_xml();
+    void generate_shared_strings_xml();
     
     // 获取或创建工作表实现
     worksheet_impl& get_worksheet_impl(const std::string& sheet_name);

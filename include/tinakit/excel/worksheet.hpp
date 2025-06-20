@@ -17,6 +17,7 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <map>
 #include <ranges>
 
 namespace tinakit::internal {
@@ -381,6 +382,9 @@ private:
     // 轻量级句柄：只包含工作簿实现指针和工作表名称
     std::shared_ptr<internal::workbook_impl> workbook_impl_;
     std::string sheet_name_;
+
+    // Cell对象缓存，避免重复创建
+    mutable std::map<std::pair<std::size_t, std::size_t>, Cell> cell_cache_;
 
     friend class workbook;
 };

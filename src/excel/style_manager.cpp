@@ -199,6 +199,36 @@ std::uint32_t StyleManager::add_number_format(const NumberFormat& format) {
     return custom_format.id;
 }
 
+std::uint32_t StyleManager::add_number_format(const std::string& format_code) {
+    // 检查是否已存在
+    auto it = number_format_cache_.find(format_code);
+    if (it != number_format_cache_.end()) {
+        return it->second;
+    }
+
+    // 检查是否为常见的内置格式
+    if (format_code == "0.00%") {
+        number_format_cache_[format_code] = 10; // Excel内置百分比格式
+        return 10;
+    } else if (format_code == "0%") {
+        number_format_cache_[format_code] = 9; // Excel内置百分比格式
+        return 9;
+    } else if (format_code == "0.00") {
+        number_format_cache_[format_code] = 2; // Excel内置小数格式
+        return 2;
+    }
+
+    // 创建NumberFormat对象，分配自定义ID
+    NumberFormat format;
+    format.format_code = format_code;
+    format.id = 164 + static_cast<std::uint32_t>(number_formats_.size()); // 自定义格式从164开始
+
+    number_formats_.push_back(format);
+    number_format_cache_[format_code] = format.id;
+
+    return format.id;
+}
+
 const NumberFormat& StyleManager::get_number_format(std::uint32_t id) const {
     if (id >= number_formats_.size()) {
         throw std::out_of_range("Number format ID out of range: " + std::to_string(id));
@@ -421,6 +451,11 @@ std::string StyleManager::generate_xml() const {
             // 添加 xfId（对于 cellXfs，通常引用 cellStyleXfs 的索引）
             xml << R"( xfId="0")";
 
+            // 添加Excel兼容性属性
+            if (!is_default) {
+                xml << R"( pivotButton="0" quotePrefix="0")";
+            }
+
             if (style.alignment) {
                 xml << R"( applyAlignment="1">)";
                 xml << "\n      <alignment";
@@ -514,17 +549,23 @@ std::string StyleManager::generate_xml() const {
         xml << "  </dxfs>\n";
     }
 
+    // 添加 cellStyles 元素（必需）
+    xml << "  <cellStyles count=\"1\">\n";
+    xml << "    <cellStyle name=\"Normal\" xfId=\"0\"/>\n";
+    xml << "  </cellStyles>\n";
+
+    // 添加 tableStyles 元素（可选但推荐）
+    xml << "  <tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium9\" defaultPivotStyle=\"PivotStyleLight16\"/>\n";
+
     xml << "</styleSheet>\n";
-    
+
     return xml.str();
 }
 
 void StyleManager::load_from_xml(const std::string& xml_data) {
     try {
-        // 清空现有样式，不要初始化默认样式，而是从XML中完全解析
+        // 清空现有样式，从XML中完全解析
         clear();
-
-
 
         std::istringstream stream(xml_data);
         core::XmlParser parser(stream, "styles.xml");
@@ -589,10 +630,24 @@ void StyleManager::load_from_xml(const std::string& xml_data) {
                     auto border_id = it.attribute("borderId");
                     auto num_fmt_id = it.attribute("numFmtId");
 
+                    // 解析apply属性
+                    auto apply_font = it.attribute("applyFont");
+                    auto apply_fill = it.attribute("applyFill");
+                    auto apply_border = it.attribute("applyBorder");
+                    auto apply_alignment = it.attribute("applyAlignment");
+                    auto apply_number_format = it.attribute("applyNumberFormat");
+
                     if (font_id) style.font_id = std::stoul(*font_id);
                     if (fill_id) style.fill_id = std::stoul(*fill_id);
                     if (border_id) style.border_id = std::stoul(*border_id);
                     if (num_fmt_id) style.number_format_id = std::stoul(*num_fmt_id);
+
+                    // 设置apply标志
+                    style.apply_font = apply_font && (*apply_font == "1" || *apply_font == "true");
+                    style.apply_fill = apply_fill && (*apply_fill == "1" || *apply_fill == "true");
+                    style.apply_border = apply_border && (*apply_border == "1" || *apply_border == "true");
+                    style.apply_alignment = apply_alignment && (*apply_alignment == "1" || *apply_alignment == "true");
+                    style.apply_number_format = apply_number_format && (*apply_number_format == "1" || *apply_number_format == "true");
 
                     cell_styles_.push_back(style);
 
@@ -613,6 +668,9 @@ void StyleManager::load_from_xml(const std::string& xml_data) {
                 }
             }
         }
+
+        // 重建缓存
+        rebuild_caches();
 
     } catch (const std::exception& e) {
         // 如果解析失败，使用默认样式
@@ -681,6 +739,37 @@ std::size_t StyleManager::hash_border(const Border& border) const {
     h ^= std::hash<bool>{}(border.diagonal_down) << 6;
     
     return h;
+}
+
+void StyleManager::rebuild_caches() {
+    // 清空所有缓存
+    font_cache_.clear();
+    fill_cache_.clear();
+    border_cache_.clear();
+    number_format_cache_.clear();
+
+    // 重建字体缓存
+    for (std::uint32_t i = 0; i < fonts_.size(); ++i) {
+        std::size_t hash = hash_font(fonts_[i]);
+        font_cache_[hash] = i;
+    }
+
+    // 重建填充缓存
+    for (std::uint32_t i = 0; i < fills_.size(); ++i) {
+        std::size_t hash = hash_fill(fills_[i]);
+        fill_cache_[hash] = i;
+    }
+
+    // 重建边框缓存
+    for (std::uint32_t i = 0; i < borders_.size(); ++i) {
+        std::size_t hash = hash_border(borders_[i]);
+        border_cache_[hash] = i;
+    }
+
+    // 重建数字格式缓存
+    for (const auto& fmt : number_formats_) {
+        number_format_cache_[fmt.format_code] = fmt.id;
+    }
 }
 
 // 解析字体元素的辅助函数

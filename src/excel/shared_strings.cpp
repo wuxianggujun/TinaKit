@@ -6,6 +6,9 @@
  */
 
 #include "tinakit/excel/shared_strings.hpp"
+
+#include <iostream>
+
 #include "tinakit/core/xml_parser.hpp"
 #include <sstream>
 #include <stdexcept>
@@ -13,17 +16,23 @@
 namespace tinakit::excel {
 
 std::uint32_t SharedStrings::add_string(const std::string& str) {
+    // 调试输出
+    std::cout << "SharedStrings::add_string() 被调用，字符串: \"" << str << "\"" << std::endl;
+
     // 检查字符串是否已存在
     auto it = string_to_index_.find(str);
     if (it != string_to_index_.end()) {
+        std::cout << "  字符串已存在，索引: " << it->second << std::endl;
         return it->second;
     }
-    
+
     // 添加新字符串
     std::uint32_t index = static_cast<std::uint32_t>(strings_.size());
     strings_.push_back(str);
     string_to_index_[str] = index;
-    
+
+    std::cout << "  添加新字符串，索引: " << index << "，当前总数: " << strings_.size() << std::endl;
+
     return index;
 }
 
@@ -124,4 +133,41 @@ void SharedStrings::reserve(std::size_t size) {
     string_to_index_.reserve(size);
 }
 
-} // namespace tinakit::excel 
+bool SharedStrings::should_use_shared_string(const std::string& str) {
+    // 智能决策规则：
+    // 1. 空字符串使用内联
+    if (str.empty()) {
+        return false;
+    }
+
+    // 2. 很短的字符串（1-2个字符）使用内联
+    if (str.length() <= 2) {
+        return false;
+    }
+
+    // 3. 很长的字符串（>100字符）使用内联（避免共享字符串表过大）
+    if (str.length() > 100) {
+        return false;
+    }
+
+    // 4. 包含特殊字符或数字的字符串倾向于使用内联
+    bool has_digit = std::any_of(str.begin(), str.end(), ::isdigit);
+    if (has_digit && str.length() < 10) {
+        return false;
+    }
+
+    // 5. 常见的标题、标签类文本使用共享
+    // 包含中文、英文单词的文本倾向于共享
+    return true;
+}
+
+void SharedStrings::record_string_usage(const std::string& str) {
+    usage_count_[str]++;
+}
+
+std::size_t SharedStrings::get_usage_count(const std::string& str) const {
+    auto it = usage_count_.find(str);
+    return it != usage_count_.end() ? it->second : 0;
+}
+
+} // namespace tinakit::excel

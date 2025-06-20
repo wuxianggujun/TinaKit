@@ -92,9 +92,30 @@ public:
      */
     void reserve(std::size_t size);
 
+    /**
+     * @brief 判断字符串是否应该使用共享字符串
+     * @param str 要判断的字符串
+     * @return true 如果应该使用共享字符串
+     */
+    static bool should_use_shared_string(const std::string& str);
+
+    /**
+     * @brief 记录字符串使用频率（用于智能决策）
+     * @param str 字符串
+     */
+    void record_string_usage(const std::string& str);
+
+    /**
+     * @brief 获取字符串使用频率
+     * @param str 字符串
+     * @return 使用频率
+     */
+    std::size_t get_usage_count(const std::string& str) const;
+
 private:
     std::vector<std::string> strings_;              ///< 字符串列表（按索引存储）
     std::unordered_map<std::string, std::uint32_t> string_to_index_;  ///< 字符串到索引的映射
+    std::unordered_map<std::string, std::size_t> usage_count_;        ///< 字符串使用频率统计
 };
 
 } // namespace tinakit::excel 
