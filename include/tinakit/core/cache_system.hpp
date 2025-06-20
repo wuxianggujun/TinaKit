@@ -182,7 +182,7 @@ public:
     StringPool string_pool_;  // 改为public以便访问
 
 private:
-    std::unordered_map<std::string_view, StringStats> string_stats_;
+    std::unordered_map<std::string, StringStats> string_stats_;
     
     static constexpr std::size_t MIN_SHARE_LENGTH = 3;
     static constexpr std::size_t MIN_USAGE_COUNT = 2;

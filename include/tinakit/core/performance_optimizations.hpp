@@ -67,13 +67,16 @@ public:
     StringId intern(std::string_view str) {
         if (str.empty()) return INVALID_ID;
 
-        auto it = string_to_id_.find(str);
+        // 先转换为string以避免string_view失效问题
+        std::string str_copy(str);
+        auto it = string_to_id_.find(str_copy);
         if (it != string_to_id_.end()) {
             return it->second;
         }
 
         StringId id = static_cast<StringId>(strings_.size() + 1);
-        strings_.emplace_back(str);
+        strings_.emplace_back(std::move(str_copy));
+        // 使用存储在vector中的字符串作为key
         string_to_id_[strings_.back()] = id;
         return id;
     }
@@ -99,7 +102,7 @@ public:
 
 private:
     std::vector<std::string> strings_;
-    std::unordered_map<std::string_view, StringId> string_to_id_;
+    std::unordered_map<std::string, StringId> string_to_id_;
 };
 
 /**

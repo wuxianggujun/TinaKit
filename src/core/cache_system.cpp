@@ -71,7 +71,8 @@ std::string_view StringCache::get_string(StringPool::StringId id) const {
 }
 
 void StringCache::record_usage(std::string_view str) {
-    auto& stats = string_stats_[str];
+    std::string str_copy(str);  // 转换为string避免string_view失效
+    auto& stats = string_stats_[str_copy];
     stats.usage_count++;
     stats.total_size = str.size();
     stats.should_share = should_use_shared_string(str);
@@ -81,42 +82,43 @@ bool StringCache::should_use_shared_string(std::string_view str) const {
     if (str.length() < MIN_SHARE_LENGTH) {
         return false;
     }
-    
-    auto it = string_stats_.find(str);
+
+    std::string str_copy(str);  // 转换为string避免string_view失效
+    auto it = string_stats_.find(str_copy);
     if (it != string_stats_.end()) {
         return it->second.usage_count >= MIN_USAGE_COUNT;
     }
-    
+
     return false;
 }
 
 void StringCache::optimize_shared_strings() {
     TINAKIT_PROFILE("StringCache::optimize_shared_strings");
-    
+
     // 分析字符串使用模式
-    std::vector<std::pair<std::string_view, StringStats>> frequent_strings;
-    
+    std::vector<std::pair<std::string, StringStats>> frequent_strings;
+
     for (const auto& [str, stats] : string_stats_) {
         if (stats.usage_count >= MIN_USAGE_COUNT && str.length() >= MIN_SHARE_LENGTH) {
             frequent_strings.emplace_back(str, stats);
         }
     }
-    
+
     // 按使用频率排序
     std::sort(frequent_strings.begin(), frequent_strings.end(),
               [](const auto& a, const auto& b) {
                   return a.second.usage_count > b.second.usage_count;
               });
-    
+
     std::cout << "字符串优化统计:" << std::endl;
     std::cout << "总字符串数: " << string_stats_.size() << std::endl;
     std::cout << "高频字符串数: " << frequent_strings.size() << std::endl;
-    
+
     if (!frequent_strings.empty()) {
         std::cout << "前10个高频字符串:" << std::endl;
         for (std::size_t i = 0; i < std::min(frequent_strings.size(), std::size_t(10)); ++i) {
             const auto& [str, stats] = frequent_strings[i];
-            std::cout << "  \"" << str << "\" - 使用次数: " << stats.usage_count 
+            std::cout << "  \"" << str << "\" - 使用次数: " << stats.usage_count
                       << ", 长度: " << stats.total_size << std::endl;
         }
     }

@@ -176,12 +176,13 @@ void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Po
 
     cell_data data;
 
-    // 性能优化：对字符串值使用字符串池
+    // 性能优化：对字符串值使用全局字符串缓存
     if (std::holds_alternative<std::string>(value)) {
         const auto& str_value = std::get<std::string>(value);
-        // 使用字符串池优化存储
-        auto string_id = string_pool_->intern(str_value);
-        auto optimized_str = string_pool_->get_string(string_id);
+        // 使用CacheManager的字符串缓存
+        auto& string_cache = core::CacheManager::instance().string_cache();
+        auto string_id = string_cache.intern_string(str_value);
+        auto optimized_str = string_cache.get_string(string_id);
         data.value = std::string(optimized_str);
     } else {
         data.value = value;
@@ -264,15 +265,19 @@ void workbook_impl::batch_set_cell_values(const std::string& sheet_name,
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
 
+    // 使用全局缓存管理器
+    auto& cache_manager = core::CacheManager::instance();
+    auto& string_cache = cache_manager.string_cache();
+
     // 性能优化：批量处理，减少重复的查找和验证
     for (const auto& [pos, value] : operations) {
         cell_data data;
 
-        // 使用字符串池优化字符串存储
+        // 使用全局字符串缓存优化字符串存储
         if (std::holds_alternative<std::string>(value)) {
             const auto& str_value = std::get<std::string>(value);
-            auto string_id = string_pool_->intern(str_value);
-            auto optimized_str = string_pool_->get_string(string_id);
+            auto string_id = string_cache.intern_string(str_value);
+            auto optimized_str = string_cache.get_string(string_id);
             data.value = std::string(optimized_str);
         } else {
             data.value = value;
@@ -286,17 +291,16 @@ void workbook_impl::batch_set_cell_values(const std::string& sheet_name,
 
 workbook_impl::PerformanceStats workbook_impl::get_performance_stats() const {
     PerformanceStats stats;
-    stats.string_pool_size = string_pool_->size();
 
-    // 从所有工作表收集缓存统计
-    std::size_t total_hits = 0;
-    std::size_t total_misses = 0;
+    // 使用CacheManager获取统计信息
+    auto& cache_manager = core::CacheManager::instance();
+    auto& string_cache = cache_manager.string_cache();
+    auto& cell_cache = cache_manager.cell_cache();
 
-    // 这里需要从worksheet中获取缓存统计，暂时返回基本信息
-    stats.cell_cache_hits = total_hits;
-    stats.cell_cache_misses = total_misses;
-    stats.cache_hit_ratio = (total_hits + total_misses) > 0 ?
-        static_cast<double>(total_hits) / (total_hits + total_misses) : 0.0;
+    stats.string_pool_size = string_cache.string_pool_.size();
+    stats.cell_cache_hits = 0;  // cell_cache.hit_count(); // 需要添加这个方法
+    stats.cell_cache_misses = 0; // cell_cache.miss_count(); // 需要添加这个方法
+    stats.cache_hit_ratio = 0.0; // cell_cache.hit_ratio(); // 需要添加这个方法
 
     return stats;
 }
