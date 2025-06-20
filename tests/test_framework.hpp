@@ -108,7 +108,7 @@ public:
         failed_tests = 0;
         
         for (const auto& [suite_name, suite_result] : suite_results_) {
-            total_tests += suite_result.test_results.size();
+            total_tests += static_cast<int>(suite_result.test_results.size());
             passed_tests += suite_result.passed_count;
             failed_tests += suite_result.failed_count;
         }

@@ -268,4 +268,7 @@ private:
     std::optional<RangeView> view_; // 视图对象用于迭代（可选，支持默认构造）
 };
 
+// 为字符数组提供特化声明
+template<> Range& Range::set_value<const char*>(const char* const& value);
+
 } // namespace tinakit::excel

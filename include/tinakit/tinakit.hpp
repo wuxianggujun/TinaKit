@@ -23,7 +23,9 @@
 #include <functional>
 
 namespace tinakit {
-    
+
+// 重新导出核心类型到 tinakit 命名空间
+using XmlParser = core::XmlParser;
 
 namespace excel {
 
@@ -36,6 +38,9 @@ namespace excel {
                           std::function<double(const std::vector<double>&)> function);
 
 } // namespace excel
+
+// 为了兼容性，提供 Excel 命名空间别名（首字母大写）
+namespace Excel = excel;
 
 /**
  * @namespace Word

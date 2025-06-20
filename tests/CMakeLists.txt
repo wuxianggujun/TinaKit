@@ -6,6 +6,8 @@ add_executable(tinakit_tests
     main.cpp
     test_coordinate_system.cpp
     test_range_system.cpp
+    test_integration.cpp
+    test_advanced_features.cpp
 )
 
 # 链接TinaKit库
@@ -41,6 +43,10 @@ add_test(NAME ColumnConversionTests COMMAND tinakit_tests ColumnConversion)
 add_test(NAME RangeAddressTests COMMAND tinakit_tests RangeAddress)
 add_test(NAME ValidationTests COMMAND tinakit_tests Validation)
 add_test(NAME IntegrationTests COMMAND tinakit_tests Integration)
+add_test(NAME RangeBatchOperationsTests COMMAND tinakit_tests RangeBatchOperations)
+add_test(NAME StyleApplicationTests COMMAND tinakit_tests StyleApplication)
+add_test(NAME ErrorHandlingTests COMMAND tinakit_tests ErrorHandling)
+add_test(NAME CompatibilityTests COMMAND tinakit_tests Compatibility)
 add_test(NAME EdgeCasesTests COMMAND tinakit_tests EdgeCases)
 add_test(NAME PerformanceTests COMMAND tinakit_tests Performance)
 
@@ -60,3 +66,54 @@ add_custom_target(run_tests_verbose
     DEPENDS tinakit_tests
     COMMENT "Running TinaKit tests (verbose)"
 )
+
+# ========================================
+# 为测试程序复制必要的DLL
+# ========================================
+
+if(WIN32)
+    # 复制zlib DLL - 更新路径以匹配实际的DLL位置
+    set(ZLIB_SEARCH_PATHS
+        "${CMAKE_BINARY_DIR}/third_party/zlib-ng"
+        "${CMAKE_BINARY_DIR}/third_party/zlib-ng/Debug"
+        "${CMAKE_BINARY_DIR}/third_party/zlib-ng/Release"
+        "${CMAKE_BINARY_DIR}/third_party/zlib-ng/${CMAKE_BUILD_TYPE}"
+    )
+
+    set(ZLIB_DLL_NAMES "zlibd1.dll" "zlib1.dll" "zlibd.dll" "zlib.dll")
+
+    set(FOUND_ZLIB_DLL FALSE)
+    foreach(search_path ${ZLIB_SEARCH_PATHS})
+        foreach(dll_name ${ZLIB_DLL_NAMES})
+            set(dll_path "${search_path}/${dll_name}")
+            if(EXISTS "${dll_path}")
+                message(STATUS "Found zlib DLL for tests: ${dll_path}")
+                add_custom_command(TARGET tinakit_tests POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${dll_path}"
+                    "$<TARGET_FILE_DIR:tinakit_tests>"
+                    COMMENT "Copying ${dll_name} to test directory"
+                )
+                set(FOUND_ZLIB_DLL TRUE)
+                break()
+            endif()
+        endforeach()
+        if(FOUND_ZLIB_DLL)
+            break()
+        endif()
+    endforeach()
+
+    if(NOT FOUND_ZLIB_DLL)
+        message(WARNING "zlib DLL not found for tests. Searched paths: ${ZLIB_SEARCH_PATHS}")
+    endif()
+
+    # 复制tinakit库文件
+    add_custom_command(TARGET tinakit_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:tinakit>"
+        "$<TARGET_FILE_DIR:tinakit_tests>"
+        COMMENT "Copying tinakit library to test directory"
+    )
+
+    message(STATUS "DLL copying setup complete for tinakit_tests")
+endif()

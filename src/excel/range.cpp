@@ -75,6 +75,12 @@ template Range& Range::set_value<int>(const int& value);
 template Range& Range::set_value<double>(const double& value);
 template Range& Range::set_value<bool>(const bool& value);
 
+// 特化字符指针类型
+template<>
+Range& Range::set_value<const char*>(const char* const& value) {
+    return set_value(std::string(value));
+}
+
 Range& Range::set_style(const StyleTemplate& style_template) {
     // 委托给workbook_impl进行批量样式设置
     // TODO: 实现StyleTemplate到style_id的转换
