@@ -11,7 +11,7 @@ int main() {
         std::cout << "=== TinaKit 样式模板和范围操作测试 ===" << std::endl;
         
         // 创建工作簿
-        auto workbook = tinakit::excel::workbook::create();
+        auto workbook = tinakit::excel::Workbook::create();
         
         // ========================================
         // 1. 样式模板测试

@@ -18,19 +18,7 @@ namespace {
     std::unordered_map<std::string, std::function<double(const std::vector<double>&)>> g_custom_functions;
     std::mutex g_functions_mutex;
 }
-
-Workbook open(const std::filesystem::path& path) {
-    return workbook::load(path);
-}
-
-async::Task<Workbook> open_async(const std::filesystem::path& path) {
-    return workbook::load_async(path);
-}
-
-Workbook create() {
-    return workbook::create();
-}
-
+    
 void register_function(std::string_view name,
                       std::function<double(const std::vector<double>&)> function) {
     std::lock_guard<std::mutex> lock(g_functions_mutex);

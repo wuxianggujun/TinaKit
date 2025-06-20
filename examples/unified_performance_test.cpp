@@ -111,7 +111,7 @@ private:
 
         try {
             // 单个操作测试
-            auto workbook1 = excel::workbook::create();
+            auto workbook1 = excel::Workbook::create();
             auto sheet1 = workbook1.active_sheet();
 
             auto start = high_resolution_clock::now();
@@ -126,7 +126,7 @@ private:
                       << std::fixed << std::setprecision(0) << individual_ops << " ops/sec" << std::endl;
 
             // 简化批量操作测试 - 使用传统方式
-            auto workbook2 = excel::workbook::create();
+            auto workbook2 = excel::Workbook::create();
             auto sheet2 = workbook2.active_sheet();
 
             start = high_resolution_clock::now();
@@ -155,7 +155,7 @@ private:
         std::cout << "\n=== 3. 字符串优化测试 ===" << std::endl;
 
         try {
-            auto workbook = excel::workbook::create();
+            auto workbook = excel::Workbook::create();
             auto sheet = workbook.active_sheet();
 
             // 模拟重复字符串场景
@@ -198,7 +198,7 @@ private:
     void test_cache_system() {
         std::cout << "\n=== 4. 缓存系统测试 ===" << std::endl;
         
-        auto workbook = excel::workbook::create();
+        auto workbook = excel::Workbook::create();
         auto sheet = workbook.active_sheet();
         
         // 填充测试数据
@@ -250,7 +250,7 @@ private:
         
         // 文件写入测试
         {
-            auto workbook = excel::workbook::create();
+            auto workbook = excel::Workbook::create();
             auto sheet = workbook.active_sheet();
             
             // 准备测试数据
@@ -287,7 +287,7 @@ private:
         // 文件读取测试
         {
             auto start = high_resolution_clock::now();
-            auto workbook = excel::workbook::load(test_file);
+            auto workbook = excel::Workbook::load(test_file);
             auto sheet = workbook.active_sheet();
             
             // 读取部分数据测试
@@ -313,7 +313,7 @@ private:
         auto start = high_resolution_clock::now();
         
         // 创建复杂的工作簿
-        auto workbook = excel::workbook::create();
+        auto workbook = excel::Workbook::create();
         
         // 创建多个工作表
         auto sheet1 = workbook.active_sheet();

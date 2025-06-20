@@ -47,7 +47,7 @@ int main() {
     using namespace tinakit;
 
     // 读取 Excel 文件
-    auto workbook = excel::workbook::load("example.xlsx");
+    auto workbook = excel::Workbook::load("example.xlsx");
     auto worksheet = workbook.active_sheet();
 
     // 读取单元格值

@@ -23,64 +23,9 @@
 #include <functional>
 
 namespace tinakit {
-
-// 重新导出核心类型到 tinakit 命名空间
-using XmlParser = core::XmlParser;
+    
 
 namespace excel {
-
-    // 类型别名：为了兼容性，将小写的 workbook 映射为大写的 Workbook
-    using Workbook = workbook;
-
-    /**
-     * @brief 打开 Excel 文件
-     * @param path 文件路径
-     * @return Workbook 对象
-     * @throws FileNotFoundException 文件不存在
-     * @throws CorruptedFileException 文件损坏
-     * @throws ParseException 解析错误
-     */
-    Workbook open(const std::filesystem::path& path);
-    
-    /**
-     * @brief 打开 Excel 文件（字符串路径重载）
-     * @param path 文件路径字符串
-     * @return Workbook 对象
-     */
-    inline Workbook open(const std::string& path) {
-        return open(std::filesystem::path(path));
-    }
-    
-    /**
-     * @brief 打开 Excel 文件（C字符串路径重载）
-     * @param path 文件路径C字符串
-     * @return Workbook 对象
-     */
-    inline Workbook open(const char* path) {
-        return open(std::filesystem::path(path));
-    }
-    
-    /**
-     * @brief 异步打开 Excel 文件
-     * @param path 文件路径
-     * @return 返回 Workbook 的 Task
-     */
-    async::Task<Workbook> open_async(const std::filesystem::path& path);
-    
-    /**
-     * @brief 异步打开 Excel 文件（字符串路径重载）
-     * @param path 文件路径字符串
-     * @return 返回 Workbook 的 Task
-     */
-    inline async::Task<Workbook> open_async(const std::string& path) {
-        return open_async(std::filesystem::path(path));
-    }
-    
-    /**
-     * @brief 创建新的工作簿
-     * @return 新的 Workbook 对象
-     */
-    Workbook create();
 
     /**
      * @brief 注册自定义函数
@@ -91,9 +36,6 @@ namespace excel {
                           std::function<double(const std::vector<double>&)> function);
 
 } // namespace excel
-
-// 为了兼容性，提供 Excel 命名空间别名（首字母大写）
-namespace Excel = excel;
 
 /**
  * @namespace Word
@@ -123,9 +65,9 @@ void register_format(std::string_view extension);
  *     using namespace tinakit;
  *     
  *     // 打开 Excel 文件 - 支持多种方式
- *     auto workbook = Excel::open("data.xlsx");
+ *     auto workbook = excel::Workbook::load("data.xlsx");
  *     // 或者
- *     auto workbook2 = excel::open(std::filesystem::path("data.xlsx"));
+ *     auto workbook2 = excel::Workbook::load(std::filesystem::path("data.xlsx"));
  *     
  *     auto sheet = workbook["Sheet1"];
  *     

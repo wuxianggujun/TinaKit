@@ -22,11 +22,6 @@ class Worksheet;
 class Range;
 class Cell;
 
-// 类型别名：为了兼容性，将大写的类名映射为小写
-using worksheet = Worksheet;
-using range = Range;
-using cell = Cell;
-
 } // namespace tinakit::excel
 
 namespace tinakit::internal {
@@ -36,7 +31,7 @@ class workbook_impl;
 namespace tinakit::excel {
 
 /**
- * @class workbook
+ * @class Workbook
  * @brief Excel 工作簿轻量级句柄类
  *
  * 这是一个轻量级的句柄类，本身不持有任何重型数据。
@@ -50,7 +45,7 @@ namespace tinakit::excel {
  *
  * @note 使用句柄-实现分离模式，提供稳定的 ABI 和优秀的性能
  */
-class workbook {
+class Workbook {
 public:
     /**
      * @brief 错误回调函数类型
@@ -61,32 +56,32 @@ public:
     /**
      * @brief 默认构造函数（创建空工作簿）
      */
-    workbook();
+    Workbook();
 
     /**
      * @brief 拷贝构造函数（轻量级，共享同一个实现）
      */
-    workbook(const workbook& other) = default;
+    Workbook(const Workbook& other) = default;
 
     /**
      * @brief 移动构造函数
      */
-    workbook(workbook&& other) noexcept = default;
+    Workbook(Workbook&& other) noexcept = default;
 
     /**
      * @brief 拷贝赋值运算符
      */
-    workbook& operator=(const workbook& other) = default;
+    Workbook& operator=(const Workbook& other) = default;
 
     /**
      * @brief 移动赋值运算符
      */
-    workbook& operator=(workbook&& other) noexcept = default;
+    Workbook& operator=(Workbook&& other) noexcept = default;
 
     /**
      * @brief 析构函数
      */
-    ~workbook() = default;
+    ~Workbook() = default;
 
 public:
     // ========================================
@@ -96,25 +91,25 @@ public:
     /**
      * @brief 加载 Excel 文件
      * @param file_path 文件路径
-     * @return workbook 句柄
+     * @return Workbook 句柄
      * @throws FileNotFoundException 文件不存在
      * @throws CorruptedFileException 文件损坏
      * @throws ParseException 解析错误
      */
-    static workbook load(const std::filesystem::path& file_path);
+    static Workbook load(const std::filesystem::path& file_path);
 
     /**
      * @brief 异步加载 Excel 文件
      * @param file_path 文件路径
-     * @return 返回 workbook 的 Task
+     * @return 返回 Workbook 的 Task
      */
-    static async::Task<workbook> load_async(const std::filesystem::path& file_path);
+    static async::Task<Workbook> load_async(const std::filesystem::path& file_path);
 
     /**
      * @brief 创建新的工作簿
-     * @return 新的 workbook 句柄
+     * @return 新的 Workbook 句柄
      */
-    static workbook create();
+    static Workbook create();
 
     // ========================================
     // 工作表访问
@@ -123,38 +118,38 @@ public:
     /**
      * @brief 按名称获取工作表句柄
      * @param name 工作表名称
-     * @return worksheet 句柄
+     * @return Worksheet 句柄
      * @throws WorksheetNotFoundException 工作表不存在
      */
-    worksheet get_worksheet(const std::string& name) const;
+    Worksheet get_worksheet(const std::string& name) const;
 
     /**
      * @brief 按索引获取工作表句柄
      * @param index 工作表索引（从 0 开始）
-     * @return worksheet 句柄
+     * @return Worksheet 句柄
      * @throws std::out_of_range 索引超出范围
      */
-    worksheet get_worksheet(std::size_t index) const;
+    Worksheet get_worksheet(std::size_t index) const;
 
     /**
      * @brief 获取活动工作表句柄
-     * @return worksheet 句柄
+     * @return Worksheet 句柄
      */
-    worksheet active_sheet() const;
+    Worksheet active_sheet() const;
 
     /**
      * @brief 按名称获取工作表句柄（操作符重载）
      * @param name 工作表名称
-     * @return worksheet 句柄
+     * @return Worksheet 句柄
      */
-    worksheet operator[](const std::string& name) const;
+    Worksheet operator[](const std::string& name) const;
 
     /**
      * @brief 按索引获取工作表句柄（操作符重载）
      * @param index 工作表索引
-     * @return worksheet 句柄
+     * @return Worksheet 句柄
      */
-    worksheet operator[](std::size_t index) const;
+    Worksheet operator[](std::size_t index) const;
 
     // ========================================
     // 工作表管理
@@ -166,7 +161,7 @@ public:
      * @return 新工作表句柄
      * @throws DuplicateWorksheetNameException 工作表名称已存在
      */
-    worksheet create_worksheet(const std::string& name);
+    Worksheet create_worksheet(const std::string& name);
 
     /**
      * @brief 删除工作表
@@ -257,7 +252,7 @@ public:
 
 private:
     // 内部构造函数（供静态工厂方法使用）
-    explicit workbook(std::shared_ptr<internal::workbook_impl> impl);
+    explicit Workbook(std::shared_ptr<internal::workbook_impl> impl);
 
     // 轻量级句柄：只包含指向实现的共享指针
     std::shared_ptr<internal::workbook_impl> impl_;
