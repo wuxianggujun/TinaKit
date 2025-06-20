@@ -51,7 +51,7 @@ Workbook Workbook::create() {
 
 Worksheet Workbook::get_worksheet(const std::string& name) const {
     if (!impl_->has_worksheet(name)) {
-        throw std::invalid_argument("Worksheet '" + name + "' does not exist");
+        throw WorksheetNotFoundException(name);
     }
     auto sheet_id = impl_->get_sheet_id(name);
     return Worksheet(impl_, sheet_id, name);

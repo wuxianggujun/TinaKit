@@ -87,7 +87,7 @@ void workbook_impl::ensure_default_structure() {
 
 excel::Worksheet workbook_impl::create_worksheet(const std::string& name) {
     if (has_worksheet(name)) {
-        throw std::invalid_argument("Worksheet '" + name + "' already exists");
+        throw DuplicateWorksheetNameException(name);
     }
 
     // 分配新的sheet_id
@@ -114,11 +114,11 @@ excel::Worksheet workbook_impl::create_worksheet(const std::string& name) {
 
 void workbook_impl::remove_worksheet(const std::string& name) {
     if (!has_worksheet(name)) {
-        throw std::invalid_argument("Worksheet '" + name + "' does not exist");
+        throw WorksheetNotFoundException(name);
     }
-    
+
     if (worksheet_count() <= 1) {
-        throw std::invalid_argument("Cannot remove the last worksheet");
+        throw CannotDeleteLastWorksheetException();
     }
     
     worksheets_.erase(name);
@@ -132,11 +132,11 @@ void workbook_impl::remove_worksheet(const std::string& name) {
 
 void workbook_impl::rename_worksheet(const std::string& old_name, const std::string& new_name) {
     if (!has_worksheet(old_name)) {
-        throw std::invalid_argument("Worksheet '" + old_name + "' does not exist");
+        throw WorksheetNotFoundException(old_name);
     }
-    
+
     if (has_worksheet(new_name)) {
-        throw std::invalid_argument("Worksheet '" + new_name + "' already exists");
+        throw DuplicateWorksheetNameException(new_name);
     }
     
     // 移动工作表实现
@@ -334,7 +334,7 @@ const std::filesystem::path& workbook_impl::file_path() const {
 
 void workbook_impl::ensure_worksheet_loaded(const std::string& sheet_name) {
     if (!has_worksheet(sheet_name)) {
-        throw std::invalid_argument("Worksheet '" + sheet_name + "' does not exist");
+        throw WorksheetNotFoundException(sheet_name);
     }
     
     auto& worksheet = get_worksheet_impl(sheet_name);
@@ -354,7 +354,7 @@ void workbook_impl::mark_worksheet_dirty(const std::string& sheet_name) {
 worksheet_impl& workbook_impl::get_worksheet_impl(const std::string& sheet_name) {
     auto it = worksheets_.find(sheet_name);
     if (it == worksheets_.end()) {
-        throw std::invalid_argument("Worksheet '" + sheet_name + "' does not exist");
+        throw WorksheetNotFoundException(sheet_name);
     }
     return *it->second;
 }
