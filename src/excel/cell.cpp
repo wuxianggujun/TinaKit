@@ -47,14 +47,14 @@ std::size_t Cell::column() const noexcept {
 }
 
 bool Cell::empty() const noexcept {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
     return std::holds_alternative<std::string>(data.value) &&
            std::get<std::string>(data.value).empty();
 }
 
 const Cell::CellValue& Cell::raw_value() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
     static thread_local CellValue cached_value;
     cached_value = data.value;
@@ -62,7 +62,7 @@ const Cell::CellValue& Cell::raw_value() const {
 }
 
 std::string Cell::to_string() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
 
     return std::visit([](const auto& value) -> std::string {
@@ -86,28 +86,28 @@ std::string Cell::to_string() const {
 
 template<>
 Cell& Cell::value<std::string>(const std::string& value) {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     workbook_impl_->set_cell_value(sheet_id_, pos, value);
     return *this;
 }
 
 template<>
 Cell& Cell::value<int>(const int& value) {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     workbook_impl_->set_cell_value(sheet_id_, pos, value);
     return *this;
 }
 
 template<>
 Cell& Cell::value<double>(const double& value) {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     workbook_impl_->set_cell_value(sheet_id_, pos, value);
     return *this;
 }
 
 template<>
 Cell& Cell::value<bool>(const bool& value) {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     workbook_impl_->set_cell_value(sheet_id_, pos, value);
     return *this;
 }
@@ -183,7 +183,7 @@ namespace {
 
 template<>
 std::string Cell::as<std::string>() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
 
     auto result = convert_cell_value<std::string>(data.value);
@@ -195,7 +195,7 @@ std::string Cell::as<std::string>() const {
 
 template<>
 int Cell::as<int>() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
 
     auto result = convert_cell_value<int>(data.value);
@@ -207,7 +207,7 @@ int Cell::as<int>() const {
 
 template<>
 double Cell::as<double>() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
 
     auto result = convert_cell_value<double>(data.value);
@@ -219,7 +219,7 @@ double Cell::as<double>() const {
 
 template<>
 bool Cell::as<bool>() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
 
     auto result = convert_cell_value<bool>(data.value);
@@ -232,7 +232,7 @@ bool Cell::as<bool>() const {
 template<>
 std::optional<std::string> Cell::try_as<std::string>() const noexcept {
     try {
-        auto pos = core::Position(row_, column_);
+        auto pos = core::Coordinate(row_, column_);
         auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
         return convert_cell_value<std::string>(data.value);
     } catch (...) {
@@ -243,7 +243,7 @@ std::optional<std::string> Cell::try_as<std::string>() const noexcept {
 template<>
 std::optional<int> Cell::try_as<int>() const noexcept {
     try {
-        auto pos = core::Position(row_, column_);
+        auto pos = core::Coordinate(row_, column_);
         auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
         return convert_cell_value<int>(data.value);
     } catch (...) {
@@ -254,7 +254,7 @@ std::optional<int> Cell::try_as<int>() const noexcept {
 template<>
 std::optional<double> Cell::try_as<double>() const noexcept {
     try {
-        auto pos = core::Position(row_, column_);
+        auto pos = core::Coordinate(row_, column_);
         auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
         return convert_cell_value<double>(data.value);
     } catch (...) {
@@ -265,7 +265,7 @@ std::optional<double> Cell::try_as<double>() const noexcept {
 template<>
 std::optional<bool> Cell::try_as<bool>() const noexcept {
     try {
-        auto pos = core::Position(row_, column_);
+        auto pos = core::Coordinate(row_, column_);
         auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
         return convert_cell_value<bool>(data.value);
     } catch (...) {
@@ -278,13 +278,13 @@ std::optional<bool> Cell::try_as<bool>() const noexcept {
 // ========================================
 
 Cell& Cell::formula(const std::string& formula) {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     workbook_impl_->set_cell_formula(sheet_id_, pos, formula);
     return *this;
 }
 
 std::optional<std::string> Cell::formula() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
     return data.formula;
 }
@@ -295,7 +295,7 @@ std::optional<std::string> Cell::formula() const {
 
 Cell& Cell::font(const std::string& font_name, double size) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -333,7 +333,7 @@ Cell& Cell::font(const std::string& font_name, double size) {
 
 Cell& Cell::bold(bool bold) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -370,7 +370,7 @@ Cell& Cell::bold(bool bold) {
 
 Cell& Cell::italic(bool italic) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -407,7 +407,7 @@ Cell& Cell::italic(bool italic) {
 
 Cell& Cell::color(const Color& color) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -444,7 +444,7 @@ Cell& Cell::color(const Color& color) {
 
 Cell& Cell::background_color(const Color& color) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -477,7 +477,7 @@ Cell& Cell::background_color(const Color& color) {
 
 Cell& Cell::align(const Alignment& alignment) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -517,7 +517,7 @@ Cell& Cell::border(BorderType border_type, BorderStyle style, const Color& color
 
 Cell& Cell::number_format(const std::string& format_code) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -545,7 +545,7 @@ Cell& Cell::number_format(const std::string& format_code) {
 
 Cell& Cell::wrap_text(bool wrap) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -577,7 +577,7 @@ Cell& Cell::wrap_text(bool wrap) {
 
 Cell& Cell::indent(int indent_level) {
     // 获取当前样式
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto current_data = workbook_impl_->get_cell_data(sheet_id_, pos);
     auto& style_mgr = workbook_impl_->style_manager();
 
@@ -614,19 +614,19 @@ Cell& Cell::style(const StyleTemplate& style_template) {
 }
 
 Cell& Cell::style_id(std::uint32_t style_id) {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     workbook_impl_->set_cell_style(sheet_id_, pos, style_id);
     return *this;
 }
 
 std::uint32_t Cell::style_id() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
     return data.style_id;
 }
 
 bool Cell::has_custom_style() const {
-    auto pos = core::Position(row_, column_);
+    auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
     return data.style_id != 0;
 }

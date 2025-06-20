@@ -62,37 +62,49 @@ struct Config {
 namespace tinakit::core {
 
 // 前向声明
-struct Position;
+struct Coordinate;
 
 /**
- * @struct Position
- * @brief 表示 Excel 中的位置（行列坐标）
+ * @struct Coordinate
+ * @brief 表示 Excel 中的单元格坐标（行列位置）
+ *
+ * 重要说明：
+ * - 这是1-based坐标系统，行和列都从1开始
+ * - 这是整个项目中表示单元格位置的唯一底层数据结构
+ * - 任何需要坐标信息的地方都必须使用此结构
  *
  * 这是一个轻量级的 POD 结构，用于表示单元格的位置。
  * 使用 1-based 索引以匹配 Excel 的地址约定。
  */
-struct Position {
+struct Coordinate {
     std::size_t row = 1;     ///< 行号（从1开始）
     std::size_t column = 1;  ///< 列号（从1开始）
 
     /**
      * @brief 默认构造函数
      */
-    Position() = default;
+    Coordinate() = default;
 
     /**
      * @brief 构造函数
      * @param r 行号
      * @param c 列号
      */
-    Position(std::size_t r, std::size_t c) : row(r), column(c) {}
+    Coordinate(std::size_t r, std::size_t c) : row(r), column(c) {}
 
     /**
-     * @brief 从 Excel 地址字符串创建位置
-     * @param address Excel 地址（如 "A1", "B5"）
-     * @return Position 对象
+     * @brief 检查坐标是否有效（行列都大于0）
      */
-    static Position from_address(const std::string& address);
+    bool is_valid() const noexcept {
+        return row > 0 && column > 0;
+    }
+
+    /**
+     * @brief 从 Excel 地址字符串创建坐标
+     * @param address Excel 地址（如 "A1", "B5"）
+     * @return Coordinate 对象
+     */
+    static Coordinate from_address(const std::string& address);
 
     /**
      * @brief 转换为 Excel 地址字符串
@@ -103,21 +115,21 @@ struct Position {
     /**
      * @brief 相等比较
      */
-    bool operator==(const Position& other) const noexcept {
+    bool operator==(const Coordinate& other) const noexcept {
         return row == other.row && column == other.column;
     }
 
     /**
      * @brief 不等比较
      */
-    bool operator!=(const Position& other) const noexcept {
+    bool operator!=(const Coordinate& other) const noexcept {
         return !(*this == other);
     }
 
     /**
      * @brief 小于比较（用于排序）
      */
-    bool operator<(const Position& other) const noexcept {
+    bool operator<(const Coordinate& other) const noexcept {
         if (row != other.row) return row < other.row;
         return column < other.column;
     }
@@ -131,8 +143,8 @@ struct Position {
  * 它完全替代了原有的 worksheet_range，提供更清晰的职责分离。
  */
 struct range_address {
-    Position start;  ///< 起始位置
-    Position end;    ///< 结束位置
+    Coordinate start;  ///< 起始位置
+    Coordinate end;    ///< 结束位置
 
     /**
      * @brief 默认构造函数（创建 A1:A1 范围）
@@ -144,7 +156,7 @@ struct range_address {
      * @param start_pos 起始位置
      * @param end_pos 结束位置
      */
-    range_address(const Position& start_pos, const Position& end_pos)
+    range_address(const Coordinate& start_pos, const Coordinate& end_pos)
         : start(start_pos), end(end_pos) {}
 
     /**
@@ -160,14 +172,14 @@ struct range_address {
      * @param end_pos 结束位置
      * @return range_address 对象
      */
-    static range_address from_positions(const Position& start_pos, const Position& end_pos);
+    static range_address from_positions(const Coordinate& start_pos, const Coordinate& end_pos);
 
     /**
      * @brief 从单个单元格创建范围地址
      * @param pos 单元格位置
      * @return range_address 对象
      */
-    static range_address from_single_cell(const Position& pos);
+    static range_address from_single_cell(const Coordinate& pos);
 
     /**
      * @brief 转换为 A1 记法字符串
@@ -180,7 +192,7 @@ struct range_address {
      * @param pos 要检查的位置
      * @return 如果位置在范围内返回 true
      */
-    bool contains(const Position& pos) const;
+    bool contains(const Coordinate& pos) const;
 
     /**
      * @brief 获取范围大小

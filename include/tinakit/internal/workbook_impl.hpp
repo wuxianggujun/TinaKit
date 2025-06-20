@@ -146,17 +146,17 @@ public:
     /**
      * @brief 获取单元格值
      */
-    cell_data get_cell_data(const std::string& sheet_name, const core::Position& pos);
+    cell_data get_cell_data(const std::string& sheet_name, const core::Coordinate& pos);
 
     /**
      * @brief 获取单元格值（通过sheet_id）
      */
-    cell_data get_cell_data(std::uint32_t sheet_id, const core::Position& pos);
+    cell_data get_cell_data(std::uint32_t sheet_id, const core::Coordinate& pos);
 
     /**
      * @brief 获取单元格值（重载版本）
      */
-    std::optional<cell_data> get_cell_data(const core::Position& pos);
+    std::optional<cell_data> get_cell_data(const core::Coordinate& pos);
 
     /**
      * @brief 获取工作表的使用范围
@@ -176,32 +176,32 @@ public:
     /**
      * @brief 设置单元格值
      */
-    void set_cell_value(const std::string& sheet_name, const core::Position& pos, const cell_data::CellValue& value);
+    void set_cell_value(const std::string& sheet_name, const core::Coordinate& pos, const cell_data::CellValue& value);
 
     /**
      * @brief 设置单元格值（通过sheet_id）
      */
-    void set_cell_value(std::uint32_t sheet_id, const core::Position& pos, const cell_data::CellValue& value);
+    void set_cell_value(std::uint32_t sheet_id, const core::Coordinate& pos, const cell_data::CellValue& value);
 
     /**
      * @brief 设置单元格公式
      */
-    void set_cell_formula(const std::string& sheet_name, const core::Position& pos, const std::string& formula);
+    void set_cell_formula(const std::string& sheet_name, const core::Coordinate& pos, const std::string& formula);
 
     /**
      * @brief 设置单元格公式（通过sheet_id）
      */
-    void set_cell_formula(std::uint32_t sheet_id, const core::Position& pos, const std::string& formula);
+    void set_cell_formula(std::uint32_t sheet_id, const core::Coordinate& pos, const std::string& formula);
 
     /**
      * @brief 设置单元格样式
      */
-    void set_cell_style(const std::string& sheet_name, const core::Position& pos, std::uint32_t style_id);
+    void set_cell_style(const std::string& sheet_name, const core::Coordinate& pos, std::uint32_t style_id);
 
     /**
      * @brief 设置单元格样式（通过sheet_id）
      */
-    void set_cell_style(std::uint32_t sheet_id, const core::Position& pos, std::uint32_t style_id);
+    void set_cell_style(std::uint32_t sheet_id, const core::Coordinate& pos, std::uint32_t style_id);
     
     /**
      * @brief 批量设置范围内的值
@@ -218,7 +218,7 @@ public:
      * @brief 高性能批量设置单元格值
      */
     void batch_set_cell_values(const std::string& sheet_name,
-                              const std::vector<std::tuple<core::Position, cell_data::CellValue>>& operations);
+                              const std::vector<std::tuple<core::Coordinate, cell_data::CellValue>>& operations);
 
     /**
      * @brief 获取性能统计信息

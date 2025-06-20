@@ -82,7 +82,7 @@ LoadState worksheet_impl::load_state() const {
 // 单元格数据访问
 // ========================================
 
-cell_data worksheet_impl::get_cell_data(const core::Position& pos) {
+cell_data worksheet_impl::get_cell_data(const core::Coordinate& pos) {
     ensure_loaded(pos);
     
     auto it = cells_.find(pos);
@@ -94,29 +94,29 @@ cell_data worksheet_impl::get_cell_data(const core::Position& pos) {
     return cell_data();
 }
 
-void worksheet_impl::set_cell_data(const core::Position& pos, const cell_data& data) {
+void worksheet_impl::set_cell_data(const core::Coordinate& pos, const cell_data& data) {
     cells_[pos] = data;
     update_dimensions(pos);
     mark_dirty();
 }
 
-bool worksheet_impl::has_cell_data(const core::Position& pos) const {
+bool worksheet_impl::has_cell_data(const core::Coordinate& pos) const {
     return cells_.find(pos) != cells_.end();
 }
 
-void worksheet_impl::remove_cell_data(const core::Position& pos) {
+void worksheet_impl::remove_cell_data(const core::Coordinate& pos) {
     cells_.erase(pos);
     mark_dirty();
 }
 
-std::map<core::Position, cell_data> worksheet_impl::get_range_data(const core::range_address& range) {
+std::map<core::Coordinate, cell_data> worksheet_impl::get_range_data(const core::range_address& range) {
     ensure_range_loaded(range);
     
-    std::map<core::Position, cell_data> result;
+    std::map<core::Coordinate, cell_data> result;
     
     for (std::size_t row = range.start.row; row <= range.end.row; ++row) {
         for (std::size_t col = range.start.column; col <= range.end.column; ++col) {
-            core::Position pos(row, col);
+            core::Coordinate pos(row, col);
             auto it = cells_.find(pos);
             if (it != cells_.end()) {
                 result[pos] = it->second;
@@ -133,7 +133,7 @@ void worksheet_impl::set_range_data(const core::range_address& range,
     for (const auto& row_values : values) {
         std::size_t col_offset = 0;
         for (const auto& value : row_values) {
-            core::Position pos(range.start.row + row_offset, range.start.column + col_offset);
+            core::Coordinate pos(range.start.row + row_offset, range.start.column + col_offset);
             
             // 检查是否超出范围
             if (pos.row > range.end.row || pos.column > range.end.column) {
@@ -158,7 +158,7 @@ void worksheet_impl::set_range_data(const core::range_address& range,
 // 惰性加载管理
 // ========================================
 
-void worksheet_impl::ensure_loaded(const core::Position& /* pos */) {
+void worksheet_impl::ensure_loaded(const core::Coordinate& /* pos */) {
     if (load_state_ == LoadState::NotLoaded) {
         load_from_xml();
     }
@@ -195,12 +195,12 @@ void worksheet_impl::unload() {
 
 void worksheet_impl::insert_rows(std::size_t row, std::size_t count) {
     // 创建新的单元格映射
-    std::map<core::Position, cell_data> new_cells;
+    std::map<core::Coordinate, cell_data> new_cells;
     
     for (const auto& [pos, data] : cells_) {
         if (pos.row >= row) {
             // 移动到新位置
-            core::Position new_pos(pos.row + count, pos.column);
+            core::Coordinate new_pos(pos.row + count, pos.column);
             new_cells[new_pos] = data;
         } else {
             // 保持原位置
@@ -225,10 +225,10 @@ void worksheet_impl::delete_rows(std::size_t row, std::size_t count) {
     }
     
     // 移动后续行
-    std::map<core::Position, cell_data> new_cells;
+    std::map<core::Coordinate, cell_data> new_cells;
     for (const auto& [pos, data] : cells_) {
         if (pos.row >= row + count) {
-            core::Position new_pos(pos.row - count, pos.column);
+            core::Coordinate new_pos(pos.row - count, pos.column);
             new_cells[new_pos] = data;
         } else {
             new_cells[pos] = data;
@@ -241,11 +241,11 @@ void worksheet_impl::delete_rows(std::size_t row, std::size_t count) {
 }
 
 void worksheet_impl::insert_columns(std::size_t column, std::size_t count) {
-    std::map<core::Position, cell_data> new_cells;
+    std::map<core::Coordinate, cell_data> new_cells;
     
     for (const auto& [pos, data] : cells_) {
         if (pos.column >= column) {
-            core::Position new_pos(pos.row, pos.column + count);
+            core::Coordinate new_pos(pos.row, pos.column + count);
             new_cells[new_pos] = data;
         } else {
             new_cells[pos] = data;
@@ -269,10 +269,10 @@ void worksheet_impl::delete_columns(std::size_t column, std::size_t count) {
     }
     
     // 移动后续列
-    std::map<core::Position, cell_data> new_cells;
+    std::map<core::Coordinate, cell_data> new_cells;
     for (const auto& [pos, data] : cells_) {
         if (pos.column >= column + count) {
-            core::Position new_pos(pos.row, pos.column - count);
+            core::Coordinate new_pos(pos.row, pos.column - count);
             new_cells[new_pos] = data;
         } else {
             new_cells[pos] = data;
@@ -374,7 +374,7 @@ void worksheet_impl::load_from_xml() {
     }
 }
 
-void worksheet_impl::update_dimensions(const core::Position& pos) {
+void worksheet_impl::update_dimensions(const core::Coordinate& pos) {
     max_row_ = std::max(max_row_, pos.row);
     max_column_ = std::max(max_column_, pos.column);
 }
@@ -394,7 +394,7 @@ void worksheet_impl::parse_cell_data(const std::string& xml_content) {
 
             if (cell_ref && !cell_ref->empty()) {
                 // 解析单元格位置
-                auto pos = core::Position::from_address(*cell_ref);
+                auto pos = core::Coordinate::from_address(*cell_ref);
 
                 // 创建单元格数据
                 cell_data data;

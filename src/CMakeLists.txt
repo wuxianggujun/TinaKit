@@ -23,6 +23,7 @@ target_sources(tinakit PRIVATE
         excel/worksheet_range.cpp
         internal/workbook_impl.cpp
         internal/worksheet_impl.cpp
+        internal/coordinate_utils.cpp
 )
 
 target_include_directories(tinakit PUBLIC

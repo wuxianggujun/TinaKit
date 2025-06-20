@@ -153,7 +153,7 @@ WorksheetRange& WorksheetRange::border(BorderType type, BorderStyle style, const
     // 为范围内的每个单元格设置边框样式
     for (std::size_t row = range_.start().row; row <= range_.end().row; ++row) {
         for (std::size_t col = range_.start().column; col <= range_.end().column; ++col) {
-            core::Position pos(row, col);
+            core::Coordinate pos(row, col);
             // 这里需要通过样式管理器设置边框
             // 暂时跳过实现，因为需要更复杂的样式系统
         }
@@ -165,7 +165,7 @@ WorksheetRange& WorksheetRange::number_format(const std::string& format_code) {
     // 为范围内的每个单元格设置数字格式
     for (std::size_t row = range_.start().row; row <= range_.end().row; ++row) {
         for (std::size_t col = range_.start().column; col <= range_.end().column; ++col) {
-            core::Position pos(row, col);
+            core::Coordinate pos(row, col);
             // 这里需要通过样式管理器设置数字格式
             // 暂时跳过实现，因为需要更复杂的样式系统
         }

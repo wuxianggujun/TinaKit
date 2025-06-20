@@ -158,18 +158,18 @@ void workbook_impl::rename_worksheet(const std::string& old_name, const std::str
 // 单元格数据访问
 // ========================================
 
-cell_data workbook_impl::get_cell_data(const std::string& sheet_name, const core::Position& pos) {
+cell_data workbook_impl::get_cell_data(const std::string& sheet_name, const core::Coordinate& pos) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
     return worksheet.get_cell_data(pos);
 }
 
-cell_data workbook_impl::get_cell_data(std::uint32_t sheet_id, const core::Position& pos) {
+cell_data workbook_impl::get_cell_data(std::uint32_t sheet_id, const core::Coordinate& pos) {
     std::string sheet_name = get_sheet_name(sheet_id);
     return get_cell_data(sheet_name, pos);
 }
 
-void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Position& pos,
+void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Coordinate& pos,
                                   const cell_data::CellValue& value) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
@@ -192,13 +192,13 @@ void workbook_impl::set_cell_value(const std::string& sheet_name, const core::Po
     mark_worksheet_dirty(sheet_name);
 }
 
-void workbook_impl::set_cell_value(std::uint32_t sheet_id, const core::Position& pos,
+void workbook_impl::set_cell_value(std::uint32_t sheet_id, const core::Coordinate& pos,
                                   const cell_data::CellValue& value) {
     std::string sheet_name = get_sheet_name(sheet_id);
     set_cell_value(sheet_name, pos, value);
 }
 
-void workbook_impl::set_cell_formula(const std::string& sheet_name, const core::Position& pos,
+void workbook_impl::set_cell_formula(const std::string& sheet_name, const core::Coordinate& pos,
                                     const std::string& formula) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
@@ -210,13 +210,13 @@ void workbook_impl::set_cell_formula(const std::string& sheet_name, const core::
     mark_worksheet_dirty(sheet_name);
 }
 
-void workbook_impl::set_cell_formula(std::uint32_t sheet_id, const core::Position& pos,
+void workbook_impl::set_cell_formula(std::uint32_t sheet_id, const core::Coordinate& pos,
                                     const std::string& formula) {
     std::string sheet_name = get_sheet_name(sheet_id);
     set_cell_formula(sheet_name, pos, formula);
 }
 
-void workbook_impl::set_cell_style(const std::string& sheet_name, const core::Position& pos,
+void workbook_impl::set_cell_style(const std::string& sheet_name, const core::Coordinate& pos,
                                   std::uint32_t style_id) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
@@ -228,7 +228,7 @@ void workbook_impl::set_cell_style(const std::string& sheet_name, const core::Po
     mark_worksheet_dirty(sheet_name);
 }
 
-void workbook_impl::set_cell_style(std::uint32_t sheet_id, const core::Position& pos,
+void workbook_impl::set_cell_style(std::uint32_t sheet_id, const core::Coordinate& pos,
                                   std::uint32_t style_id) {
     std::string sheet_name = get_sheet_name(sheet_id);
     set_cell_style(sheet_name, pos, style_id);
@@ -250,7 +250,7 @@ void workbook_impl::set_range_style(const std::string& sheet_name, const core::r
     // 遍历范围内的所有单元格
     for (std::size_t row = range.start.row; row <= range.end.row; ++row) {
         for (std::size_t col = range.start.column; col <= range.end.column; ++col) {
-            core::Position pos(row, col);
+            core::Coordinate pos(row, col);
             auto data = worksheet.get_cell_data(pos);
             data.style_id = style_id;
             worksheet.set_cell_data(pos, data);
@@ -261,7 +261,7 @@ void workbook_impl::set_range_style(const std::string& sheet_name, const core::r
 }
 
 void workbook_impl::batch_set_cell_values(const std::string& sheet_name,
-                                         const std::vector<std::tuple<core::Position, cell_data::CellValue>>& operations) {
+                                         const std::vector<std::tuple<core::Coordinate, cell_data::CellValue>>& operations) {
     ensure_worksheet_loaded(sheet_name);
     auto& worksheet = get_worksheet_impl(sheet_name);
 
@@ -742,7 +742,7 @@ void workbook_impl::save_to_archiver() {
 
 
 
-std::optional<cell_data> workbook_impl::get_cell_data(const core::Position& pos) {
+std::optional<cell_data> workbook_impl::get_cell_data(const core::Coordinate& pos) {
     if (active_sheet_name_.empty()) {
         return std::nullopt;
     }

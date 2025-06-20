@@ -103,27 +103,27 @@ public:
     /**
      * @brief 获取单元格数据
      */
-    cell_data get_cell_data(const core::Position& pos);
-    
+    cell_data get_cell_data(const core::Coordinate& pos);
+
     /**
      * @brief 设置单元格数据
      */
-    void set_cell_data(const core::Position& pos, const cell_data& data);
-    
+    void set_cell_data(const core::Coordinate& pos, const cell_data& data);
+
     /**
      * @brief 检查单元格是否存在数据
      */
-    bool has_cell_data(const core::Position& pos) const;
-    
+    bool has_cell_data(const core::Coordinate& pos) const;
+
     /**
      * @brief 删除单元格数据
      */
-    void remove_cell_data(const core::Position& pos);
-    
+    void remove_cell_data(const core::Coordinate& pos);
+
     /**
      * @brief 获取范围内的所有单元格数据
      */
-    std::map<core::Position, cell_data> get_range_data(const core::range_address& range);
+    std::map<core::Coordinate, cell_data> get_range_data(const core::range_address& range);
     
     /**
      * @brief 批量设置范围数据
@@ -138,7 +138,7 @@ public:
     /**
      * @brief 确保指定位置的数据已加载
      */
-    void ensure_loaded(const core::Position& pos);
+    void ensure_loaded(const core::Coordinate& pos);
     
     /**
      * @brief 确保指定范围的数据已加载
@@ -239,7 +239,7 @@ private:
     bool is_dirty_ = false;
     
     // 单元格数据存储
-    std::map<core::Position, cell_data> cells_;
+    std::map<core::Coordinate, cell_data> cells_;
     
     // 工作表尺寸
     std::size_t max_row_ = 0;
@@ -254,7 +254,7 @@ private:
     
     // 内部方法
     void load_from_xml();
-    void update_dimensions(const core::Position& pos);
+    void update_dimensions(const core::Coordinate& pos);
     void parse_cell_data(const std::string& xml_content);
     std::string generate_worksheet_xml();
 };

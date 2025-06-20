@@ -304,13 +304,13 @@ Worksheet::RowRange::RowRange(Worksheet& worksheet, std::size_t start_row, std::
 // ========================================
 
 void Worksheet::batch_set_values(const std::vector<std::tuple<std::string, std::string>>& address_value_pairs) {
-    // 转换为Position和值的批量操作
-    std::vector<std::tuple<core::Position, internal::cell_data::CellValue>> operations;
+    // 转换为Coordinate和值的批量操作
+    std::vector<std::tuple<core::Coordinate, internal::cell_data::CellValue>> operations;
     operations.reserve(address_value_pairs.size());
 
     for (const auto& [address, value] : address_value_pairs) {
         auto pos = Position::from_address(address);
-        core::Position core_pos(pos.row, pos.column);
+        core::Coordinate core_pos(pos.row, pos.column);
         operations.emplace_back(core_pos, internal::cell_data::CellValue(value));
     }
 
@@ -319,12 +319,12 @@ void Worksheet::batch_set_values(const std::vector<std::tuple<std::string, std::
 }
 
 void Worksheet::batch_set_values(const std::vector<std::tuple<std::size_t, std::size_t, std::string>>& row_col_value_tuples) {
-    // 转换为Position和值的批量操作
-    std::vector<std::tuple<core::Position, internal::cell_data::CellValue>> operations;
+    // 转换为Coordinate和值的批量操作
+    std::vector<std::tuple<core::Coordinate, internal::cell_data::CellValue>> operations;
     operations.reserve(row_col_value_tuples.size());
 
     for (const auto& [row, col, value] : row_col_value_tuples) {
-        core::Position pos(row, col);
+        core::Coordinate pos(row, col);
         operations.emplace_back(pos, internal::cell_data::CellValue(value));
     }
 
