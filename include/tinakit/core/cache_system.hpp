@@ -35,11 +35,11 @@ public:
     };
 
     bool get(const FastPosition& pos, CachedCellData& data) {
-        std::shared_lock lock(mutex_);
+        std::unique_lock lock(mutex_);  // 使用写锁，因为需要修改last_access
         auto it = cache_.find(pos);
         if (it != cache_.end()) {
             data = it->second;
-            data.last_access = std::chrono::steady_clock::now();
+            it->second.last_access = std::chrono::steady_clock::now();  // 修改缓存中的访问时间
             hit_count_++;
             return true;
         }

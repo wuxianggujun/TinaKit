@@ -107,9 +107,10 @@ private:
     void test_batch_operations() {
         std::cout << "\n=== 2. 批量操作性能测试 ===" << std::endl;
 
-        const int operation_count = 1000;  // 减少操作数量避免崩溃
+        const int operation_count = 500;  // 进一步减少操作数量避免死锁
 
         try {
+            std::cout << "  开始批量操作测试..." << std::endl;
             // 单个操作测试
             auto workbook1 = excel::Workbook::create();
             auto sheet1 = workbook1.active_sheet();

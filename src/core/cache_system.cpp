@@ -76,7 +76,9 @@ void StringCache::record_usage(std::string_view str) {
     auto& stats = string_stats_[str_copy];
     stats.usage_count++;
     stats.total_size = str.size();
-    stats.should_share = should_use_shared_string(str);
+
+    // 避免递归锁定：直接在这里计算should_share
+    stats.should_share = (str.length() >= MIN_SHARE_LENGTH && stats.usage_count >= MIN_USAGE_COUNT);
 }
 
 bool StringCache::should_use_shared_string(std::string_view str) const {
@@ -144,7 +146,7 @@ void StringCache::optimize_shared_strings() {
 // ========================================
 
 WorksheetCache::WorksheetData* WorksheetCache::get_worksheet(std::uint32_t sheet_id) {
-    std::shared_lock lock(mutex_);
+    std::unique_lock lock(mutex_);  // 使用写锁，因为需要修改last_access
     auto it = worksheets_.find(sheet_id);
     if (it != worksheets_.end()) {
         it->second.last_access = std::chrono::steady_clock::now();
