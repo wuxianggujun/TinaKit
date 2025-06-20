@@ -6,6 +6,7 @@
  */
 
 #include "tinakit/internal/coordinate_utils.hpp"
+#include "tinakit/core/exceptions.hpp"
 #include <stdexcept>
 #include <regex>
 #include <algorithm>
@@ -19,13 +20,13 @@ namespace tinakit::internal::utils {
 
 core::Coordinate CoordinateUtils::string_to_coordinate(std::string_view str) {
     if (str.empty()) {
-        throw std::invalid_argument("Empty coordinate string");
+        throw InvalidCellAddressException("Empty coordinate string");
     }
-    
+
     auto [col_part, row_part] = split_coordinate_string(str);
-    
+
     if (col_part.empty() || row_part.empty()) {
-        throw std::invalid_argument("Invalid coordinate format: " + std::string(str));
+        throw InvalidCellAddressException(std::string(str));
     }
     
     // 转换列字母为数字
@@ -36,11 +37,11 @@ core::Coordinate CoordinateUtils::string_to_coordinate(std::string_view str) {
     try {
         row = std::stoull(std::string(row_part));
     } catch (const std::exception&) {
-        throw std::invalid_argument("Invalid row number in coordinate: " + std::string(str));
+        throw InvalidCellAddressException(std::string(str));
     }
-    
+
     if (row == 0) {
-        throw std::invalid_argument("Row number must be greater than 0");
+        throw InvalidCellAddressException(std::string(str));
     }
     
     return core::Coordinate(row, column);
@@ -48,7 +49,7 @@ core::Coordinate CoordinateUtils::string_to_coordinate(std::string_view str) {
 
 std::string CoordinateUtils::coordinate_to_string(const core::Coordinate& coord) {
     if (!coord.is_valid()) {
-        throw std::invalid_argument("Invalid coordinate: row and column must be greater than 0");
+        throw InvalidCellAddressException("Invalid coordinate: row and column must be greater than 0");
     }
     
     std::string col_letters = column_number_to_letters(coord.column);
@@ -61,13 +62,13 @@ std::string CoordinateUtils::coordinate_to_string(const core::Coordinate& coord)
 
 core::range_address CoordinateUtils::string_to_range_address(std::string_view str) {
     if (str.empty()) {
-        throw std::invalid_argument("Empty range string");
+        throw InvalidCellAddressException("Empty range string");
     }
     
     auto [start_part, end_part] = split_range_string(str);
     
     if (start_part.empty()) {
-        throw std::invalid_argument("Invalid range format: " + std::string(str));
+        throw InvalidCellAddressException(std::string(str));
     }
     
     core::Coordinate start = string_to_coordinate(start_part);
@@ -78,7 +79,7 @@ core::range_address CoordinateUtils::string_to_range_address(std::string_view st
 
 std::string CoordinateUtils::range_address_to_string(const core::range_address& addr) {
     if (!addr.start.is_valid() || !addr.end.is_valid()) {
-        throw std::invalid_argument("Invalid range address");
+        throw InvalidCellAddressException("Invalid range address");
     }
     
     std::string start_str = coordinate_to_string(addr.start);
@@ -97,23 +98,23 @@ std::string CoordinateUtils::range_address_to_string(const core::range_address& 
 
 std::size_t CoordinateUtils::column_letters_to_number(std::string_view column_letters) {
     if (column_letters.empty()) {
-        throw std::invalid_argument("Empty column letters");
+        throw InvalidCellAddressException("Empty column letters");
     }
-    
+
     std::size_t result = 0;
     for (char c : column_letters) {
         if (c < 'A' || c > 'Z') {
-            throw std::invalid_argument("Invalid column letter: " + std::string(1, c));
+            throw InvalidCellAddressException("Invalid column letter: " + std::string(1, c));
         }
         result = result * 26 + (c - 'A' + 1);
     }
-    
+
     return result;
 }
 
 std::string CoordinateUtils::column_number_to_letters(std::size_t column_number) {
     if (column_number == 0) {
-        throw std::invalid_argument("Column number must be greater than 0");
+        throw InvalidCellAddressException("Column number must be greater than 0");
     }
     
     std::string result;

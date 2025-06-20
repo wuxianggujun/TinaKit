@@ -18,7 +18,8 @@ else()
 endif()
 
 # 项目选项
-option(TINAKIT_BUILD_TESTS "Build TinaKit tests" OFF)
+option(TINAKIT_BUILD_TESTS "Build TinaKit tests" ON)
+option(TINAKIT_BUILD_EXAMPLES "Build TinaKit examples" OFF)
 
 # 添加第三方库
 add_subdirectory(third_party/libstudxml)
@@ -58,11 +59,50 @@ add_subdirectory(third_party/minizip-ng)
 # 添加源代码目录
 add_subdirectory(src)
 
-# 添加示例
-add_subdirectory(examples)
+# 构建示例程序（可选）
+if(TINAKIT_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # 构建测试
 if(TINAKIT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# ========================================
+# 便利构建目标
+# ========================================
+
+# 构建所有目标
+add_custom_target(build_all
+    DEPENDS tinakit
+    COMMENT "Building TinaKit library"
+)
+
+if(TINAKIT_BUILD_TESTS)
+    add_dependencies(build_all tinakit_tests)
+endif()
+
+# 快速测试目标
+if(TINAKIT_BUILD_TESTS)
+    add_custom_target(quick_test
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        DEPENDS tinakit_tests
+        COMMENT "Running quick tests"
+    )
+endif()
+
+# 显示构建配置信息
+message(STATUS "")
+message(STATUS "TinaKit Build Configuration:")
+message(STATUS "  Build Type:     ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Build Tests:    ${TINAKIT_BUILD_TESTS}")
+message(STATUS "  Build Examples: ${TINAKIT_BUILD_EXAMPLES}")
+if(TINAKIT_BUILD_EXAMPLES)
+    message(STATUS "    Core Examples:        ${TINAKIT_BUILD_CORE_EXAMPLES}")
+    message(STATUS "    Style Examples:       ${TINAKIT_BUILD_STYLE_EXAMPLES}")
+    message(STATUS "    Performance Examples: ${TINAKIT_BUILD_PERFORMANCE_EXAMPLES}")
+    message(STATUS "    Debug Examples:       ${TINAKIT_BUILD_DEBUG_EXAMPLES}")
+endif()
+message(STATUS "")

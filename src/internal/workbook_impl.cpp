@@ -234,31 +234,7 @@ void workbook_impl::set_cell_style(std::uint32_t sheet_id, const core::Coordinat
     set_cell_style(sheet_name, pos, style_id);
 }
 
-void workbook_impl::set_range_values(const std::string& sheet_name, const core::range_address& range,
-                                    const std::vector<std::vector<cell_data::CellValue>>& values) {
-    ensure_worksheet_loaded(sheet_name);
-    auto& worksheet = get_worksheet_impl(sheet_name);
-    worksheet.set_range_data(range, values);
-    mark_worksheet_dirty(sheet_name);
-}
 
-void workbook_impl::set_range_style(const std::string& sheet_name, const core::range_address& range,
-                                   std::uint32_t style_id) {
-    ensure_worksheet_loaded(sheet_name);
-    auto& worksheet = get_worksheet_impl(sheet_name);
-
-    // 遍历范围内的所有单元格
-    for (std::size_t row = range.start.row; row <= range.end.row; ++row) {
-        for (std::size_t col = range.start.column; col <= range.end.column; ++col) {
-            core::Coordinate pos(row, col);
-            auto data = worksheet.get_cell_data(pos);
-            data.style_id = style_id;
-            worksheet.set_cell_data(pos, data);
-        }
-    }
-
-    mark_worksheet_dirty(sheet_name);
-}
 
 void workbook_impl::batch_set_cell_values(const std::string& sheet_name,
                                          const std::vector<std::tuple<core::Coordinate, cell_data::CellValue>>& operations) {
@@ -787,6 +763,78 @@ void workbook_impl::add_conditional_format(const std::string& sheet_name, const 
 worksheet_impl& workbook_impl::get_worksheet_impl_public(const std::string& sheet_name) {
     ensure_worksheet_loaded(sheet_name);
     return get_worksheet_impl(sheet_name);
+}
+
+// ========================================
+// Range 批量操作方法实现
+// ========================================
+
+void workbook_impl::set_range_values(const std::string& sheet_name,
+                                     const core::range_address& range_addr,
+                                     const std::vector<std::vector<cell_data::CellValue>>& values) {
+    ensure_worksheet_loaded(sheet_name);
+
+    // 计算范围大小
+    std::size_t rows = range_addr.end.row - range_addr.start.row + 1;
+    std::size_t cols = range_addr.end.column - range_addr.start.column + 1;
+
+    // 批量设置值
+    for (std::size_t r = 0; r < rows && r < values.size(); ++r) {
+        const auto& row_values = values[r];
+        for (std::size_t c = 0; c < cols && c < row_values.size(); ++c) {
+            core::Coordinate pos(range_addr.start.row + r, range_addr.start.column + c);
+            set_cell_value(sheet_name, pos, row_values[c]);
+        }
+    }
+}
+
+template<typename T>
+void workbook_impl::set_range_value_uniform(const std::string& sheet_name,
+                                           const core::range_address& range_addr,
+                                           const T& value) {
+    ensure_worksheet_loaded(sheet_name);
+
+    // 批量设置相同值
+    for (std::size_t r = range_addr.start.row; r <= range_addr.end.row; ++r) {
+        for (std::size_t c = range_addr.start.column; c <= range_addr.end.column; ++c) {
+            core::Coordinate pos(r, c);
+            set_cell_value(sheet_name, pos, cell_data::CellValue(value));
+        }
+    }
+}
+
+// 显式实例化常用类型
+template void workbook_impl::set_range_value_uniform<std::string>(const std::string&, const core::range_address&, const std::string&);
+template void workbook_impl::set_range_value_uniform<int>(const std::string&, const core::range_address&, const int&);
+template void workbook_impl::set_range_value_uniform<double>(const std::string&, const core::range_address&, const double&);
+template void workbook_impl::set_range_value_uniform<bool>(const std::string&, const core::range_address&, const bool&);
+
+void workbook_impl::set_range_style(const std::string& sheet_name,
+                                   const core::range_address& range_addr,
+                                   std::uint32_t style_id) {
+    ensure_worksheet_loaded(sheet_name);
+
+    // 批量设置样式
+    for (std::size_t r = range_addr.start.row; r <= range_addr.end.row; ++r) {
+        for (std::size_t c = range_addr.start.column; c <= range_addr.end.column; ++c) {
+            core::Coordinate pos(r, c);
+            set_cell_style(sheet_name, pos, style_id);
+        }
+    }
+}
+
+void workbook_impl::clear_range(const std::string& sheet_name,
+                               const core::range_address& range_addr) {
+    ensure_worksheet_loaded(sheet_name);
+
+    // 批量清除内容
+    for (std::size_t r = range_addr.start.row; r <= range_addr.end.row; ++r) {
+        for (std::size_t c = range_addr.start.column; c <= range_addr.end.column; ++c) {
+            core::Coordinate pos(r, c);
+            // 设置为空字符串来清除内容
+            set_cell_value(sheet_name, pos, cell_data::CellValue(std::string("")));
+        }
+    }
 }
 
 } // namespace tinakit::internal

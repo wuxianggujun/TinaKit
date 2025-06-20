@@ -33,6 +33,7 @@
 #include <memory>
 #include <functional>
 #include <filesystem>
+#include <iostream>
 #include "color.hpp"
 
 namespace tinakit {
@@ -134,6 +135,14 @@ struct Coordinate {
         return column < other.column;
     }
 };
+
+/**
+ * @brief 输出操作符，用于调试和测试
+ */
+inline std::ostream& operator<<(std::ostream& os, const Coordinate& coord) {
+    os << "(" << coord.row << "," << coord.column << ")";
+    return os;
+}
 
 /**
  * @struct range_address

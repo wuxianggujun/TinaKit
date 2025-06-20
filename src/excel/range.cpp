@@ -65,7 +65,7 @@ bool Range::overlaps(const Range& other) const {
 template<typename T>
 Range& Range::set_value(const T& value) {
     // 委托给workbook_impl进行批量值设置
-    workbook_impl_->set_range_values(sheet_name_, range_addr_, {{value}});
+    workbook_impl_->set_range_value_uniform(sheet_name_, range_addr_, value);
     return *this;
 }
 
@@ -90,8 +90,7 @@ Range& Range::set_style(std::uint32_t style_id) {
 
 Range& Range::clear() {
     // 委托给workbook_impl进行批量清除
-    // TODO: 实现clear_range方法
-    // workbook_impl_->clear_range(sheet_name_, range_addr_);
+    workbook_impl_->clear_range(sheet_name_, range_addr_);
     return *this;
 }
 

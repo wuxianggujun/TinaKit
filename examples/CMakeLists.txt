@@ -1,4 +1,15 @@
 # TinaKit Examples
+#
+# 这个目录包含了TinaKit的各种示例程序，展示库的不同功能。
+# 可以通过 TINAKIT_BUILD_EXAMPLES 选项控制是否构建示例程序。
+#
+# 示例程序分类：
+# - 核心功能示例：展示基本的Excel操作
+# - 样式和格式示例：展示样式、格式化等高级功能
+# - 性能测试示例：展示性能优化和大数据处理
+# - 工具和调试示例：用于开发和调试的工具程序
+
+message(STATUS "Building TinaKit examples...")
 
 # 创建一个函数来自动复制运行时依赖的 DLL
 function(copy_runtime_dependencies target_name)
@@ -54,23 +65,58 @@ function(add_tinakit_example target_name source_file)
     copy_runtime_dependencies(${target_name})
 endfunction()
 
-# 核心示例程序
-add_tinakit_example(tinakit_xml_parser_example main.cpp)
-add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
-add_tinakit_example(excel_with_styles excel_with_styles.cpp)
-add_tinakit_example(stream_demo stream_demo.cpp)
+# ========================================
+# 示例程序构建选项
+# ========================================
 
-# 工具和测试程序
-add_tinakit_example(xlsx_archiver_demo xlsx_archiver_demo.cpp)
-add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
-add_tinakit_example(excel_read_edit_test excel_read_edit_test.cpp)
-add_tinakit_example(debug_excel_xml debug_excel_xml.cpp)
-add_tinakit_example(conditional_format_test conditional_format_test.cpp)
-add_tinakit_example(style_template_test style_template_test.cpp)
-add_tinakit_example(debug_style_test debug_style_test.cpp)
+option(TINAKIT_BUILD_CORE_EXAMPLES "Build core functionality examples" ON)
+option(TINAKIT_BUILD_STYLE_EXAMPLES "Build styling and formatting examples" ON)
+option(TINAKIT_BUILD_PERFORMANCE_EXAMPLES "Build performance test examples" ON)
+option(TINAKIT_BUILD_DEBUG_EXAMPLES "Build debugging and tool examples" OFF)
 
-# 统一性能测试程序
-add_tinakit_example(unified_performance_test unified_performance_test.cpp)
+# ========================================
+# 核心功能示例程序
+# ========================================
+
+if(TINAKIT_BUILD_CORE_EXAMPLES)
+    message(STATUS "  Building core examples...")
+    add_tinakit_example(tinakit_xml_parser_example main.cpp)
+    add_tinakit_example(stream_demo stream_demo.cpp)
+    add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
+    add_tinakit_example(excel_read_edit_test excel_read_edit_test.cpp)
+endif()
+
+# ========================================
+# 样式和格式示例程序
+# ========================================
+
+if(TINAKIT_BUILD_STYLE_EXAMPLES)
+    message(STATUS "  Building style examples...")
+    add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
+    add_tinakit_example(excel_with_styles excel_with_styles.cpp)
+    add_tinakit_example(conditional_format_test conditional_format_test.cpp)
+    add_tinakit_example(style_template_test style_template_test.cpp)
+endif()
+
+# ========================================
+# 性能测试示例程序
+# ========================================
+
+if(TINAKIT_BUILD_PERFORMANCE_EXAMPLES)
+    message(STATUS "  Building performance examples...")
+    add_tinakit_example(unified_performance_test unified_performance_test.cpp)
+endif()
+
+# ========================================
+# 调试和工具示例程序
+# ========================================
+
+if(TINAKIT_BUILD_DEBUG_EXAMPLES)
+    message(STATUS "  Building debug examples...")
+    add_tinakit_example(xlsx_archiver_demo xlsx_archiver_demo.cpp)
+    add_tinakit_example(debug_excel_xml debug_excel_xml.cpp)
+    add_tinakit_example(debug_style_test debug_style_test.cpp)
+endif()
 
 # 特殊的测试程序（不使用 tinakit 库）
 function(add_special_example target_name source_file libraries)

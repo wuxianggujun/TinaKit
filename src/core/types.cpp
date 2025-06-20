@@ -7,9 +7,9 @@
 
 #include "tinakit/core/types.hpp"
 #include "tinakit/internal/coordinate_utils.hpp"
+#include "tinakit/core/exceptions.hpp"
 #include <algorithm>
 #include <cctype>
-#include <stdexcept>
 
 namespace tinakit {
 

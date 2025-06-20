@@ -203,22 +203,56 @@ public:
      */
     void set_cell_style(std::uint32_t sheet_id, const core::Coordinate& pos, std::uint32_t style_id);
     
-    /**
-     * @brief 批量设置范围内的值
-     */
-    void set_range_values(const std::string& sheet_name, const core::range_address& range, 
-                         const std::vector<std::vector<cell_data::CellValue>>& values);
-    
-    /**
-     * @brief 批量设置范围内的样式
-     */
-    void set_range_style(const std::string& sheet_name, const core::range_address& range, std::uint32_t style_id);
+
 
     /**
      * @brief 高性能批量设置单元格值
      */
     void batch_set_cell_values(const std::string& sheet_name,
                               const std::vector<std::tuple<core::Coordinate, cell_data::CellValue>>& operations);
+
+    // ========================================
+    // Range 批量操作方法
+    // ========================================
+
+    /**
+     * @brief 设置范围内所有单元格的值
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     * @param values 二维值数组
+     */
+    void set_range_values(const std::string& sheet_name,
+                         const core::range_address& range_addr,
+                         const std::vector<std::vector<cell_data::CellValue>>& values);
+
+    /**
+     * @brief 设置范围内所有单元格为相同值
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     * @param value 要设置的值
+     */
+    template<typename T>
+    void set_range_value_uniform(const std::string& sheet_name,
+                                const core::range_address& range_addr,
+                                const T& value);
+
+    /**
+     * @brief 设置范围内所有单元格的样式
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     * @param style_id 样式ID
+     */
+    void set_range_style(const std::string& sheet_name,
+                        const core::range_address& range_addr,
+                        std::uint32_t style_id);
+
+    /**
+     * @brief 清除范围内所有单元格的内容
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     */
+    void clear_range(const std::string& sheet_name,
+                    const core::range_address& range_addr);
 
     /**
      * @brief 获取性能统计信息
