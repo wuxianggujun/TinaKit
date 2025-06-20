@@ -15,18 +15,29 @@
 #include <variant>
 #include <type_traits>
 
+namespace tinakit::internal {
+class workbook_impl;
+} // namespace tinakit::internal
+
 namespace tinakit::excel {
 
-    class CellImpl;
-    class Worksheet;
-    class StyleTemplate;
+class Worksheet;
+class StyleTemplate;
 
 /**
  * @class Cell
- * @brief Excel 单元格类
- * 
- * 代表 Excel 工作表中的一个单元格，支持多种数据类型和样式设置。
- * 提供类型安全的值访问和链式样式设置。
+ * @brief Excel 单元格轻量级句柄类
+ *
+ * 这是一个轻量级的句柄类，本身不持有任何重型数据。
+ * 所有实际的数据和操作都委托给 internal::workbook_impl。
+ *
+ * 核心设计原则：
+ * 1. 轻量级：只包含 workbook_impl 指针、工作表名称和位置信息
+ * 2. 可复制：复制成本极低，安全共享同一个单元格
+ * 3. 委托模式：所有操作都委托给 workbook_impl
+ * 4. 惰性求值：数据按需加载和保存
+ *
+ * @note 使用句柄-实现分离模式，提供稳定的 ABI 和优秀的性能
  */
 class Cell {
 public:
@@ -37,36 +48,41 @@ public:
 
 public:
     /**
-     * @brief 构造函数（内部使用）
+     * @brief 构造函数（由 worksheet 内部创建）
+     * @param workbook_impl 工作簿实现的共享指针
+     * @param sheet_name 工作表名称
+     * @param row 行号（1-based）
+     * @param column 列号（1-based）
      */
-    explicit Cell(std::unique_ptr<CellImpl> impl);
-    
+    Cell(std::shared_ptr<internal::workbook_impl> workbook_impl,
+         std::string sheet_name,
+         std::size_t row,
+         std::size_t column);
+
     /**
-     * @brief 静态工厂方法（内部使用）
-     * @param row 行号
-     * @param column 列号
-     * @return 新的 Cell 对象
+     * @brief 拷贝构造函数（轻量级，共享同一个实现）
      */
-    static std::unique_ptr<Cell> create(std::size_t row, std::size_t column);
-    
-    /**
-     * @brief 析构函数
-     */
-    ~Cell();
-    
+    Cell(const Cell& other) = default;
+
     /**
      * @brief 移动构造函数
      */
-    Cell(Cell&& other) noexcept;
-    
+    Cell(Cell&& other) noexcept = default;
+
+    /**
+     * @brief 拷贝赋值运算符
+     */
+    Cell& operator=(const Cell& other) = default;
+
     /**
      * @brief 移动赋值运算符
      */
-    Cell& operator=(Cell&& other) noexcept;
-    
-    // 禁止拷贝
-    Cell(const Cell&) = delete;
-    Cell& operator=(const Cell&) = delete;
+    Cell& operator=(Cell&& other) noexcept = default;
+
+    /**
+     * @brief 析构函数
+     */
+    ~Cell() = default;
 
 public:
     /**
@@ -261,35 +277,13 @@ public:
      */
     bool has_custom_style() const;
 
-    /**
-     * @brief 获取样式信息（供StyleManager使用）
-     */
-    bool has_font_changes() const;
-    bool has_fill_changes() const;
-    bool has_border_changes() const;
-    bool has_number_format_changes() const;
-    bool has_alignment_changes() const;
-
-    const std::optional<Font>& get_pending_font() const;
-    const std::optional<Fill>& get_pending_fill() const;
-    const std::optional<Border>& get_pending_border() const;
-    const std::optional<NumberFormat>& get_pending_number_format() const;
-    const std::optional<Alignment>& get_pending_alignment() const;
-
 private:
-    /**
-     * @brief 设置工作表引用（内部使用）
-     * @param ws 工作表指针
-     */
-    void set_worksheet(Worksheet* ws);
-    
-    /**
-     * @brief 应用累积的样式更改（内部使用）
-     */
-    void apply_style_changes();
+    // 轻量级句柄：只包含工作簿实现指针、工作表名称和位置信息
+    std::shared_ptr<internal::workbook_impl> workbook_impl_;
+    std::string sheet_name_;
+    std::size_t row_;
+    std::size_t column_;
 
-private:
-    std::unique_ptr<CellImpl> impl_;
     friend class Worksheet;
 };
 

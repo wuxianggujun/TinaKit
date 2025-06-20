@@ -19,6 +19,10 @@
 #include <functional>
 #include <ranges>
 
+namespace tinakit::internal {
+class workbook_impl;
+} // namespace tinakit::internal
+
 namespace tinakit::excel {
 
 // 前向声明
@@ -28,23 +32,26 @@ class WorksheetRange;
 
 /**
  * @class Worksheet
- * @brief Excel 工作表类
- * 
- * 代表 Excel 工作簿中的一个工作表，包含行、列和单元格的管理。
- * 支持现代 C++ 的迭代器和范围操作。
- * 
- * @note 使用 RAII 原则管理资源，对象析构时自动释放相关资源
+ * @brief Excel 工作表轻量级句柄类
+ *
+ * 这是一个轻量级的句柄类，本身不持有任何重型数据。
+ * 所有实际的数据和操作都委托给 internal::workbook_impl。
+ *
+ * 核心设计原则：
+ * 1. 轻量级：只包含 workbook_impl 指针和工作表名称
+ * 2. 可复制：复制成本极低，安全共享同一个工作表
+ * 3. 委托模式：所有操作都委托给 workbook_impl
+ * 4. 惰性求值：数据按需加载
+ *
+ * @note 使用句柄-实现分离模式，提供稳定的 ABI 和优秀的性能
  */
 class Worksheet {
-    // 前向声明
-    class Impl;
-
 public:
     /**
      * @brief 行范围类型，支持 std::ranges
      */
     class RowRange;
-    
+
     /**
      * @brief 迭代器类型
      */
@@ -53,43 +60,36 @@ public:
 
 public:
     /**
-     * @brief 创建新的工作表（工厂方法）
-     * @param name 工作表名称
-     * @return 工作表智能指针
+     * @brief 构造函数（由 workbook 内部创建）
+     * @param workbook_impl 工作簿实现的共享指针
+     * @param sheet_name 工作表名称
      */
-    static std::shared_ptr<Worksheet> create(const std::string& name);
+    Worksheet(std::shared_ptr<internal::workbook_impl> workbook_impl, std::string sheet_name);
 
     /**
-     * @brief 创建新的工作表（带样式管理器）
-     * @param name 工作表名称
-     * @param style_manager 样式管理器指针
-     * @return 工作表智能指针
+     * @brief 拷贝构造函数（轻量级，共享同一个实现）
      */
-    static std::shared_ptr<Worksheet> create(const std::string& name, StyleManager* style_manager);
+    Worksheet(const Worksheet& other) = default;
 
-    /**
-     * @brief 构造函数（由 Workbook 内部创建）
-     */
-    explicit Worksheet(std::unique_ptr<Impl> impl);
-    
-    /**
-     * @brief 析构函数
-     */
-    ~Worksheet();
-    
     /**
      * @brief 移动构造函数
      */
-    Worksheet(Worksheet&& other) noexcept;
-    
+    Worksheet(Worksheet&& other) noexcept = default;
+
+    /**
+     * @brief 拷贝赋值运算符
+     */
+    Worksheet& operator=(const Worksheet& other) = default;
+
     /**
      * @brief 移动赋值运算符
      */
-    Worksheet& operator=(Worksheet&& other) noexcept;
-    
-    // 禁止拷贝
-    Worksheet(const Worksheet&) = delete;
-    Worksheet& operator=(const Worksheet&) = delete;
+    Worksheet& operator=(Worksheet&& other) noexcept = default;
+
+    /**
+     * @brief 析构函数
+     */
+    ~Worksheet() = default;
 
 public:
     /**
@@ -378,8 +378,11 @@ public:
     const std::vector<Range>& get_merged_ranges() const;
 
 private:
-    std::unique_ptr<Impl> impl_;  ///< 实现细节（PIMPL 模式）
-    friend class Workbook;
+    // 轻量级句柄：只包含工作簿实现指针和工作表名称
+    std::shared_ptr<internal::workbook_impl> workbook_impl_;
+    std::string sheet_name_;
+
+    friend class workbook;
 };
 
 /**

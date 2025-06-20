@@ -20,15 +20,15 @@ namespace {
 }
 
 Workbook open(const std::filesystem::path& path) {
-    return Workbook::open(path);
+    return workbook::load(path);
 }
 
 async::Task<Workbook> open_async(const std::filesystem::path& path) {
-    return Workbook::open_async(path);
+    return workbook::load_async(path);
 }
 
 Workbook create() {
-    return Workbook::create();
+    return workbook::create();
 }
 
 void register_function(std::string_view name,

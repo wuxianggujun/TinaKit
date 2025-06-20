@@ -14,6 +14,10 @@
 #include <memory>
 #include <vector>
 
+namespace tinakit::internal {
+class workbook_impl;
+} // namespace tinakit::internal
+
 namespace tinakit::excel {
 
 // 前向声明
@@ -23,67 +27,75 @@ class StyleTemplate;
 
 /**
  * @class WorksheetRange
- * @brief Excel 工作表范围操作类
- * 
- * 代表Excel工作表中的一个矩形范围，支持批量操作：
- * - 批量样式设置
- * - 批量值设置
- * - 范围边框设置
- * - 性能优化的批量操作
- * 
+ * @brief Excel 工作表范围轻量级句柄类
+ *
+ * 这是一个轻量级的句柄类，本身不持有任何重型数据。
+ * 所有实际的数据和操作都委托给 internal::workbook_impl。
+ *
+ * 核心设计原则：
+ * 1. 轻量级：只包含 workbook_impl 指针、工作表名称和范围信息
+ * 2. 可复制：复制成本极低，安全共享同一个范围
+ * 3. 委托模式：所有操作都委托给 workbook_impl
+ * 4. 批量优化：范围操作在 workbook_impl 中进行批量优化
+ *
  * @example
  * ```cpp
  * // 获取范围
  * auto range = sheet.range("A1:C10");
- * 
+ *
  * // 批量样式设置
  * range.style(StyleTemplates::header());
- * 
+ *
  * // 批量边框
  * range.border(BorderType::All, BorderStyle::Thin);
- * 
+ *
  * // 批量背景色
  * range.background_color(Color::LightGray);
- * 
+ *
  * // 遍历单元格
  * for (auto& cell : range) {
  *     cell.value("数据");
  * }
  * ```
+ *
+ * @note 使用句柄-实现分离模式，提供稳定的 ABI 和优秀的性能
  */
 class WorksheetRange {
 public:
     /**
-     * @brief 构造函数（内部使用）
-     * @param worksheet 工作表引用
+     * @brief 构造函数（由 worksheet 内部创建）
+     * @param workbook_impl 工作簿实现的共享指针
+     * @param sheet_name 工作表名称
      * @param range 范围定义
      */
-    WorksheetRange(Worksheet& worksheet, const Range& range);
-    
+    WorksheetRange(std::shared_ptr<internal::workbook_impl> workbook_impl,
+                   std::string sheet_name,
+                   Range range);
+
     /**
-     * @brief 拷贝构造函数
+     * @brief 拷贝构造函数（轻量级，共享同一个实现）
      */
-    WorksheetRange(const WorksheetRange& other);
-    
+    WorksheetRange(const WorksheetRange& other) = default;
+
     /**
      * @brief 移动构造函数
      */
-    WorksheetRange(WorksheetRange&& other) noexcept;
-    
+    WorksheetRange(WorksheetRange&& other) noexcept = default;
+
     /**
      * @brief 拷贝赋值运算符
      */
-    WorksheetRange& operator=(const WorksheetRange& other);
-    
+    WorksheetRange& operator=(const WorksheetRange& other) = default;
+
     /**
      * @brief 移动赋值运算符
      */
-    WorksheetRange& operator=(WorksheetRange&& other) noexcept;
-    
+    WorksheetRange& operator=(WorksheetRange&& other) noexcept = default;
+
     /**
      * @brief 析构函数
      */
-    ~WorksheetRange();
+    ~WorksheetRange() = default;
 
     // ========================================
     // 范围信息
@@ -367,8 +379,10 @@ public:
     const_iterator cend() const;
 
 private:
-    class Impl;
-    std::unique_ptr<Impl> impl_;
+    // 轻量级句柄：只包含工作簿实现指针、工作表名称和范围信息
+    std::shared_ptr<internal::workbook_impl> workbook_impl_;
+    std::string sheet_name_;
+    Range range_;
 };
 
 } // namespace tinakit::excel

@@ -28,7 +28,10 @@ namespace tinakit {
 using XmlParser = core::XmlParser;
 
 namespace excel {
-    
+
+    // 类型别名：为了兼容性，将小写的 workbook 映射为大写的 Workbook
+    using Workbook = workbook;
+
     /**
      * @brief 打开 Excel 文件
      * @param path 文件路径

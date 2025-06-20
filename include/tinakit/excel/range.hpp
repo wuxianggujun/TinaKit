@@ -25,6 +25,11 @@ class ConditionalFormatBuilder;
 class Range {
 public:
     /**
+     * @brief 默认构造函数（创建空范围）
+     */
+    Range() = default;
+
+    /**
      * @brief 构造函数
      * @param start 起始位置
      * @param end 结束位置

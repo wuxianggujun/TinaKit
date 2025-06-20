@@ -28,6 +28,11 @@ struct Position {
     std::size_t column;  ///< Column number (1-based, 1=A, 2=B, etc.)
 
     /**
+     * @brief Default constructor (creates invalid position)
+     */
+    Position() : row(0), column(0) {}
+
+    /**
      * @brief Constructor
      * @param r Row number (must be >= 1)
      * @param c Column number (must be >= 1)
@@ -37,6 +42,14 @@ struct Position {
         if (r == 0 || c == 0) {
             throw std::invalid_argument("Position indices must be 1-based (row and column must be >= 1)");
         }
+    }
+
+    /**
+     * @brief Check if position is valid
+     * @return True if both row and column are >= 1
+     */
+    bool is_valid() const {
+        return row >= 1 && column >= 1;
     }
 
     /**

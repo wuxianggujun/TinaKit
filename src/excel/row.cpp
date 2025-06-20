@@ -64,15 +64,9 @@ const Cell& RowImpl::get_cell(const std::string& column_name) const {
 }
 
 Cell& RowImpl::get_cell(std::size_t column_index) {
-    auto it = cells_.find(column_index);
-    if (it == cells_.end()) {
-        auto cell = Cell::create(index_, column_index);
-        auto& cell_ref = *cell;
-        cells_[column_index] = std::move(cell);
-        max_column_ = std::max(max_column_, column_index);
-        return cell_ref;
-    }
-    return *it->second;
+    // TODO: 重构为句柄模式后重新实现
+    (void)column_index;
+    throw std::runtime_error("Row::get_cell not implemented yet after Cell refactoring");
 }
 
 const Cell& RowImpl::get_cell(std::size_t column_index) const {
