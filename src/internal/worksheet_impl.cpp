@@ -812,7 +812,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
                             if (this->should_use_inline_string(value)) {
                                 // 使用内联字符串格式
                                 serializer.attribute("t", "inlineStr");
-                                serializer.start_element("is");
+                                serializer.start_element(excel::openxml_ns::main, "is");
                                 serializer.element_with_namespace(excel::openxml_ns::main, "t", value);
                                 serializer.end_element(); // is
                             } else {
@@ -824,7 +824,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
                                 } else {
                                     // 回退到内联字符串
                                     serializer.attribute("t", "inlineStr");
-                                    serializer.start_element("is");
+                                    serializer.start_element(excel::openxml_ns::main, "is");
                                     serializer.element_with_namespace(excel::openxml_ns::main, "t", value);
                                     serializer.end_element(); // is
                                 }
@@ -848,7 +848,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
                 // 添加公式（如果有）
                 if (cell_data.formula) {
-                    serializer.element("f", *cell_data.formula);
+                    serializer.element_with_namespace(excel::openxml_ns::main, "f", *cell_data.formula);
                 }
 
                 serializer.end_element(); // c
@@ -863,11 +863,11 @@ std::string worksheet_impl::generate_worksheet_xml() {
     // 添加条件格式
     if (!conditional_formats_.empty()) {
         for (const auto& format : conditional_formats_) {
-            serializer.start_element("conditionalFormatting");
+            serializer.start_element(excel::openxml_ns::main, "conditionalFormatting");
             serializer.attribute("sqref", format.range);
 
             for (const auto& rule : format.rules) {
-                serializer.start_element("cfRule");
+                serializer.start_element(excel::openxml_ns::main, "cfRule");
                 serializer.attribute("type", conditional_format_type_to_string(rule.type));
                 serializer.attribute("operator", conditional_format_operator_to_string(rule.operator_type));
                 if (rule.dxf_id.has_value()) {
@@ -877,7 +877,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
                 // 添加公式
                 for (const auto& formula : rule.formulas) {
-                    serializer.element("formula", formula);
+                    serializer.element_with_namespace(excel::openxml_ns::main, "formula", formula);
                 }
 
                 serializer.end_element(); // cfRule
@@ -890,11 +890,11 @@ std::string worksheet_impl::generate_worksheet_xml() {
     if (!merged_ranges_.empty()) {
     
 
-        serializer.start_element("mergeCells");
+        serializer.start_element(excel::openxml_ns::main, "mergeCells");
         serializer.attribute("count", std::to_string(merged_ranges_.size()));
 
         for (const auto& range : merged_ranges_) {
-            serializer.start_element("mergeCell");
+            serializer.start_element(excel::openxml_ns::main, "mergeCell");
 
             // 生成范围字符串（如 "A1:C3"）
             std::string range_str = internal::utils::CoordinateUtils::range_address_to_string(range);
