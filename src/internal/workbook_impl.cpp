@@ -9,6 +9,7 @@
 #include "tinakit/internal/worksheet_impl.hpp"
 #include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/range.hpp"
+#include "tinakit/excel/formula_engine.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
@@ -28,7 +29,8 @@ workbook_impl::workbook_impl()
     : style_manager_(std::make_shared<excel::StyleManager>()),
       shared_strings_(std::make_shared<excel::SharedStrings>()),
       string_pool_(std::make_unique<core::StringPool>()),
-      cell_data_pool_(std::make_unique<core::MemoryPool<cell_data>>()) {
+      cell_data_pool_(std::make_unique<core::MemoryPool<cell_data>>()),
+      formula_engine_(std::make_unique<excel::FormulaEngine>(this)) {
     // 不在构造函数中创建默认结构，延迟到需要时创建
 }
 
@@ -37,7 +39,8 @@ workbook_impl::workbook_impl(const std::filesystem::path& file_path)
       style_manager_(std::make_shared<excel::StyleManager>()),
       shared_strings_(std::make_shared<excel::SharedStrings>()),
       string_pool_(std::make_unique<core::StringPool>()),
-      cell_data_pool_(std::make_unique<core::MemoryPool<cell_data>>()) {
+      cell_data_pool_(std::make_unique<core::MemoryPool<cell_data>>()),
+      formula_engine_(std::make_unique<excel::FormulaEngine>(this)) {
     load_from_file();
 }
 
@@ -835,6 +838,84 @@ void workbook_impl::clear_range(const std::string& sheet_name,
             set_cell_value(sheet_name, pos, cell_data::CellValue(std::string("")));
         }
     }
+}
+
+// ========================================
+// 公式计算
+// ========================================
+
+excel::FormulaEngine& workbook_impl::formula_engine() {
+    return *formula_engine_;
+}
+
+const excel::FormulaEngine& workbook_impl::formula_engine() const {
+    return *formula_engine_;
+}
+
+cell_data::CellValue workbook_impl::calculate_formula(const std::string& sheet_name, const core::Coordinate& pos) {
+    ensure_worksheet_loaded(sheet_name);
+    auto& worksheet = get_worksheet_impl(sheet_name);
+
+    if (!worksheet.has_cell_data(pos)) {
+        return std::monostate{}; // 返回真正的空单元格状态
+    }
+
+    auto cell_data_obj = worksheet.get_cell_data(pos);
+    if (!cell_data_obj.formula.has_value() || cell_data_obj.formula->empty()) {
+        return cell_data_obj.value;
+    }
+
+    try {
+        auto result = formula_engine_->evaluate(*cell_data_obj.formula, sheet_name);
+
+        // 将FormulaResult转换为CellValue
+        if (std::holds_alternative<double>(result)) {
+            return std::get<double>(result);
+        } else if (std::holds_alternative<std::string>(result)) {
+            return std::get<std::string>(result);
+        } else if (std::holds_alternative<bool>(result)) {
+            return std::get<bool>(result);
+        } else {
+            return std::monostate{}; // 返回空值状态
+        }
+    } catch (const excel::FormulaException& e) {
+        // 公式计算错误，返回错误字符串
+        return std::string("#ERROR: ") + e.what();
+    }
+}
+
+void workbook_impl::recalculate_formulas(const std::string& sheet_name) {
+    if (sheet_name.empty()) {
+        // 重新计算所有工作表的公式
+        for (const auto& name : worksheet_order_) {
+            recalculate_formulas(name);
+        }
+        return;
+    }
+
+    ensure_worksheet_loaded(sheet_name);
+    auto& worksheet = get_worksheet_impl(sheet_name);
+
+    // 遍历所有单元格，重新计算包含公式的单元格
+    auto max_row = worksheet.max_row();
+    auto max_col = worksheet.max_column();
+
+    for (std::size_t row = 1; row <= max_row; ++row) {
+        for (std::size_t col = 1; col <= max_col; ++col) {
+            core::Coordinate pos(row, col);
+            if (worksheet.has_cell_data(pos)) {
+                auto cell_data_obj = worksheet.get_cell_data(pos);
+                if (cell_data_obj.formula.has_value() && !cell_data_obj.formula->empty()) {
+                    // 重新计算公式并更新单元格值
+                    auto calculated_value = calculate_formula(sheet_name, pos);
+                    cell_data_obj.value = calculated_value;
+                    worksheet.set_cell_data(pos, cell_data_obj);
+                }
+            }
+        }
+    }
+
+    mark_worksheet_dirty(sheet_name);
 }
 
 } // namespace tinakit::internal

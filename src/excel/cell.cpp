@@ -67,7 +67,9 @@ std::string Cell::to_string() const {
 
     return std::visit([](const auto& value) -> std::string {
         using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, std::string>) {
+        if constexpr (std::is_same_v<T, std::monostate>) {
+            return "";  // 空单元格返回空字符串
+        } else if constexpr (std::is_same_v<T, std::string>) {
             return value;
         } else if constexpr (std::is_same_v<T, double>) {
             return std::to_string(value);
@@ -123,7 +125,14 @@ namespace {
         return std::visit([](const auto& val) -> std::optional<T> {
             using ValueType = std::decay_t<decltype(val)>;
 
-            if constexpr (std::is_same_v<T, std::string>) {
+            // 处理 monostate（空单元格）
+            if constexpr (std::is_same_v<ValueType, std::monostate>) {
+                if constexpr (std::is_same_v<T, std::string>) {
+                    return std::string("");  // 空单元格转换为空字符串
+                } else {
+                    return std::nullopt;  // 其他类型无法从空单元格转换
+                }
+            } else if constexpr (std::is_same_v<T, std::string>) {
                 if constexpr (std::is_same_v<ValueType, std::string>) {
                     return val;
                 } else if constexpr (std::is_same_v<ValueType, double>) {

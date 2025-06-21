@@ -15,6 +15,7 @@ target_sources(tinakit PRIVATE
         excel/cell.cpp
         excel/row.cpp
         excel/range.cpp
+        excel/formula_engine.cpp
         excel/shared_strings.cpp
         excel/style_manager.cpp
         excel/types.cpp

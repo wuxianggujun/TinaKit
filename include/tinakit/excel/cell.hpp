@@ -44,8 +44,14 @@ class Cell {
 public:
     /**
      * @brief 单元格值类型
+     *
+     * std::monostate 表示空单元格（未设置任何值）
+     * std::string 表示文本值
+     * double 表示浮点数值
+     * int 表示整数值
+     * bool 表示布尔值
      */
-    using CellValue = std::variant<std::string, double, int, bool>;
+    using CellValue = std::variant<std::monostate, std::string, double, int, bool>;
 
     /**
      * @brief 轻量级句柄ID类型

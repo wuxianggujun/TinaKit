@@ -25,6 +25,7 @@
 namespace tinakit::excel {
     class Worksheet;
     class Range;
+    class FormulaEngine;
     struct ConditionalFormat;  // 使用struct而不是class
 }
 
@@ -37,7 +38,7 @@ class worksheet_impl;
  * @brief 单元格数据结构
  */
 struct cell_data {
-    using CellValue = std::variant<std::string, double, int, bool>;
+    using CellValue = std::variant<std::monostate, std::string, double, int, bool>;
     
     CellValue value;
     std::optional<std::string> formula;
@@ -285,6 +286,30 @@ public:
      * @brief 获取共享字符串管理器指针
      */
     std::shared_ptr<excel::SharedStrings> get_shared_strings() const { return shared_strings_; }
+
+    // ========================================
+    // 公式计算
+    // ========================================
+
+    /**
+     * @brief 获取公式引擎
+     */
+    excel::FormulaEngine& formula_engine();
+    const excel::FormulaEngine& formula_engine() const;
+
+    /**
+     * @brief 计算单元格公式
+     * @param sheet_name 工作表名称
+     * @param pos 单元格位置
+     * @return 计算结果
+     */
+    cell_data::CellValue calculate_formula(const std::string& sheet_name, const core::Coordinate& pos);
+
+    /**
+     * @brief 重新计算所有公式
+     * @param sheet_name 工作表名称（空字符串表示所有工作表）
+     */
+    void recalculate_formulas(const std::string& sheet_name = "");
     
     // ========================================
     // 文件操作
@@ -334,6 +359,9 @@ private:
     // 样式和共享字符串管理
     std::shared_ptr<excel::StyleManager> style_manager_;
     std::shared_ptr<excel::SharedStrings> shared_strings_;
+
+    // 公式引擎
+    std::unique_ptr<excel::FormulaEngine> formula_engine_;
 
     // 性能优化组件
     std::unique_ptr<core::StringPool> string_pool_;
