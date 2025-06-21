@@ -452,10 +452,8 @@ void workbook_impl::parse_workbook_xml() {
                 }
             });
 
-            // 如果没有找到工作表，创建默认工作表
-            if (worksheets_.empty()) {
-                create_worksheet("Sheet1");
-            }
+            // 如果没有找到工作表，不自动创建，延迟到需要时创建
+            // 这与延迟创建策略保持一致
         } else {
             create_default_structure();
         }

@@ -103,6 +103,8 @@ std::vector<std::string> Workbook::worksheet_names() const {
 }
 
 std::size_t Workbook::worksheet_count() const noexcept {
+    // 注意：这里不调用 ensure_has_worksheet()，保持真实的工作表数量
+    // 如果用户需要确保有工作表，应该调用 worksheet_names() 或 active_sheet()
     return impl_->worksheet_count();
 }
 
