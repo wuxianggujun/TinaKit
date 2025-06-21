@@ -5,17 +5,17 @@
  * @date 2025-01-19
  */
 
-#include "tinakit/excel/style_template.hpp"
+#include "tinakit/excel/style.hpp"
 #include "tinakit/excel/style_manager.hpp"
 #include "tinakit/excel/cell.hpp"
 
 namespace tinakit::excel {
 
 // ========================================
-// StyleTemplate::Impl 实现
+// Style::Impl 实现
 // ========================================
 
-class StyleTemplate::Impl {
+class Style::Impl {
 public:
     // 字体相关
     std::optional<Font> font_;
@@ -85,67 +85,67 @@ public:
 };
 
 // ========================================
-// StyleTemplate 实现
+// Style 实现
 // ========================================
 
-StyleTemplate::StyleTemplate() 
+Style::Style() 
     : impl_(std::make_unique<Impl>()) {
 }
 
-StyleTemplate::StyleTemplate(const StyleTemplate& other) 
+Style::Style(const Style& other) 
     : impl_(std::make_unique<Impl>(*other.impl_)) {
 }
 
-StyleTemplate::StyleTemplate(StyleTemplate&& other) noexcept 
+Style::Style(Style&& other) noexcept 
     : impl_(std::move(other.impl_)) {
 }
 
-StyleTemplate& StyleTemplate::operator=(const StyleTemplate& other) {
+Style& Style::operator=(const Style& other) {
     if (this != &other) {
         impl_ = std::make_unique<Impl>(*other.impl_);
     }
     return *this;
 }
 
-StyleTemplate& StyleTemplate::operator=(StyleTemplate&& other) noexcept {
+Style& Style::operator=(Style&& other) noexcept {
     if (this != &other) {
         impl_ = std::move(other.impl_);
     }
     return *this;
 }
 
-StyleTemplate::~StyleTemplate() = default;
+Style::~Style() = default;
 
 // ========================================
 // 字体设置
 // ========================================
 
-StyleTemplate& StyleTemplate::font(const std::string& font_name, double size) {
+Style& Style::font(const std::string& font_name, double size) {
     impl_->ensure_font();
     impl_->font_->name = font_name;
     impl_->font_->size = size;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::bold(bool bold) {
+Style& Style::bold(bool bold) {
     impl_->ensure_font();
     impl_->font_->bold = bold;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::italic(bool italic) {
+Style& Style::italic(bool italic) {
     impl_->ensure_font();
     impl_->font_->italic = italic;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::underline(bool underline) {
+Style& Style::underline(bool underline) {
     impl_->ensure_font();
     impl_->font_->underline = underline;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::strike(bool strike) {
+Style& Style::strike(bool strike) {
     impl_->ensure_font();
     impl_->font_->strike = strike;
     return *this;
@@ -155,13 +155,13 @@ StyleTemplate& StyleTemplate::strike(bool strike) {
 // 颜色设置
 // ========================================
 
-StyleTemplate& StyleTemplate::color(const Color& color) {
+Style& Style::color(const Color& color) {
     impl_->ensure_font();
     impl_->font_->color = color;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::background_color(const Color& color) {
+Style& Style::background_color(const Color& color) {
     impl_->ensure_fill();
     impl_->fill_->fg_color = color;
     return *this;
@@ -171,19 +171,19 @@ StyleTemplate& StyleTemplate::background_color(const Color& color) {
 // 对齐设置
 // ========================================
 
-StyleTemplate& StyleTemplate::align(const Alignment& alignment) {
+Style& Style::align(const Alignment& alignment) {
     impl_->ensure_alignment();
     impl_->alignment_ = alignment;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::align_horizontal(Alignment::Horizontal horizontal) {
+Style& Style::align_horizontal(Alignment::Horizontal horizontal) {
     impl_->ensure_alignment();
     impl_->alignment_->horizontal = horizontal;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::align_vertical(Alignment::Vertical vertical) {
+Style& Style::align_vertical(Alignment::Vertical vertical) {
     impl_->ensure_alignment();
     impl_->alignment_->vertical = vertical;
     return *this;
@@ -193,7 +193,7 @@ StyleTemplate& StyleTemplate::align_vertical(Alignment::Vertical vertical) {
 // 边框设置
 // ========================================
 
-StyleTemplate& StyleTemplate::border(BorderType type, BorderStyle style) {
+Style& Style::border(BorderType type, BorderStyle style) {
     impl_->ensure_border();
     
     Border::Style border_style = static_cast<Border::Style>(static_cast<int>(style));
@@ -222,7 +222,7 @@ StyleTemplate& StyleTemplate::border(BorderType type, BorderStyle style) {
     return *this;
 }
 
-StyleTemplate& StyleTemplate::border(BorderType type, BorderStyle style, const Color& color) {
+Style& Style::border(BorderType type, BorderStyle style, const Color& color) {
     border(type, style);
     
     // 设置边框颜色
@@ -254,7 +254,7 @@ StyleTemplate& StyleTemplate::border(BorderType type, BorderStyle style, const C
 // 数字格式设置
 // ========================================
 
-StyleTemplate& StyleTemplate::number_format(const std::string& format_code) {
+Style& Style::number_format(const std::string& format_code) {
     impl_->number_format_ = format_code;
     impl_->has_number_format = true;
     return *this;
@@ -264,13 +264,13 @@ StyleTemplate& StyleTemplate::number_format(const std::string& format_code) {
 // 文本格式设置
 // ========================================
 
-StyleTemplate& StyleTemplate::wrap_text(bool wrap) {
+Style& Style::wrap_text(bool wrap) {
     impl_->ensure_alignment();
     impl_->alignment_->wrap_text = wrap;
     return *this;
 }
 
-StyleTemplate& StyleTemplate::indent(int indent_level) {
+Style& Style::indent(int indent_level) {
     impl_->ensure_alignment();
     impl_->alignment_->indent = std::max(0, std::min(15, indent_level));
     return *this;
@@ -280,7 +280,7 @@ StyleTemplate& StyleTemplate::indent(int indent_level) {
 // 内部接口
 // ========================================
 
-std::uint32_t StyleTemplate::apply_to_style_manager(StyleManager& style_manager) const {
+std::uint32_t Style::apply_to_style_manager(StyleManager& style_manager) const {
     CellStyle cell_style;
     
     // 处理字体
@@ -318,7 +318,7 @@ std::uint32_t StyleTemplate::apply_to_style_manager(StyleManager& style_manager)
     return style_manager.add_cell_style(cell_style);
 }
 
-bool StyleTemplate::has_any_style() const {
+bool Style::has_any_style() const {
     return impl_->has_font || impl_->has_fill || impl_->has_border ||
            impl_->has_alignment || impl_->has_number_format;
 }
@@ -329,8 +329,8 @@ bool StyleTemplate::has_any_style() const {
 
 namespace StyleTemplates {
 
-StyleTemplate title(double size) {
-    return StyleTemplate()
+Style title(double size) {
+    return Style()
         .font("微软雅黑", size)
         .bold()
         .color(Color::White)
@@ -339,8 +339,8 @@ StyleTemplate title(double size) {
         .align_vertical(Alignment::Vertical::Center);
 }
 
-StyleTemplate subtitle(double size) {
-    return StyleTemplate()
+Style subtitle(double size) {
+    return Style()
         .font("微软雅黑", size)
         .bold()
         .color(Color::Black)
@@ -349,8 +349,8 @@ StyleTemplate subtitle(double size) {
         .align_vertical(Alignment::Vertical::Center);
 }
 
-StyleTemplate header() {
-    return StyleTemplate()
+Style header() {
+    return Style()
         .font("Calibri", 11)
         .bold()
         .color(Color::Black)
@@ -360,36 +360,36 @@ StyleTemplate header() {
         .border(BorderType::All, BorderStyle::Thin);
 }
 
-StyleTemplate data() {
-    return StyleTemplate()
+Style data() {
+    return Style()
         .font("Calibri", 11)
         .color(Color::Black)
         .align_vertical(Alignment::Vertical::Center)
         .border(BorderType::All, BorderStyle::Thin);
 }
 
-StyleTemplate highlight(const Color& color) {
-    return StyleTemplate()
+Style highlight(const Color& color) {
+    return Style()
         .background_color(color)
         .bold();
 }
 
-StyleTemplate warning() {
-    return StyleTemplate()
+Style warning() {
+    return Style()
         .color(Color::Black)
         .background_color(Color::Yellow)
         .bold();
 }
 
-StyleTemplate error() {
-    return StyleTemplate()
+Style error() {
+    return Style()
         .color(Color::White)
         .background_color(Color::Red)
         .bold();
 }
 
-StyleTemplate success() {
-    return StyleTemplate()
+Style success() {
+    return Style()
         .color(Color::White)
         .background_color(Color::Green)
         .bold();

@@ -6,7 +6,7 @@
  */
 
 #include "tinakit/excel/range.hpp"
-#include "tinakit/excel/style_template.hpp"
+#include "tinakit/excel/style.hpp"
 #include "tinakit/internal/workbook_impl.hpp"
 #include "tinakit/internal/coordinate_utils.hpp"
 #include "tinakit/core/exceptions.hpp"
@@ -81,7 +81,7 @@ Range& Range::set_value<const char*>(const char* const& value) {
     return set_value(std::string(value));
 }
 
-Range& Range::set_style(const StyleTemplate& style_template) {
+Range& Range::set_style(const Style& style_template) {
     // 委托给workbook_impl进行批量样式设置
     // TODO: 实现StyleTemplate到style_id的转换
     auto style_id = 1; // 临时使用默认样式ID

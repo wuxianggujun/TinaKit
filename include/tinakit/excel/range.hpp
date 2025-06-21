@@ -25,7 +25,7 @@ namespace tinakit::excel {
 // 前向声明
 class Worksheet;
 class ConditionalFormatBuilder;
-class StyleTemplate;
+class Style;
 
 /**
  * @class Range
@@ -219,7 +219,7 @@ public:
      * @param style_template 样式模板
      * @return 自身引用，支持链式调用
      */
-    Range& set_style(const StyleTemplate& style_template);
+    Range& set_style(const Style& style_template);
 
     /**
      * @brief 设置样式ID到整个范围

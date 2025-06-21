@@ -8,7 +8,7 @@
 #include "tinakit/excel/cell.hpp"
 #include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/style_manager.hpp"
-#include "tinakit/excel/style_template.hpp"
+#include "tinakit/excel/style.hpp"
 #include "tinakit/internal/workbook_impl.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/excel/types.hpp"
@@ -632,7 +632,7 @@ Cell& Cell::indent(int indent_level) {
     return *this;
 }
 
-Cell& Cell::style(const StyleTemplate& style_template) {
+Cell& Cell::style(const Style& style_template) {
     // TODO: 委托给 workbook_impl
     (void)style_template;
     return *this;

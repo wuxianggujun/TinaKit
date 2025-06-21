@@ -18,7 +18,7 @@ namespace tinakit::excel {
 class StyleManager;
 
 /**
- * @class StyleTemplate
+ * @class Style
  * @brief 用户友好的样式模板类
  * 
  * 提供链式调用接口来创建可复用的样式模板，支持：
@@ -46,37 +46,37 @@ class StyleManager;
  * sheet.range("A1:C1").style(title_style);
  * ```
  */
-class StyleTemplate {
+class Style {
 public:
     /**
      * @brief 默认构造函数
      */
-    StyleTemplate();
+    Style();
     
     /**
      * @brief 拷贝构造函数
      */
-    StyleTemplate(const StyleTemplate& other);
+    Style(const Style& other);
     
     /**
      * @brief 移动构造函数
      */
-    StyleTemplate(StyleTemplate&& other) noexcept;
+    Style(Style&& other) noexcept;
     
     /**
      * @brief 拷贝赋值运算符
      */
-    StyleTemplate& operator=(const StyleTemplate& other);
+    Style& operator=(const Style& other);
     
     /**
      * @brief 移动赋值运算符
      */
-    StyleTemplate& operator=(StyleTemplate&& other) noexcept;
+    Style& operator=(Style&& other) noexcept;
     
     /**
      * @brief 析构函数
      */
-    ~StyleTemplate();
+    ~Style();
 
     // ========================================
     // 字体设置
@@ -88,35 +88,35 @@ public:
      * @param size 字体大小（磅）
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& font(const std::string& font_name, double size = 11.0);
+    Style& font(const std::string& font_name, double size = 11.0);
     
     /**
      * @brief 设置粗体
      * @param bold 是否粗体
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& bold(bool bold = true);
+    Style& bold(bool bold = true);
     
     /**
      * @brief 设置斜体
      * @param italic 是否斜体
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& italic(bool italic = true);
+    Style& italic(bool italic = true);
     
     /**
      * @brief 设置下划线
      * @param underline 是否下划线
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& underline(bool underline = true);
+    Style& underline(bool underline = true);
     
     /**
      * @brief 设置删除线
      * @param strike 是否删除线
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& strike(bool strike = true);
+    Style& strike(bool strike = true);
 
     // ========================================
     // 颜色设置
@@ -127,14 +127,14 @@ public:
      * @param color 字体颜色
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& color(const Color& color);
+    Style& color(const Color& color);
     
     /**
      * @brief 设置背景颜色
      * @param color 背景颜色
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& background_color(const Color& color);
+    Style& background_color(const Color& color);
 
     // ========================================
     // 对齐设置
@@ -145,21 +145,21 @@ public:
      * @param alignment 对齐方式
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& align(const Alignment& alignment);
+    Style& align(const Alignment& alignment);
     
     /**
      * @brief 设置水平对齐
      * @param horizontal 水平对齐方式
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& align_horizontal(Alignment::Horizontal horizontal);
+    Style& align_horizontal(Alignment::Horizontal horizontal);
     
     /**
      * @brief 设置垂直对齐
      * @param vertical 垂直对齐方式
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& align_vertical(Alignment::Vertical vertical);
+    Style& align_vertical(Alignment::Vertical vertical);
 
     // ========================================
     // 边框设置
@@ -171,7 +171,7 @@ public:
      * @param style 边框样式
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& border(BorderType type, BorderStyle style);
+    Style& border(BorderType type, BorderStyle style);
     
     /**
      * @brief 设置彩色边框
@@ -180,7 +180,7 @@ public:
      * @param color 边框颜色
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& border(BorderType type, BorderStyle style, const Color& color);
+    Style& border(BorderType type, BorderStyle style, const Color& color);
 
     // ========================================
     // 数字格式设置
@@ -191,7 +191,7 @@ public:
      * @param format_code 格式代码
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& number_format(const std::string& format_code);
+    Style& number_format(const std::string& format_code);
 
     // ========================================
     // 文本格式设置
@@ -202,14 +202,14 @@ public:
      * @param wrap 是否换行
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& wrap_text(bool wrap = true);
+    Style& wrap_text(bool wrap = true);
     
     /**
      * @brief 设置文本缩进
      * @param indent_level 缩进级别（0-15）
      * @return 自身引用，支持链式调用
      */
-    StyleTemplate& indent(int indent_level);
+    Style& indent(int indent_level);
 
     // ========================================
     // 内部接口（供Cell和Range使用）
@@ -248,51 +248,51 @@ namespace StyleTemplates {
  * @param size 字体大小，默认16
  * @return 标题样式模板
  */
-StyleTemplate title(double size = 16.0);
+Style title(double size = 16.0);
 
 /**
  * @brief 副标题样式
  * @param size 字体大小，默认14
  * @return 副标题样式模板
  */
-StyleTemplate subtitle(double size = 14.0);
+Style subtitle(double size = 14.0);
 
 /**
  * @brief 表头样式
  * @return 表头样式模板
  */
-StyleTemplate header();
+Style header();
 
 /**
  * @brief 数据样式
  * @return 数据样式模板
  */
-StyleTemplate data();
+Style data();
 
 /**
  * @brief 高亮样式
  * @param color 高亮颜色，默认黄色
  * @return 高亮样式模板
  */
-StyleTemplate highlight(const Color& color = Color::Yellow);
+Style highlight(const Color& color = Color::Yellow);
 
 /**
  * @brief 警告样式
  * @return 警告样式模板
  */
-StyleTemplate warning();
+Style warning();
 
 /**
  * @brief 错误样式
  * @return 错误样式模板
  */
-StyleTemplate error();
+Style error();
 
 /**
  * @brief 成功样式
  * @return 成功样式模板
  */
-StyleTemplate success();
+Style success();
 
 } // namespace StyleTemplates
 

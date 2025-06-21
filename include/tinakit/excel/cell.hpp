@@ -23,7 +23,7 @@ class workbook_impl;
 namespace tinakit::excel {
 
 class Worksheet;
-class StyleTemplate;
+class Style;
 
 /**
  * @class Cell
@@ -224,7 +224,7 @@ public:
      * @param style_template 样式模板
      * @return 自身引用，支持链式调用
      */
-    Cell& style(const StyleTemplate& style_template);
+    Cell& style(const Style& style_template);
 
 public:
     /**
