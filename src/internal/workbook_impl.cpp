@@ -696,8 +696,7 @@ void workbook_impl::generate_content_types() {
     // 获取生成的XML内容
     std::string xml_content = oss.str();
 
-    // 调试输出：打印生成的XML内容
-    std::cout << "\n=== 生成的 [Content_Types].xml ===\n" << xml_content << "\n=== [Content_Types].xml 结束 ===\n" << std::endl;
+
 
     // 保存到归档器
     std::vector<std::byte> xml_bytes;

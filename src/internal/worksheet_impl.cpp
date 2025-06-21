@@ -691,7 +691,7 @@ bool worksheet_impl::ranges_overlap(const core::range_address& range1, const cor
 }
 
 void worksheet_impl::parse_merged_cells(core::XmlParser::iterator& it, core::XmlParser& parser) {
-    std::cout << "🔍 开始解析合并单元格..." << std::endl;
+
 
     // 解析mergeCells元素中的mergeCell子元素
     auto current_it = it;
@@ -703,21 +703,21 @@ void worksheet_impl::parse_merged_cells(core::XmlParser::iterator& it, core::Xml
         if (current_it.is_start_element() && current_it.name() == "mergeCell") {
             auto ref_attr = current_it.attribute("ref");
             if (ref_attr && !ref_attr->empty()) {
-                std::cout << "  📋 发现合并单元格: " << *ref_attr << std::endl;
+
                 try {
                     // 解析范围字符串（如 "A1:C3"）
                     auto range = internal::utils::CoordinateUtils::string_to_range_address(*ref_attr);
                     merged_ranges_.push_back(range);
-                    std::cout << "    ✅ 解析成功" << std::endl;
+
                 } catch (const std::exception& e) {
-                    std::cerr << "    ❌ 解析合并单元格范围失败: " << *ref_attr << " - " << e.what() << std::endl;
+                    std::cerr << "解析合并单元格范围失败: " << *ref_attr << " - " << e.what() << std::endl;
                 }
             }
         }
         ++current_it;
     }
 
-    std::cout << "🔍 合并单元格解析完成，总数: " << merged_ranges_.size() << std::endl;
+
 }
 
 void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
@@ -881,7 +881,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
     // 添加合并单元格
     if (!merged_ranges_.empty()) {
-        std::cout << "📋 生成合并单元格XML，数量: " << merged_ranges_.size() << std::endl;
+    
 
         serializer.start_element("mergeCells");
         serializer.attribute("count", std::to_string(merged_ranges_.size()));
@@ -891,7 +891,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
             // 生成范围字符串（如 "A1:C3"）
             std::string range_str = internal::utils::CoordinateUtils::range_address_to_string(range);
-            std::cout << "  - 合并范围: " << range_str << std::endl;
+
             serializer.attribute("ref", range_str);
 
             serializer.end_element(); // mergeCell
@@ -905,10 +905,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
     // 获取生成的XML内容
     std::string xml_content = oss.str();
 
-    // 调试输出：打印生成的工作表XML
-    std::cout << "\n=== 生成的工作表XML (" << name_ << ") ===" << std::endl;
-    std::cout << xml_content << std::endl;
-    std::cout << "=== 工作表XML结束 ===" << std::endl;
+
 
     return xml_content;
 }
