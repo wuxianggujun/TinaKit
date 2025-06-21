@@ -7,6 +7,7 @@ add_executable(tinakit_tests
     test_coordinate_system.cpp
     test_range_system.cpp
     test_row_system.cpp
+    test_worksheet_features.cpp
     test_integration.cpp
     test_advanced_features.cpp
 )
@@ -40,6 +41,7 @@ add_test(NAME AllTests COMMAND tinakit_tests)
 add_test(NAME CoordinateSystemTests COMMAND tinakit_tests CoordinateSystem)
 add_test(NAME RangeSystemTests COMMAND tinakit_tests RangeSystem)
 add_test(NAME RowSystemTests COMMAND tinakit_tests RowSystem)
+add_test(NAME WorksheetFeaturesTests COMMAND tinakit_tests WorksheetFeatures)
 add_test(NAME CoordinateUtilsTests COMMAND tinakit_tests CoordinateUtils)
 add_test(NAME ColumnConversionTests COMMAND tinakit_tests ColumnConversion)
 add_test(NAME RangeAddressTests COMMAND tinakit_tests RangeAddress)

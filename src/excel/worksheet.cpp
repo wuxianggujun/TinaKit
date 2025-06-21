@@ -138,16 +138,81 @@ Row Worksheet::row(std::size_t index) const {
 // ========================================
 
 std::vector<std::string> Worksheet::find(const std::string& value) const {
-    // TODO: 委托给 workbook_impl
-    (void)value;
-    return {};
+    if (!workbook_impl_) {
+        return {};
+    }
+
+    std::vector<std::string> results;
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+
+    // 遍历所有单元格查找匹配的值
+    auto max_row = worksheet_impl.max_row();
+    auto max_col = worksheet_impl.max_column();
+
+    for (std::size_t row = 1; row <= max_row; ++row) {
+        for (std::size_t col = 1; col <= max_col; ++col) {
+            core::Coordinate pos(row, col);
+            if (worksheet_impl.has_cell_data(pos)) {
+                auto cell_data = worksheet_impl.get_cell_data(pos);
+
+                // 检查字符串值
+                if (std::holds_alternative<std::string>(cell_data.value)) {
+                    const auto& cell_value = std::get<std::string>(cell_data.value);
+                    if (cell_value.find(value) != std::string::npos) {
+                        // 添加单元格地址
+                        auto address = internal::utils::CoordinateUtils::coordinate_to_string(pos);
+                        results.push_back(address);
+                    }
+                }
+            }
+        }
+    }
+
+    return results;
 }
 
 std::size_t Worksheet::replace(const std::string& old_value, const std::string& new_value) {
-    // TODO: 委托给 workbook_impl
-    (void)old_value;
-    (void)new_value;
-    return 0;
+    if (!workbook_impl_) {
+        return 0;
+    }
+
+    std::size_t replace_count = 0;
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+
+    // 遍历所有单元格进行替换
+    auto max_row = worksheet_impl.max_row();
+    auto max_col = worksheet_impl.max_column();
+
+    for (std::size_t row = 1; row <= max_row; ++row) {
+        for (std::size_t col = 1; col <= max_col; ++col) {
+            core::Coordinate pos(row, col);
+            if (worksheet_impl.has_cell_data(pos)) {
+                auto cell_data = worksheet_impl.get_cell_data(pos);
+
+                // 检查字符串值并替换
+                if (std::holds_alternative<std::string>(cell_data.value)) {
+                    auto& cell_value = std::get<std::string>(cell_data.value);
+                    std::size_t pos_found = 0;
+                    bool replaced = false;
+
+                    while ((pos_found = cell_value.find(old_value, pos_found)) != std::string::npos) {
+                        cell_value.replace(pos_found, old_value.length(), new_value);
+                        pos_found += new_value.length();
+                        replaced = true;
+                    }
+
+                    if (replaced) {
+                        // 更新单元格数据
+                        cell_data.value = cell_value;
+                        worksheet_impl.set_cell_data(pos, cell_data);
+                        replace_count++;
+                    }
+                }
+            }
+        }
+    }
+
+    return replace_count;
 }
 
 // ========================================
@@ -172,9 +237,12 @@ Range Worksheet::range(const std::string& range_str) {
 }
 
 Range Worksheet::basic_range(const std::string& range_str) {
-    // TODO: 委托给 workbook_impl
-    (void)range_str;
-    return Range();
+    if (!workbook_impl_) {
+        throw std::runtime_error("Invalid worksheet handle");
+    }
+
+    auto range_addr = internal::utils::CoordinateUtils::string_to_range_address(range_str);
+    return Range(workbook_impl_, sheet_name_, range_addr);
 }
 
 // ========================================
@@ -236,35 +304,84 @@ double Worksheet::get_column_width(std::size_t column_index) const {
 // ========================================
 
 void Worksheet::merge_cells(const std::string& range_str) {
-    // TODO: 委托给 workbook_impl
-    (void)range_str;
+    if (!workbook_impl_) {
+        throw std::runtime_error("Invalid worksheet handle");
+    }
+
+    auto range_addr = internal::utils::CoordinateUtils::string_to_range_address(range_str);
+    merge_cells(range_addr.start.row, range_addr.start.column,
+                range_addr.end.row, range_addr.end.column);
 }
 
 void Worksheet::merge_cells(std::size_t start_row, std::size_t start_col,
                            std::size_t end_row, std::size_t end_col) {
-    // TODO: 委托给 workbook_impl
-    (void)start_row;
-    (void)start_col;
-    (void)end_row;
-    (void)end_col;
+    if (!workbook_impl_) {
+        throw std::runtime_error("Invalid worksheet handle");
+    }
+
+    // 验证范围有效性
+    if (start_row > end_row || start_col > end_col) {
+        throw std::invalid_argument("Invalid merge range: start position must be before end position");
+    }
+
+    if (start_row == end_row && start_col == end_col) {
+        // 单个单元格不需要合并
+        return;
+    }
+
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+
+    // 创建合并范围
+    core::range_address merge_range{
+        core::Coordinate(start_row, start_col),
+        core::Coordinate(end_row, end_col)
+    };
+
+    // 添加到合并范围列表
+    // TODO: 实现worksheet_impl的add_merged_range方法
+    // worksheet_impl.add_merged_range(merge_range);
+    (void)merge_range; // 暂时避免未使用变量警告
 }
 
 void Worksheet::unmerge_cells(const std::string& range_str) {
-    // TODO: 委托给 workbook_impl
-    (void)range_str;
+    if (!workbook_impl_) {
+        throw std::runtime_error("Invalid worksheet handle");
+    }
+
+    auto range_addr = internal::utils::CoordinateUtils::string_to_range_address(range_str);
+    unmerge_cells(range_addr.start.row, range_addr.start.column,
+                  range_addr.end.row, range_addr.end.column);
 }
 
 void Worksheet::unmerge_cells(std::size_t start_row, std::size_t start_col,
                              std::size_t end_row, std::size_t end_col) {
-    // TODO: 委托给 workbook_impl
-    (void)start_row;
-    (void)start_col;
-    (void)end_row;
-    (void)end_col;
+    if (!workbook_impl_) {
+        throw std::runtime_error("Invalid worksheet handle");
+    }
+
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name_);
+
+    // 创建要移除的合并范围
+    core::range_address unmerge_range{
+        core::Coordinate(start_row, start_col),
+        core::Coordinate(end_row, end_col)
+    };
+
+    // 从合并范围列表中移除
+    // TODO: 实现worksheet_impl的remove_merged_range方法
+    // worksheet_impl.remove_merged_range(unmerge_range);
+    (void)unmerge_range; // 暂时避免未使用变量警告
 }
 
 const std::vector<Range>& Worksheet::get_merged_ranges() const {
-    // TODO: 委托给 workbook_impl
+    if (!workbook_impl_) {
+        static std::vector<Range> empty_ranges;
+        return empty_ranges;
+    }
+
+    // 这里需要从worksheet_impl获取合并范围并转换为Range对象
+    // 由于这个功能比较复杂，暂时返回空列表
+    // TODO: 实现从worksheet_impl获取合并范围的功能
     static std::vector<Range> empty_ranges;
     return empty_ranges;
 }
@@ -282,7 +399,13 @@ void Worksheet::add_conditional_format(const ConditionalFormat& format) {
 }
 
 const std::vector<ConditionalFormat>& Worksheet::get_conditional_formats() const {
-    // TODO: 委托给 workbook_impl
+    if (!workbook_impl_) {
+        static std::vector<ConditionalFormat> empty_formats;
+        return empty_formats;
+    }
+
+    // TODO: 实现workbook_impl的get_conditional_formats方法
+    // return workbook_impl_->get_conditional_formats(sheet_name_);
     static std::vector<ConditionalFormat> empty_formats;
     return empty_formats;
 }
@@ -293,6 +416,57 @@ const std::vector<ConditionalFormat>& Worksheet::get_conditional_formats() const
 
 Worksheet::RowRange::RowRange(Worksheet& worksheet, std::size_t start_row, std::size_t end_row)
     : worksheet_(worksheet), start_row_(start_row), end_row_(end_row) {
+}
+
+Worksheet::RowRange::iterator Worksheet::RowRange::begin() {
+    return iterator(worksheet_, start_row_);
+}
+
+Worksheet::RowRange::iterator Worksheet::RowRange::end() {
+    return iterator(worksheet_, end_row_ + 1);
+}
+
+std::size_t Worksheet::RowRange::size() const noexcept {
+    return (end_row_ >= start_row_) ? (end_row_ - start_row_ + 1) : 0;
+}
+
+bool Worksheet::RowRange::empty() const noexcept {
+    return start_row_ > end_row_;
+}
+
+// ========================================
+// RowRange::iterator 实现
+// ========================================
+
+Worksheet::RowRange::iterator::iterator(Worksheet& worksheet, std::size_t row_index)
+    : worksheet_(&worksheet), row_index_(row_index) {
+}
+
+Worksheet::RowRange::iterator::reference Worksheet::RowRange::iterator::operator*() const {
+    return worksheet_->row(row_index_);
+}
+
+Worksheet::RowRange::iterator::pointer Worksheet::RowRange::iterator::operator->() const {
+    return worksheet_->row(row_index_);
+}
+
+Worksheet::RowRange::iterator& Worksheet::RowRange::iterator::operator++() {
+    ++row_index_;
+    return *this;
+}
+
+Worksheet::RowRange::iterator Worksheet::RowRange::iterator::operator++(int) {
+    auto temp = *this;
+    ++row_index_;
+    return temp;
+}
+
+bool Worksheet::RowRange::iterator::operator==(const iterator& other) const {
+    return worksheet_ == other.worksheet_ && row_index_ == other.row_index_;
+}
+
+bool Worksheet::RowRange::iterator::operator!=(const iterator& other) const {
+    return !(*this == other);
 }
 
 // ========================================

@@ -273,4 +273,13 @@ private:
         } \
     } while(0)
 
+#define ASSERT_NO_THROW(expression) \
+    do { \
+        try { \
+            expression; \
+        } catch (...) { \
+            throw std::runtime_error("Assertion failed: unexpected exception thrown"); \
+        } \
+    } while(0)
+
 } // namespace tinakit::test

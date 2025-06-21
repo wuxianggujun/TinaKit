@@ -312,3 +312,99 @@ TEST_CASE(RowSystem, InvalidColumnName) {
     ASSERT_THROWS(row[""], std::invalid_argument);
     ASSERT_THROWS(row["123"], std::invalid_argument);
 }
+
+// ========================================
+// RowRange 测试
+// ========================================
+
+TEST_CASE(RowSystem, RowRangeBasicOperations) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    // 填充一些测试数据
+    sheet.row(1)[1].value("Row1");
+    sheet.row(2)[1].value("Row2");
+    sheet.row(3)[1].value("Row3");
+
+    // 测试行范围
+    auto row_range = sheet.rows(1, 3);
+    ASSERT_EQ(3u, row_range.size());
+    ASSERT_FALSE(row_range.empty());
+
+    // 测试空范围
+    auto empty_range = sheet.rows(5, 4); // start > end
+    ASSERT_TRUE(empty_range.empty());
+    ASSERT_EQ(0u, empty_range.size());
+}
+
+TEST_CASE(RowSystem, RowRangeIteration) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    // 填充测试数据
+    for (int i = 1; i <= 5; ++i) {
+        sheet.row(i)[1].value("Row" + std::to_string(i));
+    }
+
+    // 测试迭代器
+    auto row_range = sheet.rows(2, 4);
+    std::vector<std::string> values;
+
+    for (auto row : row_range) {
+        values.push_back(row[1].as<std::string>());
+    }
+
+    ASSERT_EQ(3u, values.size());
+    ASSERT_EQ("Row2", values[0]);
+    ASSERT_EQ("Row3", values[1]);
+    ASSERT_EQ("Row4", values[2]);
+}
+
+TEST_CASE(RowSystem, RowRangeSTLAlgorithms) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    // 填充数字数据
+    for (int i = 1; i <= 10; ++i) {
+        sheet.row(i)[1].value(i * 10);
+    }
+
+    auto row_range = sheet.rows(1, 10);
+
+    // 使用STL算法计算大于50的行数
+    auto count = std::count_if(row_range.begin(), row_range.end(),
+        [](const Row& row) {
+            return row[1].as<int>() > 50;
+        });
+
+    ASSERT_EQ(5, count); // 60, 70, 80, 90, 100
+}
+
+TEST_CASE(RowSystem, RowRangeRangesSupport) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    // 填充测试数据
+    for (int i = 1; i <= 6; ++i) {
+        sheet.row(i)[1].value(i);
+        sheet.row(i)[2].value(i % 2 == 0 ? "偶数" : "奇数");
+    }
+
+    auto row_range = sheet.rows(1, 6);
+
+    // 使用ranges过滤偶数行
+    auto even_rows = row_range
+        | std::views::filter([](const Row& row) {
+            return row[1].as<int>() % 2 == 0;
+        })
+        | std::views::transform([](const Row& row) {
+            return row[1].as<int>();
+        });
+
+    std::vector<int> result(even_rows.begin(), even_rows.end());
+
+    ASSERT_EQ(3u, result.size());
+    ASSERT_EQ(2, result[0]);
+    ASSERT_EQ(4, result[1]);
+    ASSERT_EQ(6, result[2]);
+}

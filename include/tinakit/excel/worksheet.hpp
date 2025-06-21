@@ -438,18 +438,28 @@ private:
 class Worksheet::RowRange {
 public:
     class iterator;
-    
+
     /**
      * @brief 构造函数
      */
     RowRange(Worksheet& worksheet, std::size_t start_row, std::size_t end_row);
-    
+
     /**
      * @brief 迭代器支持
      */
     iterator begin();
     iterator end();
-    
+
+    /**
+     * @brief 获取范围大小
+     */
+    std::size_t size() const noexcept;
+
+    /**
+     * @brief 检查是否为空
+     */
+    bool empty() const noexcept;
+
     /**
      * @brief 过滤操作
      */
@@ -457,7 +467,7 @@ public:
     auto filter(Predicate&& pred) {
         return *this | std::views::filter(std::forward<Predicate>(pred));
     }
-    
+
     /**
      * @brief 转换操作
      */
@@ -470,6 +480,35 @@ private:
     Worksheet& worksheet_;
     std::size_t start_row_;
     std::size_t end_row_;
+};
+
+/**
+ * @class RowRange::iterator
+ * @brief RowRange的迭代器
+ */
+class Worksheet::RowRange::iterator {
+public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = Row;
+    using difference_type = std::ptrdiff_t;
+    using pointer = Row;
+    using reference = Row;
+
+public:
+    iterator() = default;
+    iterator(Worksheet& worksheet, std::size_t row_index);
+
+    reference operator*() const;
+    pointer operator->() const;
+    iterator& operator++();
+    iterator operator++(int);
+
+    bool operator==(const iterator& other) const;
+    bool operator!=(const iterator& other) const;
+
+private:
+    Worksheet* worksheet_ = nullptr;
+    std::size_t row_index_ = 0;
 };
 
 } // namespace tinakit::excel
