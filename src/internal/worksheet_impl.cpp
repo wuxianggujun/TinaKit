@@ -320,6 +320,19 @@ double worksheet_impl::get_column_width(std::size_t column) const {
     return (it != column_widths_.end()) ? it->second : 8.43; // Excel 默认列宽
 }
 
+void worksheet_impl::set_column_hidden(std::size_t column, bool hidden) {
+    if (hidden) {
+        hidden_columns_.insert(column);
+    } else {
+        hidden_columns_.erase(column);
+    }
+    mark_dirty();
+}
+
+bool worksheet_impl::is_column_hidden(std::size_t column) const {
+    return hidden_columns_.find(column) != hidden_columns_.end();
+}
+
 void worksheet_impl::set_row_height(std::size_t row, double height) {
     row_heights_[row] = height;
     mark_dirty();

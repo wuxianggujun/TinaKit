@@ -22,6 +22,11 @@ double CellDataCache::hit_ratio() const {
     return total > 0 ? static_cast<double>(hit_count_.load()) / total : 0.0;
 }
 
+void CellDataCache::reset_stats() {
+    hit_count_.store(0);
+    miss_count_.store(0);
+}
+
 void CellDataCache::evict_old_entries() {
     auto now = std::chrono::steady_clock::now();
     

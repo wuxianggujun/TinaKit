@@ -199,6 +199,16 @@ public:
      * @brief 获取列宽
      */
     double get_column_width(std::size_t column) const;
+
+    /**
+     * @brief 设置列隐藏状态
+     */
+    void set_column_hidden(std::size_t column, bool hidden);
+
+    /**
+     * @brief 检查列是否隐藏
+     */
+    bool is_column_hidden(std::size_t column) const;
     
     /**
      * @brief 设置行高
@@ -311,6 +321,10 @@ private:
     // 列宽和行高
     std::map<std::size_t, double> column_widths_;
     std::map<std::size_t, double> row_heights_;
+
+    // 列和行的隐藏状态
+    std::set<std::size_t> hidden_columns_;
+    std::set<std::size_t> hidden_rows_;
     
     // 合并单元格范围
     std::vector<core::range_address> merged_ranges_;

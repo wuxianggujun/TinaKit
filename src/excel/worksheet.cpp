@@ -134,6 +134,28 @@ Row Worksheet::row(std::size_t index) const {
 }
 
 // ========================================
+// 列访问（委托给 workbook_impl）
+// ========================================
+
+Column Worksheet::column(std::size_t index) {
+    return Column(workbook_impl_, sheet_id_, index);
+}
+
+Column Worksheet::column(std::size_t index) const {
+    return Column(workbook_impl_, sheet_id_, index);
+}
+
+Column Worksheet::column(const std::string& column_name) {
+    std::size_t index = column_name_to_number(column_name);
+    return Column(workbook_impl_, sheet_id_, index);
+}
+
+Column Worksheet::column(const std::string& column_name) const {
+    std::size_t index = column_name_to_number(column_name);
+    return Column(workbook_impl_, sheet_id_, index);
+}
+
+// ========================================
 // 查找和替换（委托给 workbook_impl）
 // ========================================
 

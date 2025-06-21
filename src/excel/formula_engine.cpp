@@ -56,6 +56,24 @@ void FormulaEngine::register_builtin_functions() {
     functions_["IF"] = [this](const std::vector<FormulaResult>& args) {
         return if_function(args);
     };
+
+    // 日期时间函数
+    functions_["NOW"] = [this](const std::vector<FormulaResult>& args) {
+        return now_function(args);
+    };
+
+    functions_["TODAY"] = [this](const std::vector<FormulaResult>& args) {
+        return today_function(args);
+    };
+
+    // 逻辑函数
+    functions_["AND"] = [this](const std::vector<FormulaResult>& args) {
+        return and_function(args);
+    };
+
+    functions_["OR"] = [this](const std::vector<FormulaResult>& args) {
+        return or_function(args);
+    };
 }
 
 // ========================================
@@ -724,6 +742,74 @@ FormulaResult FormulaEngine::if_function(const std::vector<FormulaResult>& args)
     } else {
         return args.size() > 2 ? args[2] : FormulaResult(std::monostate{});
     }
+}
+
+FormulaResult FormulaEngine::now_function(const std::vector<FormulaResult>& args) {
+    if (!args.empty()) {
+        throw FormulaException("NOW function takes no arguments");
+    }
+
+    // 返回当前时间的Excel序列号（从1900年1月1日开始的天数）
+    auto now = std::chrono::system_clock::now();
+    auto time_value = std::chrono::system_clock::to_time_t(now);
+
+    // Excel的日期序列号：1900年1月1日 = 1
+    // 这里简化实现，返回一个近似值
+    const double excel_epoch_offset = 25569.0; // 1970年1月1日在Excel中的序列号
+    double days_since_epoch = static_cast<double>(time_value) / (24.0 * 60.0 * 60.0);
+
+    return excel_epoch_offset + days_since_epoch;
+}
+
+FormulaResult FormulaEngine::today_function(const std::vector<FormulaResult>& args) {
+    if (!args.empty()) {
+        throw FormulaException("TODAY function takes no arguments");
+    }
+
+    // 返回今天日期的Excel序列号（不包含时间）
+    auto now = std::chrono::system_clock::now();
+    auto time_value = std::chrono::system_clock::to_time_t(now);
+
+    // 只保留日期部分，去掉时间
+    std::tm* tm = std::localtime(&time_value);
+    tm->tm_hour = 0;
+    tm->tm_min = 0;
+    tm->tm_sec = 0;
+
+    std::time_t date_only = std::mktime(tm);
+
+    const double excel_epoch_offset = 25569.0;
+    double days_since_epoch = static_cast<double>(date_only) / (24.0 * 60.0 * 60.0);
+
+    return excel_epoch_offset + days_since_epoch;
+}
+
+FormulaResult FormulaEngine::and_function(const std::vector<FormulaResult>& args) {
+    if (args.empty()) {
+        throw FormulaException("AND function requires at least one argument");
+    }
+
+    for (const auto& arg : args) {
+        if (!to_boolean(arg)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+FormulaResult FormulaEngine::or_function(const std::vector<FormulaResult>& args) {
+    if (args.empty()) {
+        throw FormulaException("OR function requires at least one argument");
+    }
+
+    for (const auto& arg : args) {
+        if (to_boolean(arg)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 } // namespace tinakit::excel

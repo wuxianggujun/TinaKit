@@ -187,6 +187,10 @@ private:
     FormulaResult max_function(const std::vector<FormulaResult>& args);
     FormulaResult min_function(const std::vector<FormulaResult>& args);
     FormulaResult if_function(const std::vector<FormulaResult>& args);
+    FormulaResult now_function(const std::vector<FormulaResult>& args);
+    FormulaResult today_function(const std::vector<FormulaResult>& args);
+    FormulaResult and_function(const std::vector<FormulaResult>& args);
+    FormulaResult or_function(const std::vector<FormulaResult>& args);
     
     // 类型转换和运算
     double to_number(const FormulaResult& result) const;

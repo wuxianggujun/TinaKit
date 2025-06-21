@@ -12,6 +12,7 @@
 #include "tinakit/core/performance_optimizations.hpp"
 #include "cell.hpp"
 #include "row.hpp"
+#include "column.hpp"
 #include "range.hpp"
 #include <filesystem>
 #include <vector>
@@ -155,6 +156,34 @@ public:
      * @return 行句柄
      */
     Row row(std::size_t index) const;
+
+    /**
+     * @brief 获取列
+     * @param index 列号（1-based）
+     * @return 列句柄
+     */
+    Column column(std::size_t index);
+
+    /**
+     * @brief 获取列（只读）
+     * @param index 列号（1-based）
+     * @return 列句柄
+     */
+    Column column(std::size_t index) const;
+
+    /**
+     * @brief 获取列
+     * @param column_name 列名（如 "A", "B", "AA"）
+     * @return 列句柄
+     */
+    Column column(const std::string& column_name);
+
+    /**
+     * @brief 获取列（只读）
+     * @param column_name 列名（如 "A", "B", "AA"）
+     * @return 列句柄
+     */
+    Column column(const std::string& column_name) const;
     
     /**
      * @brief 获取行范围

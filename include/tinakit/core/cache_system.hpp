@@ -87,6 +87,7 @@ public:
     std::size_t hit_count() const { return hit_count_.load(); }
     std::size_t miss_count() const { return miss_count_.load(); }
     double hit_ratio() const;
+    void reset_stats();
 
 private:
     static constexpr std::size_t MAX_CACHE_SIZE = 10000;

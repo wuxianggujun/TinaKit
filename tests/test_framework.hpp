@@ -258,6 +258,24 @@ private:
         } \
     } while(0)
 
+#define ASSERT_GT(left, right) \
+    do { \
+        if (!((left) > (right))) { \
+            std::ostringstream oss; \
+            oss << "Assertion failed: " << (left) << " > " << (right); \
+            throw std::runtime_error(oss.str()); \
+        } \
+    } while(0)
+
+#define ASSERT_LT(left, right) \
+    do { \
+        if (!((left) < (right))) { \
+            std::ostringstream oss; \
+            oss << "Assertion failed: " << (left) << " < " << (right); \
+            throw std::runtime_error(oss.str()); \
+        } \
+    } while(0)
+
 #define ASSERT_THROWS(expression, exception_type) \
     do { \
         bool caught = false; \
