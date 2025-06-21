@@ -94,7 +94,7 @@ namespace tinakit::core
             "tabSelected", "workbookViewId", "defaultRowHeight", "defaultColWidth",
             // 关系属性
             "Id", "Type", "Target", "r:id",
-            // 命名空间属性
+            // 命名空间属性（这些是硬编码的，因为它们是OpenXML标准的一部分）
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships#id",
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
             // 样式属性

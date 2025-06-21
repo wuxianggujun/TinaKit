@@ -6,9 +6,11 @@
  */
 
 #include "tinakit/excel/shared_strings.hpp"
+#include "tinakit/excel/openxml_namespaces.hpp"
 
 #include <iostream>
 
+#include "tinakit/core/xml_parser.hpp"
 #include "tinakit/core/xml_parser.hpp"
 #include <sstream>
 #include <stdexcept>
@@ -57,37 +59,44 @@ void SharedStrings::clear() {
 }
 
 std::string SharedStrings::generate_xml() const {
-    std::ostringstream xml;
-    
-    // XML 声明
-    xml << R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>)" << '\n';
-    
-    // 根元素
-    xml << R"(<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count=")" 
-        << strings_.size() << R"(" uniqueCount=")" << strings_.size() << R"(">)" << '\n';
-    
+    std::ostringstream oss;
+    core::XmlSerializer serializer(oss, "sharedStrings.xml");
+
+    // XML声明
+    serializer.xml_declaration("1.0", "UTF-8", "yes");
+
+    // 开始sst元素（使用命名空间）
+    serializer.start_element(excel::openxml_ns::main, "sst");
+
+    // 声明命名空间
+    serializer.namespace_declaration(excel::openxml_ns::main, "");
+
+    // 添加count和uniqueCount属性
+    serializer.attribute("count", std::to_string(strings_.size()));
+    serializer.attribute("uniqueCount", std::to_string(strings_.size()));
+
     // 为每个字符串生成 <si> 元素
     for (const auto& str : strings_) {
-        xml << "  <si><t>";
-        
-        // 对特殊字符进行 XML 转义
-        for (char c : str) {
-            switch (c) {
-                case '<': xml << "&lt;"; break;
-                case '>': xml << "&gt;"; break;
-                case '&': xml << "&amp;"; break;
-                case '"': xml << "&quot;"; break;
-                case '\'': xml << "&apos;"; break;
-                default: xml << c; break;
-            }
-        }
-        
-        xml << "</t></si>\n";
+        serializer.start_element("si");
+
+        // 添加 <t> 元素包含文本内容
+        // XmlSerializer会自动处理XML转义
+        serializer.element("t", str);
+
+        serializer.end_element(); // si
     }
-    
-    xml << "</sst>\n";
-    
-    return xml.str();
+
+    serializer.end_element(); // sst
+
+    // 获取生成的XML内容
+    std::string xml_content = oss.str();
+
+    // 在调试模式下输出XML内容
+    #ifdef _DEBUG
+    std::cout << "\n=== 生成的共享字符串XML ===\n" << xml_content << "\n=== 共享字符串XML结束 ===\n" << std::endl;
+    #endif
+
+    return xml_content;
 }
 
 void SharedStrings::load_from_xml(const std::string& xml_data) {
@@ -122,8 +131,23 @@ void SharedStrings::load_from_xml(const std::string& xml_data) {
     parser2.for_each_element("si", [this](core::XmlParser::iterator& it) {
         // si 元素可能包含 <t> 子元素或其他富文本元素
         std::string text = it.text_content();
+
+        // 去除前后的空白字符（包括换行符、制表符、空格等）
         if (!text.empty()) {
-            add_string(text);
+            // 去除前面的空白字符
+            auto start = text.find_first_not_of(" \t\n\r");
+            if (start == std::string::npos) {
+                // 字符串全是空白字符
+                return;
+            }
+
+            // 去除后面的空白字符
+            auto end = text.find_last_not_of(" \t\n\r");
+            text = text.substr(start, end - start + 1);
+
+            if (!text.empty()) {
+                add_string(text);
+            }
         }
     });
 }

@@ -12,10 +12,12 @@
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
 #include "tinakit/core/xml_parser.hpp"
+#include "tinakit/excel/openxml_namespaces.hpp"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <limits>
+#include <chrono>
 
 namespace tinakit::internal {
 
@@ -397,6 +399,9 @@ void worksheet_impl::update_dimensions(const core::Coordinate& pos) {
 
 void worksheet_impl::parse_cell_data(const std::string& xml_content) {
     try {
+        // 性能监控：记录开始时间
+        auto start_time = std::chrono::high_resolution_clock::now();
+
         // 使用 XmlParser 解析工作表数据
         std::istringstream xml_stream(xml_content);
         core::XmlParser parser(xml_stream, name_ + ".xml");
@@ -405,20 +410,41 @@ void worksheet_impl::parse_cell_data(const std::string& xml_content) {
         parser.set_error_recovery(true);
 
         // 使用单次遍历解析多种元素类型以提高性能
-        const std::string main_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const std::string& main_ns = excel::openxml_ns::main;
 
         std::map<std::pair<std::string, std::string>, std::function<void(core::XmlParser::iterator&)>> handlers = {
-            // 单元格数据解析
+            // 单元格数据解析（在主命名空间中）
             {{main_ns, "c"}, [this, &parser](core::XmlParser::iterator& it) {
                 parse_single_cell(it, parser);
             }},
 
-            // 条件格式解析
+            // 单元格数据解析（无命名空间，因为子元素可能有xmlns=""）
+            {{"", "c"}, [this, &parser](core::XmlParser::iterator& it) {
+                parse_single_cell(it, parser);
+            }},
+
+            // 条件格式解析（在主命名空间中）
             {{main_ns, "conditionalFormatting"}, [this, &parser](core::XmlParser::iterator& it) {
                 parse_conditional_formatting(it, parser);
+            }},
+
+            // 条件格式解析（无命名空间）
+            {{"", "conditionalFormatting"}, [this, &parser](core::XmlParser::iterator& it) {
+                parse_conditional_formatting(it, parser);
+            }},
+
+            // 合并单元格解析（在主命名空间中）
+            {{main_ns, "mergeCells"}, [this, &parser](core::XmlParser::iterator& it) {
+                parse_merged_cells(it, parser);
+            }},
+
+            // 合并单元格解析（无命名空间）
+            {{"", "mergeCells"}, [this, &parser](core::XmlParser::iterator& it) {
+                parse_merged_cells(it, parser);
             }}
         };
 
+        // 使用优化的单次遍历解析
         parser.parse_multiple_elements_ns(handlers);
 
         // 检查是否有解析错误
@@ -426,6 +452,23 @@ void worksheet_impl::parse_cell_data(const std::string& xml_content) {
             std::cerr << "XML解析警告: " << error->message
                      << " at line " << error->line << ", column " << error->column << std::endl;
         }
+
+        // 性能监控：记录结束时间和统计信息
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+
+        // 在调试模式下输出性能信息
+        #ifdef _DEBUG
+        std::cout << "📊 XML解析性能统计 (" << name_ << "):" << std::endl;
+        std::cout << "  - 解析时间: " << duration.count() << " μs" << std::endl;
+        std::cout << "  - XML大小: " << xml_content.size() << " bytes" << std::endl;
+        std::cout << "  - 单元格数量: " << cells_.size() << std::endl;
+        std::cout << "  - 条件格式数量: " << conditional_formats_.size() << std::endl;
+        std::cout << "  - 合并单元格数量: " << merged_ranges_.size() << std::endl;
+        if (duration.count() > 0) {
+            std::cout << "  - 处理速度: " << (xml_content.size() * 1000000 / duration.count()) << " bytes/s" << std::endl;
+        }
+        #endif
 
     } catch (const std::exception& e) {
         // 解析失败时忽略错误，但记录日志用于调试
@@ -596,6 +639,87 @@ void worksheet_impl::parse_conditional_formatting(core::XmlParser::iterator& it,
     }
 }
 
+// ========================================
+// 合并单元格实现
+// ========================================
+
+void worksheet_impl::add_merged_range(const core::range_address& range) {
+    // 验证范围有效性
+    if (range.start.row > range.end.row || range.start.column > range.end.column) {
+        throw std::invalid_argument("Invalid merge range: start position must be before end position");
+    }
+
+    if (range.start.row == range.end.row && range.start.column == range.end.column) {
+        // 单个单元格不需要合并
+        return;
+    }
+
+    // 检查是否与现有合并范围冲突
+    for (const auto& existing_range : merged_ranges_) {
+        if (ranges_overlap(range, existing_range)) {
+            throw std::invalid_argument("Merge range conflicts with existing merged range");
+        }
+    }
+
+    // 添加到合并范围列表
+    merged_ranges_.push_back(range);
+    mark_dirty();
+}
+
+void worksheet_impl::remove_merged_range(const core::range_address& range) {
+    auto it = std::find(merged_ranges_.begin(), merged_ranges_.end(), range);
+    if (it != merged_ranges_.end()) {
+        merged_ranges_.erase(it);
+        mark_dirty();
+    }
+}
+
+const std::vector<core::range_address>& worksheet_impl::get_merged_ranges() const {
+    return merged_ranges_;
+}
+
+bool worksheet_impl::is_merged_range(const core::range_address& range) const {
+    return std::find(merged_ranges_.begin(), merged_ranges_.end(), range) != merged_ranges_.end();
+}
+
+bool worksheet_impl::ranges_overlap(const core::range_address& range1, const core::range_address& range2) const {
+    // 检查两个范围是否重叠
+    return !(range1.end.row < range2.start.row ||
+             range1.start.row > range2.end.row ||
+             range1.end.column < range2.start.column ||
+             range1.start.column > range2.end.column);
+}
+
+void worksheet_impl::parse_merged_cells(core::XmlParser::iterator& it, core::XmlParser& parser) {
+    std::cout << "🔍 开始解析合并单元格..." << std::endl;
+
+    // 解析mergeCells元素中的mergeCell子元素
+    auto current_it = it;
+    ++current_it;
+
+    while (current_it != parser.end() &&
+           !(current_it.is_end_element() && current_it.name() == "mergeCells")) {
+
+        if (current_it.is_start_element() && current_it.name() == "mergeCell") {
+            auto ref_attr = current_it.attribute("ref");
+            if (ref_attr && !ref_attr->empty()) {
+                std::cout << "  📋 发现合并单元格: " << *ref_attr << std::endl;
+                try {
+                    // 解析范围字符串（如 "A1:C3"）
+                    auto range = internal::utils::CoordinateUtils::string_to_range_address(*ref_attr);
+                    merged_ranges_.push_back(range);
+                    std::cout << "    ✅ 解析成功" << std::endl;
+                } catch (const std::exception& e) {
+                    std::cerr << "    ❌ 解析合并单元格范围失败: " << *ref_attr << " - " << e.what() << std::endl;
+                }
+            }
+        }
+        ++current_it;
+    }
+
+    std::cout << "🔍 合并单元格解析完成，总数: " << merged_ranges_.size() << std::endl;
+}
+
 void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
     // 生成工作表XML并保存到归档器
     auto xml_content = generate_worksheet_xml();
@@ -625,16 +749,16 @@ std::string worksheet_impl::generate_worksheet_xml() {
     // XML声明
     serializer.xml_declaration("1.0", "UTF-8", "yes");
 
-    // 开始worksheet元素
-    serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "worksheet");
+    // 开始worksheet元素（使用命名空间）
+    serializer.start_element(excel::openxml_ns::main, "worksheet");
 
-    // 声明命名空间
-    serializer.namespace_declaration("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "");
-    serializer.namespace_declaration("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "r");
+    // 声明命名空间（必须在start_element之后）
+    serializer.namespace_declaration(excel::openxml_ns::main, "");
+    serializer.namespace_declaration(excel::openxml_ns::rel, excel::openxml_ns::r_prefix);
 
     // 添加工作表数据 - 只要有单元格数据就生成
     if (!cells_.empty()) {
-        serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "sheetData");
+        serializer.start_element("sheetData");
 
         // 按行组织单元格数据
         std::map<std::size_t, std::vector<std::pair<std::size_t, cell_data>>> rows_data;
@@ -644,7 +768,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
         // 生成行数据
         for (auto& [row_num, row_cells] : rows_data) {
-            serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "row");
+            serializer.start_element("row");
             serializer.attribute("r", std::to_string(row_num));
 
             // 排序列（按列号排序）
@@ -662,7 +786,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
                 }
                 std::string cell_ref = col_name + std::to_string(row_num);
 
-                serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "c");
+                serializer.start_element("c");
                 serializer.attribute("r", cell_ref);
 
                 if (cell_data.style_id != 0) {
@@ -681,20 +805,20 @@ std::string worksheet_impl::generate_worksheet_xml() {
                             if (this->should_use_inline_string(value)) {
                                 // 使用内联字符串格式
                                 serializer.attribute("t", "inlineStr");
-                                serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "is");
-                                serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "t", value);
+                                serializer.start_element("is");
+                                serializer.element("t", value);
                                 serializer.end_element(); // is
                             } else {
                                 // 使用共享字符串格式
                                 if (shared_strings) {
                                     std::uint32_t index = shared_strings->add_string(value);
                                     serializer.attribute("t", "s");
-                                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", std::to_string(index));
+                                    serializer.element("v", std::to_string(index));
                                 } else {
                                     // 回退到内联字符串
                                     serializer.attribute("t", "inlineStr");
-                                    serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "is");
-                                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "t", value);
+                                    serializer.start_element("is");
+                                    serializer.element("t", value);
                                     serializer.end_element(); // is
                                 }
                             }
@@ -703,21 +827,21 @@ std::string worksheet_impl::generate_worksheet_xml() {
                     } else if constexpr (std::is_same_v<T, double>) {
                         // 数字类型：使用数值格式
                         serializer.attribute("t", "n");
-                        serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", std::to_string(value));
+                        serializer.element("v", std::to_string(value));
                     } else if constexpr (std::is_same_v<T, int>) {
                         // 整数类型：使用数值格式
                         serializer.attribute("t", "n");
-                        serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", std::to_string(value));
+                        serializer.element("v", std::to_string(value));
                     } else if constexpr (std::is_same_v<T, bool>) {
                         // 布尔类型：使用布尔格式
                         serializer.attribute("t", "b");
-                        serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", value ? "1" : "0");
+                        serializer.element("v", value ? "1" : "0");
                     }
                 }, cell_data.value);
 
                 // 添加公式（如果有）
                 if (cell_data.formula) {
-                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "f", *cell_data.formula);
+                    serializer.element("f", *cell_data.formula);
                 }
 
                 serializer.end_element(); // c
@@ -732,11 +856,11 @@ std::string worksheet_impl::generate_worksheet_xml() {
     // 添加条件格式
     if (!conditional_formats_.empty()) {
         for (const auto& format : conditional_formats_) {
-            serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "conditionalFormatting");
+            serializer.start_element("conditionalFormatting");
             serializer.attribute("sqref", format.range);
 
             for (const auto& rule : format.rules) {
-                serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "cfRule");
+                serializer.start_element("cfRule");
                 serializer.attribute("type", conditional_format_type_to_string(rule.type));
                 serializer.attribute("operator", conditional_format_operator_to_string(rule.operator_type));
                 if (rule.dxf_id.has_value()) {
@@ -746,13 +870,34 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
                 // 添加公式
                 for (const auto& formula : rule.formulas) {
-                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "formula", formula);
+                    serializer.element("formula", formula);
                 }
 
                 serializer.end_element(); // cfRule
             }
             serializer.end_element(); // conditionalFormatting
         }
+    }
+
+    // 添加合并单元格
+    if (!merged_ranges_.empty()) {
+        std::cout << "📋 生成合并单元格XML，数量: " << merged_ranges_.size() << std::endl;
+
+        serializer.start_element("mergeCells");
+        serializer.attribute("count", std::to_string(merged_ranges_.size()));
+
+        for (const auto& range : merged_ranges_) {
+            serializer.start_element("mergeCell");
+
+            // 生成范围字符串（如 "A1:C3"）
+            std::string range_str = internal::utils::CoordinateUtils::range_address_to_string(range);
+            std::cout << "  - 合并范围: " << range_str << std::endl;
+            serializer.attribute("ref", range_str);
+
+            serializer.end_element(); // mergeCell
+        }
+
+        serializer.end_element(); // mergeCells
     }
 
     serializer.end_element(); // worksheet

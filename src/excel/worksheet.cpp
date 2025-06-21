@@ -338,9 +338,7 @@ void Worksheet::merge_cells(std::size_t start_row, std::size_t start_col,
     };
 
     // 添加到合并范围列表
-    // TODO: 实现worksheet_impl的add_merged_range方法
-    // worksheet_impl.add_merged_range(merge_range);
-    (void)merge_range; // 暂时避免未使用变量警告
+    worksheet_impl.add_merged_range(merge_range);
 }
 
 void Worksheet::unmerge_cells(const std::string& range_str) {
@@ -368,9 +366,7 @@ void Worksheet::unmerge_cells(std::size_t start_row, std::size_t start_col,
     };
 
     // 从合并范围列表中移除
-    // TODO: 实现worksheet_impl的remove_merged_range方法
-    // worksheet_impl.remove_merged_range(unmerge_range);
-    (void)unmerge_range; // 暂时避免未使用变量警告
+    worksheet_impl.remove_merged_range(unmerge_range);
 }
 
 const std::vector<Range>& Worksheet::get_merged_ranges() const {

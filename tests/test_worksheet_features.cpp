@@ -108,16 +108,47 @@ TEST_CASE(WorksheetFeatures, BasicRangeFunction) {
 TEST_CASE(WorksheetFeatures, MergeCellsByRange) {
     auto workbook = Workbook::create();
     auto sheet = workbook.active_sheet();
-    
+
     // 填充数据
     sheet.cell("A1").value("Merged Cell");
     sheet.cell("A2").value("Data");
-    
+
     // 测试按范围字符串合并
     ASSERT_NO_THROW(sheet.merge_cells("A1:B2"));
-    
+
     // 测试按坐标合并
     ASSERT_NO_THROW(sheet.merge_cells(4, 1, 5, 3));
+}
+
+TEST_CASE(WorksheetFeatures, MergeCellsWithSaveAndLoad) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    // 填充数据并设置样式
+    sheet.cell("A1").value("水平合并").bold().background_color(Color::Yellow);
+    sheet.cell("C1").value("垂直合并").italic().background_color(Color::LightGreen);
+    sheet.cell("E1").value("大范围合并").background_color(Color::LightBlue);
+
+    // 测试不同类型的合并
+    sheet.merge_cells("A1:D1");  // 水平合并
+    sheet.merge_cells("C2:C4");  // 垂直合并
+    sheet.merge_cells("E1:G3");  // 大范围合并
+
+    // 保存并重新加载
+    std::string filename = "test_merge_cells.xlsx";
+    ASSERT_NO_THROW(workbook.save(filename));
+
+    // 重新加载并验证
+    auto loaded_workbook = Workbook::load(filename);
+    auto loaded_sheet = loaded_workbook.active_sheet();
+
+    // 验证单元格值仍然存在
+    ASSERT_EQ(loaded_sheet.cell("A1").as<std::string>(), "水平合并");
+    ASSERT_EQ(loaded_sheet.cell("C1").as<std::string>(), "垂直合并");
+    ASSERT_EQ(loaded_sheet.cell("E1").as<std::string>(), "大范围合并");
+
+    // 清理测试文件
+    std::remove(filename.c_str());
 }
 
 TEST_CASE(WorksheetFeatures, MergeCellsValidation) {

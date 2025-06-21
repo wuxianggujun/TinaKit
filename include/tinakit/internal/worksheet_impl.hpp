@@ -245,6 +245,35 @@ public:
      */
     const std::vector<excel::ConditionalFormat>& get_conditional_formats() const;
 
+    // ========================================
+    // 合并单元格
+    // ========================================
+
+    /**
+     * @brief 添加合并单元格范围
+     * @param range 要合并的范围
+     */
+    void add_merged_range(const core::range_address& range);
+
+    /**
+     * @brief 移除合并单元格范围
+     * @param range 要移除的范围
+     */
+    void remove_merged_range(const core::range_address& range);
+
+    /**
+     * @brief 获取所有合并单元格范围
+     * @return 合并单元格范围列表
+     */
+    const std::vector<core::range_address>& get_merged_ranges() const;
+
+    /**
+     * @brief 检查指定范围是否已合并
+     * @param range 要检查的范围
+     * @return true 如果范围已合并
+     */
+    bool is_merged_range(const core::range_address& range) const;
+
     /**
      * @brief 应用条件格式到单元格
      * @param pos 单元格位置
@@ -293,6 +322,10 @@ private:
     // 优化的解析方法
     void parse_single_cell(core::XmlParser::iterator& it, core::XmlParser& parser);
     void parse_conditional_formatting(core::XmlParser::iterator& it, core::XmlParser& parser);
+    void parse_merged_cells(core::XmlParser::iterator& it, core::XmlParser& parser);
+
+    // 辅助方法
+    bool ranges_overlap(const core::range_address& range1, const core::range_address& range2) const;
 
     // 条件格式辅助方法
     bool is_cell_in_range(const core::Coordinate& pos, const std::string& range_str) const;

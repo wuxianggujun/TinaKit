@@ -14,6 +14,8 @@
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
 #include "tinakit/core/xml_parser.hpp"
+
+#include "tinakit/excel/openxml_namespaces.hpp"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -427,7 +429,7 @@ void workbook_impl::parse_workbook_xml() {
                 // 尝试不同的r:id属性格式
                 auto r_id = it.attribute("r:id");
                 if (!r_id) {
-                    r_id = it.attribute("http://schemas.openxmlformats.org/officeDocument/2006/relationships#id");
+                    r_id = it.attribute(excel::OpenXmlNamespaces::relationship_attr("id"));
                 }
 
                 if (name && !name->empty()) {
@@ -544,20 +546,40 @@ void workbook_impl::load_shared_strings_xml() {
 }
 
 void workbook_impl::generate_workbook_xml() {
-    // 生成基本的 workbook.xml 内容
-    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets>)";
+    std::ostringstream oss;
+    core::XmlSerializer serializer(oss, "workbook.xml");
+
+    // XML声明
+    serializer.xml_declaration("1.0", "UTF-8", "yes");
+
+    // 开始workbook元素（使用命名空间）
+    serializer.start_element(excel::openxml_ns::main, "workbook");
+
+    // 声明命名空间（必须在start_element之后）
+    serializer.namespace_declaration(excel::openxml_ns::main, "");
+    serializer.namespace_declaration(excel::openxml_ns::rel, excel::openxml_ns::r_prefix);
+
+    // 开始sheets元素（继承父元素的命名空间）
+    serializer.start_element("sheets");
 
     // 添加工作表信息
     std::uint32_t sheet_id = 1;
     for (const auto& sheet_name : worksheet_order_) {
-        xml_content += "<sheet name=\"" + sheet_name + "\" sheetId=\"" + std::to_string(sheet_id) + "\" r:id=\"rId" + std::to_string(sheet_id) + "\"/>";
+        serializer.start_element("sheet");
+        serializer.attribute("name", sheet_name);
+        serializer.attribute("sheetId", std::to_string(sheet_id));
+        serializer.attribute(excel::openxml_ns::rel, "id", "rId" + std::to_string(sheet_id));
+        serializer.end_element(); // sheet
         ++sheet_id;
     }
 
-    xml_content += R"(</sheets>
-</workbook>)";
+    serializer.end_element(); // sheets
+    serializer.end_element(); // workbook
+
+    // 获取生成的XML内容
+    std::string xml_content = oss.str();
+
+
 
     // 保存到归档器
     std::vector<std::byte> xml_bytes;
@@ -568,25 +590,48 @@ void workbook_impl::generate_workbook_xml() {
 }
 
 void workbook_impl::generate_workbook_rels() {
-    // 生成基本的 workbook.xml.rels 内容
-    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">)";
+    std::ostringstream oss;
+    core::XmlSerializer serializer(oss, "workbook.xml.rels");
+
+    // XML声明
+    serializer.xml_declaration("1.0", "UTF-8", "yes");
+
+    // 开始Relationships元素（使用命名空间）
+    serializer.start_element(excel::openxml_ns::pkg_rel, "Relationships");
+
+    // 声明命名空间
+    serializer.namespace_declaration(excel::openxml_ns::pkg_rel, "");
 
     // 添加工作表关系
     std::uint32_t rel_id = 1;
     for (const auto& sheet_name : worksheet_order_) {
-        xml_content += "<Relationship Id=\"rId" + std::to_string(rel_id) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet" + std::to_string(rel_id) + ".xml\"/>";
+        serializer.start_element("Relationship");
+        serializer.attribute("Id", "rId" + std::to_string(rel_id));
+        serializer.attribute("Type", excel::openxml_ns::rel + "/worksheet");
+        serializer.attribute("Target", "worksheets/sheet" + std::to_string(rel_id) + ".xml");
+        serializer.end_element(); // Relationship
         ++rel_id;
     }
 
     // 添加样式关系（关键！）
-    xml_content += "<Relationship Id=\"rId" + std::to_string(rel_id) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>";
+    serializer.start_element("Relationship");
+    serializer.attribute("Id", "rId" + std::to_string(rel_id));
+    serializer.attribute("Type", excel::openxml_ns::rel + "/styles");
+    serializer.attribute("Target", "styles.xml");
+    serializer.end_element(); // Relationship
     ++rel_id;
 
     // 添加共享字符串关系
-    xml_content += "<Relationship Id=\"rId" + std::to_string(rel_id) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"sharedStrings.xml\"/>";
+    serializer.start_element("Relationship");
+    serializer.attribute("Id", "rId" + std::to_string(rel_id));
+    serializer.attribute("Type", excel::openxml_ns::rel + "/sharedStrings");
+    serializer.attribute("Target", "sharedStrings.xml");
+    serializer.end_element(); // Relationship
 
-    xml_content += "</Relationships>";
+    serializer.end_element(); // Relationships
+
+    // 获取生成的XML内容
+    std::string xml_content = oss.str();
 
     // 保存到归档器
     std::vector<std::byte> xml_bytes;
@@ -597,22 +642,62 @@ void workbook_impl::generate_workbook_rels() {
 }
 
 void workbook_impl::generate_content_types() {
-    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-<Default Extension="xml" ContentType="application/xml"/>
-<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>)";
+    std::ostringstream oss;
+    core::XmlSerializer serializer(oss, "[Content_Types].xml");
+
+    // XML声明
+    serializer.xml_declaration("1.0", "UTF-8", "yes");
+
+    // 开始Types元素（使用命名空间）
+    serializer.start_element(excel::openxml_ns::ct, "Types");
+
+    // 声明命名空间
+    serializer.namespace_declaration(excel::openxml_ns::ct, "");
+
+    // 添加默认扩展名
+    serializer.start_element("Default");
+    serializer.attribute("Extension", "rels");
+    serializer.attribute("ContentType", "application/vnd.openxmlformats-package.relationships+xml");
+    serializer.end_element(); // Default
+
+    serializer.start_element("Default");
+    serializer.attribute("Extension", "xml");
+    serializer.attribute("ContentType", "application/xml");
+    serializer.end_element(); // Default
+
+    // 添加Override元素
+    serializer.start_element("Override");
+    serializer.attribute("PartName", "/xl/workbook.xml");
+    serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml");
+    serializer.end_element(); // Override
+
+    serializer.start_element("Override");
+    serializer.attribute("PartName", "/xl/styles.xml");
+    serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml");
+    serializer.end_element(); // Override
+
+    serializer.start_element("Override");
+    serializer.attribute("PartName", "/xl/sharedStrings.xml");
+    serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml");
+    serializer.end_element(); // Override
 
     // 添加工作表内容类型
     std::uint32_t sheet_id = 1;
     for (const auto& sheet_name : worksheet_order_) {
-        xml_content += "<Override PartName=\"/xl/worksheets/sheet" + std::to_string(sheet_id) + ".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>";
+        serializer.start_element("Override");
+        serializer.attribute("PartName", "/xl/worksheets/sheet" + std::to_string(sheet_id) + ".xml");
+        serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
+        serializer.end_element(); // Override
         ++sheet_id;
     }
 
-    xml_content += "</Types>";
+    serializer.end_element(); // Types
+
+    // 获取生成的XML内容
+    std::string xml_content = oss.str();
+
+    // 调试输出：打印生成的XML内容
+    std::cout << "\n=== 生成的 [Content_Types].xml ===\n" << xml_content << "\n=== [Content_Types].xml 结束 ===\n" << std::endl;
 
     // 保存到归档器
     std::vector<std::byte> xml_bytes;
@@ -623,10 +708,29 @@ void workbook_impl::generate_content_types() {
 }
 
 void workbook_impl::generate_main_rels() {
-    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-</Relationships>)";
+    std::ostringstream oss;
+    core::XmlSerializer serializer(oss, ".rels");
+
+    // XML声明
+    serializer.xml_declaration("1.0", "UTF-8", "yes");
+
+    // 开始Relationships元素（使用命名空间）
+    serializer.start_element(excel::openxml_ns::pkg_rel, "Relationships");
+
+    // 声明命名空间
+    serializer.namespace_declaration(excel::openxml_ns::pkg_rel, "");
+
+    // 添加主文档关系
+    serializer.start_element("Relationship");
+    serializer.attribute("Id", "rId1");
+    serializer.attribute("Type", excel::openxml_ns::rel + "/officeDocument");
+    serializer.attribute("Target", "xl/workbook.xml");
+    serializer.end_element(); // Relationship
+
+    serializer.end_element(); // Relationships
+
+    // 获取生成的XML内容
+    std::string xml_content = oss.str();
 
     // 保存到归档器
     std::vector<std::byte> xml_bytes;
@@ -669,10 +773,18 @@ void workbook_impl::generate_shared_strings_xml() {
         xml_content = shared_strings_->generate_xml();
     } else {
         std::cout << "生成空的共享字符串XML" << std::endl;
-        // 如果没有共享字符串，生成空的共享字符串表
-        xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="0" uniqueCount="0">
-</sst>)";
+        // 如果没有共享字符串，使用序列化器生成空的共享字符串表
+        std::ostringstream oss;
+        core::XmlSerializer serializer(oss, "sharedStrings.xml");
+
+        serializer.xml_declaration("1.0", "UTF-8", "yes");
+        serializer.start_element(excel::openxml_ns::main, "sst");
+        serializer.namespace_declaration(excel::openxml_ns::main, "");
+        serializer.attribute("count", "0");
+        serializer.attribute("uniqueCount", "0");
+        serializer.end_element(); // sst
+
+        xml_content = oss.str();
     }
 
     // 保存到归档器
