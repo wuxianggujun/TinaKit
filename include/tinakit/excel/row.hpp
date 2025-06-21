@@ -11,17 +11,28 @@
 #include <memory>
 #include <iterator>
 
-namespace tinakit::excel {
+namespace tinakit {
+namespace internal {
+    class workbook_impl;
+}
+}
 
-    class RowImpl;
-    class Cell;
+namespace tinakit::excel {
 
 /**
  * @class Row
- * @brief Excel 行类
- * 
- * 代表 Excel 工作表中的一行，支持现代 C++ 迭代器和范围操作。
- * 提供对行中单元格的访问和管理功能。
+ * @brief Excel 行轻量级句柄类
+ *
+ * 这是一个轻量级的句柄类，本身不持有任何重型数据。
+ * 所有实际的数据和操作都委托给 internal::workbook_impl。
+ *
+ * 核心设计原则：
+ * 1. 轻量级：只包含 workbook_impl 指针、工作表ID和行索引
+ * 2. 可复制：复制成本极低，安全共享同一行
+ * 3. 委托模式：所有操作都委托给 workbook_impl
+ * 4. 惰性求值：数据按需加载和保存
+ *
+ * @note 使用句柄-实现分离模式，提供稳定的 ABI 和优秀的性能
  */
 class Row {
 public:
@@ -33,64 +44,54 @@ public:
 
 public:
     /**
-     * @brief 构造函数（内部使用）
+     * @brief 轻量级句柄构造函数
+     * @param workbook_impl workbook实现指针
+     * @param sheet_id 工作表ID
+     * @param row_index 行索引（1-based）
      */
-    explicit Row(std::unique_ptr<RowImpl> impl);
-    
+    Row(internal::workbook_impl* workbook_impl,
+        std::uint32_t sheet_id,
+        std::size_t row_index) noexcept;
+
     /**
-     * @brief 静态工厂方法（内部使用）
-     * @param index 行索引
-     * @return 新的 Row 对象
+     * @brief 默认构造函数（创建无效句柄）
      */
-    static std::unique_ptr<Row> create(std::size_t index);
-    
+    Row() = default;
+
     /**
-     * @brief 析构函数
+     * @brief 拷贝构造函数（轻量级）
      */
-    ~Row();
-    
+    Row(const Row& other) = default;
+
+    /**
+     * @brief 拷贝赋值运算符（轻量级）
+     */
+    Row& operator=(const Row& other) = default;
+
     /**
      * @brief 移动构造函数
      */
-    Row(Row&& other) noexcept;
-    
+    Row(Row&& other) noexcept = default;
+
     /**
      * @brief 移动赋值运算符
      */
-    Row& operator=(Row&& other) noexcept;
-    
-    // 禁止拷贝
-    Row(const Row&) = delete;
-    Row& operator=(const Row&) = delete;
+    Row& operator=(Row&& other) noexcept = default;
 
 public:
     /**
      * @brief 按列名获取单元格
      * @param column_name 列名（如 "A", "B", "AA"）
-     * @return 单元格引用
+     * @return 单元格句柄
      */
-    Cell& operator[](const std::string& column_name);
-    
-    /**
-     * @brief 按列名获取单元格（只读）
-     * @param column_name 列名（如 "A", "B", "AA"）
-     * @return 单元格常量引用
-     */
-    const Cell& operator[](const std::string& column_name) const;
-    
+    Cell operator[](const std::string& column_name) const;
+
     /**
      * @brief 按列索引获取单元格
      * @param column_index 列索引（1-based）
-     * @return 单元格引用
+     * @return 单元格句柄
      */
-    Cell& operator[](std::size_t column_index);
-    
-    /**
-     * @brief 按列索引获取单元格（只读）
-     * @param column_index 列索引（1-based）
-     * @return 单元格常量引用
-     */
-    const Cell& operator[](std::size_t column_index) const;
+    Cell operator[](std::size_t column_index) const;
 
 public:
     /**
@@ -98,13 +99,13 @@ public:
      * @return 行索引（1-based）
      */
     std::size_t index() const noexcept;
-    
+
     /**
      * @brief 获取行高
      * @return 行高（磅）
      */
     double height() const noexcept;
-    
+
     /**
      * @brief 设置行高
      * @param height 行高（磅）
@@ -117,27 +118,31 @@ public:
      * @return 自身引用，支持链式调用
      */
     Row& height(double height);
-    
+
     /**
      * @brief 检查是否为空行
      * @return 如果行为空返回 true
      */
     bool empty() const;
-    
+
     /**
-     * @brief 获取行中单元格数量
+     * @brief 获取行中单元格数量（最大列索引）
      * @return 单元格数量
      */
     std::size_t size() const;
+
+    /**
+     * @brief 检查句柄是否有效
+     * @return 如果句柄有效返回 true
+     */
+    bool valid() const noexcept;
 
 public:
     /**
      * @brief 迭代器支持
      */
-    iterator begin();
-    iterator end();
-    const_iterator begin() const;
-    const_iterator end() const;
+    iterator begin() const;
+    iterator end() const;
     const_iterator cbegin() const;
     const_iterator cend() const;
 
@@ -154,7 +159,10 @@ public:
     }
 
 private:
-    std::unique_ptr<RowImpl> impl_;
+    internal::workbook_impl* workbook_impl_ = nullptr;
+    std::uint32_t sheet_id_ = 0;
+    std::size_t row_index_ = 0;
+
     friend class Worksheet;
 };
 
@@ -167,12 +175,12 @@ public:
     using iterator_category = std::forward_iterator_tag;
     using value_type = Cell;
     using difference_type = std::ptrdiff_t;
-    using pointer = Cell*;
-    using reference = Cell&;
+    using pointer = Cell;  // 返回值类型，不是指针
+    using reference = Cell; // 返回值类型，不是引用
 
 public:
     iterator() = default;
-    explicit iterator(Row* row, std::size_t column);
+    explicit iterator(const Row& row, std::size_t column);
 
     reference operator*() const;
     pointer operator->() const;
@@ -183,8 +191,9 @@ public:
     bool operator!=(const iterator& other) const;
 
 private:
-    Row* row_ = nullptr;
+    Row row_;
     std::size_t column_ = 0;
+    std::size_t max_column_ = 0;
 };
 
 /**
@@ -194,14 +203,14 @@ private:
 class Row::const_iterator {
 public:
     using iterator_category = std::forward_iterator_tag;
-    using value_type = const Cell;
+    using value_type = Cell;
     using difference_type = std::ptrdiff_t;
-    using pointer = const Cell*;
-    using reference = const Cell&;
+    using pointer = Cell;  // 返回值类型，不是指针
+    using reference = Cell; // 返回值类型，不是引用
 
 public:
     const_iterator() = default;
-    explicit const_iterator(const Row* row, std::size_t column);
+    explicit const_iterator(const Row& row, std::size_t column);
 
     reference operator*() const;
     pointer operator->() const;
@@ -212,8 +221,9 @@ public:
     bool operator!=(const const_iterator& other) const;
 
 private:
-    const Row* row_ = nullptr;
+    Row row_;
     std::size_t column_ = 0;
+    std::size_t max_column_ = 0;
 };
 
 } // namespace tinakit::excel

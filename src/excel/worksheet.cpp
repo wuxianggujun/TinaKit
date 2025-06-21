@@ -125,16 +125,12 @@ const Cell& Worksheet::cell(std::size_t row, std::size_t column) const {
 // 行访问（委托给 workbook_impl）
 // ========================================
 
-Row& Worksheet::row(std::size_t index) {
-    // TODO: 实现 Row 句柄创建
-    (void)index;
-    throw std::runtime_error("Not implemented yet");
+Row Worksheet::row(std::size_t index) {
+    return Row(workbook_impl_.get(), sheet_id_, index);
 }
 
-const Row& Worksheet::row(std::size_t index) const {
-    // TODO: 实现 Row 句柄创建
-    (void)index;
-    throw std::runtime_error("Not implemented yet");
+Row Worksheet::row(std::size_t index) const {
+    return Row(workbook_impl_.get(), sheet_id_, index);
 }
 
 // ========================================
@@ -194,7 +190,7 @@ async::Task<void> Worksheet::process_rows_async(std::function<async::Task<void>(
 
     // 逐行处理
     for (std::size_t row_num = range.start_position().row; row_num <= range.end_position().row; ++row_num) {
-        auto& row = this->row(row_num);
+        auto row = this->row(row_num);
         co_await processor(row);
     }
 }

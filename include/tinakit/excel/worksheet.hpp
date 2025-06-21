@@ -145,16 +145,16 @@ public:
     /**
      * @brief 获取行
      * @param index 行号（1-based）
-     * @return 行引用
+     * @return 行句柄
      */
-    Row& row(std::size_t index);
-    
+    Row row(std::size_t index);
+
     /**
      * @brief 获取行（只读）
      * @param index 行号（1-based）
-     * @return 行常量引用
+     * @return 行句柄
      */
-    const Row& row(std::size_t index) const;
+    Row row(std::size_t index) const;
     
     /**
      * @brief 获取行范围

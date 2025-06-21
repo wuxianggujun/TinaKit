@@ -1,199 +1,210 @@
 /**
  * @file row.cpp
- * @brief Excel 行类实现
+ * @brief Excel 行句柄类实现
  * @author TinaKit Team
  * @date 2025-6-16
  */
 
 #include "tinakit/excel/row.hpp"
-
-#include <map>
-
 #include "tinakit/excel/cell.hpp"
-#include "tinakit/core/types.hpp"
+#include "tinakit/excel/types.hpp"
+#include "tinakit/internal/workbook_impl.hpp"
+#include "tinakit/internal/worksheet_impl.hpp"
 #include "tinakit/core/exceptions.hpp"
+#include <algorithm>
 
 namespace tinakit::excel {
 
-/**
- * @class RowImpl
- * @brief Row 类的实现细节（PIMPL 模式）
- */
-class RowImpl {
-public:
-    explicit RowImpl(std::size_t index);
-    ~RowImpl() = default;
+// ========================================
+// Row 构造函数和基本方法
+// ========================================
 
-    // 基本属性
-    std::size_t index() const noexcept { return index_; }
-    double height() const noexcept { return height_; }
-    void set_height(double height) { height_ = height; }
-    
-    // 单元格访问
-    Cell& get_cell(const std::string& column_name);
-    const Cell& get_cell(const std::string& column_name) const;
-    Cell& get_cell(std::size_t column_index);
-    const Cell& get_cell(std::size_t column_index) const;
-    
-    // 状态查询
-    bool is_empty() const;
-    std::size_t size() const;
-
-private:
-    std::size_t index_;
-    double height_ = 15.0; // 默认行高
-    mutable std::map<std::size_t, std::unique_ptr<Cell>> cells_;
-    std::size_t max_column_ = 0;
-};
-
-// =============================================================================
-// RowImpl 实现
-// =============================================================================
-
-RowImpl::RowImpl(std::size_t index) : index_(index) {
+Row::Row(internal::workbook_impl* workbook_impl,
+         std::uint32_t sheet_id,
+         std::size_t row_index) noexcept
+    : workbook_impl_(workbook_impl)
+    , sheet_id_(sheet_id)
+    , row_index_(row_index) {
 }
 
-Cell& RowImpl::get_cell(const std::string& column_name) {
-    auto column_index = column_name_to_number(column_name);
-    return get_cell(column_index);
-}
-
-const Cell& RowImpl::get_cell(const std::string& column_name) const {
-    auto column_index = column_name_to_number(column_name);
-    return get_cell(column_index);
-}
-
-Cell& RowImpl::get_cell(std::size_t column_index) {
-    // TODO: 重构为句柄模式后重新实现
-    (void)column_index;
-    throw std::runtime_error("Row::get_cell not implemented yet after Cell refactoring");
-}
-
-const Cell& RowImpl::get_cell(std::size_t column_index) const {
-    auto it = cells_.find(column_index);
-    if (it == cells_.end()) {
-        throw std::out_of_range("Cell not found at column " + std::to_string(column_index));
-    }
-    return *it->second;
-}
-
-bool RowImpl::is_empty() const {
-    return cells_.empty() || std::all_of(cells_.begin(), cells_.end(),
-        [](const auto& pair) { return pair.second->empty(); });
-}
-
-std::size_t RowImpl::size() const {
-    return max_column_;
-}
-
-// =============================================================================
-// Row 公共接口实现
-// =============================================================================
-
-Row::Row(std::unique_ptr<RowImpl> impl) 
-    : impl_(std::move(impl)) {
-}
-
-Row::~Row() = default;
-
-std::unique_ptr<Row> Row::create(std::size_t index) {
-    auto impl = std::make_unique<RowImpl>(index);
-    return std::unique_ptr<Row>(new Row(std::move(impl)));
-}
-
-Row::Row(Row&& other) noexcept
-    : impl_(std::move(other.impl_)) {
-}
-
-Row& Row::operator=(Row&& other) noexcept {
-    if (this != &other) {
-        impl_ = std::move(other.impl_);
-    }
-    return *this;
-}
-
+// ========================================
 // 单元格访问
-Cell& Row::operator[](const std::string& column_name) {
-    return impl_->get_cell(column_name);
+// ========================================
+
+Cell Row::operator[](const std::string& column_name) const {
+    auto column_index = column_name_to_number(column_name);
+    return (*this)[column_index];
 }
 
-const Cell& Row::operator[](const std::string& column_name) const {
-    return impl_->get_cell(column_name);
+Cell Row::operator[](std::size_t column_index) const {
+    if (!valid()) {
+        throw std::runtime_error("Invalid Row handle");
+    }
+    return Cell(workbook_impl_, sheet_id_, row_index_, column_index);
 }
 
-Cell& Row::operator[](std::size_t column_index) {
-    return impl_->get_cell(column_index);
-}
-
-const Cell& Row::operator[](std::size_t column_index) const {
-    return impl_->get_cell(column_index);
-}
-
+// ========================================
 // 属性访问
+// ========================================
+
 std::size_t Row::index() const noexcept {
-    return impl_->index();
+    return row_index_;
 }
 
 double Row::height() const noexcept {
-    return impl_->height();
+    if (!valid()) {
+        return 15.0; // 默认行高
+    }
+
+    try {
+        auto sheet_name = workbook_impl_->get_sheet_name(sheet_id_);
+        auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name);
+        return worksheet_impl.get_row_height(row_index_);
+    } catch (...) {
+        return 15.0; // 出错时返回默认值
+    }
 }
 
 void Row::set_height(double height) {
-    impl_->set_height(height);
+    if (!valid()) {
+        throw std::runtime_error("Invalid Row handle");
+    }
+
+    auto sheet_name = workbook_impl_->get_sheet_name(sheet_id_);
+    auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name);
+    worksheet_impl.set_row_height(row_index_, height);
 }
 
 Row& Row::height(double height) {
-    impl_->set_height(height);
+    set_height(height);
     return *this;
 }
 
 bool Row::empty() const {
-    return impl_->is_empty();
+    if (!valid()) {
+        return true;
+    }
+
+    try {
+        // 检查这一行是否有任何非空单元格
+        auto sheet_name = workbook_impl_->get_sheet_name(sheet_id_);
+        auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name);
+
+        // 获取工作表的最大列数
+        auto max_col = worksheet_impl.max_column();
+        if (max_col == 0) {
+            return true;
+        }
+
+        // 检查这一行的所有单元格
+        for (std::size_t col = 1; col <= max_col; ++col) {
+            core::Coordinate pos(row_index_, col);
+            if (worksheet_impl.has_cell_data(pos)) {
+                auto cell_data = worksheet_impl.get_cell_data(pos);
+                // 检查单元格是否有值
+                if (std::holds_alternative<std::string>(cell_data.value)) {
+                    if (!std::get<std::string>(cell_data.value).empty()) {
+                        return false;
+                    }
+                } else {
+                    return false; // 非字符串值认为非空
+                }
+            }
+        }
+
+        return true;
+    } catch (...) {
+        return true; // 出错时认为是空行
+    }
 }
 
 std::size_t Row::size() const {
-    return impl_->size();
+    if (!valid()) {
+        return 0;
+    }
+
+    try {
+        auto sheet_name = workbook_impl_->get_sheet_name(sheet_id_);
+        auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name);
+
+        // 找到这一行最后一个非空单元格的列索引
+        std::size_t max_col = 0;
+        auto worksheet_max_col = worksheet_impl.max_column();
+
+        for (std::size_t col = 1; col <= worksheet_max_col; ++col) {
+            core::Coordinate pos(row_index_, col);
+            if (worksheet_impl.has_cell_data(pos)) {
+                auto cell_data = worksheet_impl.get_cell_data(pos);
+                // 检查单元格是否有值
+                bool has_value = false;
+                if (std::holds_alternative<std::string>(cell_data.value)) {
+                    has_value = !std::get<std::string>(cell_data.value).empty();
+                } else {
+                    has_value = true; // 非字符串值认为有值
+                }
+
+                if (has_value) {
+                    max_col = col;
+                }
+            }
+        }
+
+        return max_col;
+    } catch (...) {
+        return 0; // 出错时返回0
+    }
 }
 
-// 迭代器实现（基本版本）
-Row::iterator Row::begin() {
-    return iterator(this, 1);
+bool Row::valid() const noexcept {
+    return workbook_impl_ != nullptr && sheet_id_ != 0 && row_index_ != 0;
 }
 
-Row::iterator Row::end() {
-    return iterator(this, size() + 1);
+// ========================================
+// 迭代器支持
+// ========================================
+
+Row::iterator Row::begin() const {
+    if (!valid()) {
+        return iterator();
+    }
+    return iterator(*this, 1);
 }
 
-Row::const_iterator Row::begin() const {
-    return const_iterator(this, 1);
-}
-
-Row::const_iterator Row::end() const {
-    return const_iterator(this, size() + 1);
+Row::iterator Row::end() const {
+    if (!valid()) {
+        return iterator();
+    }
+    return iterator(*this, size() + 1);
 }
 
 Row::const_iterator Row::cbegin() const {
-    return begin();
+    if (!valid()) {
+        return const_iterator();
+    }
+    return const_iterator(*this, 1);
 }
 
 Row::const_iterator Row::cend() const {
-    return end();
+    if (!valid()) {
+        return const_iterator();
+    }
+    return const_iterator(*this, size() + 1);
 }
 
-// =============================================================================
+// ========================================
 // Row::iterator 实现
-// =============================================================================
+// ========================================
 
-Row::iterator::iterator(Row* row, std::size_t column) 
-    : row_(row), column_(column) {
+Row::iterator::iterator(const Row& row, std::size_t column)
+    : row_(row), column_(column), max_column_(row.size()) {
 }
 
 Row::iterator::reference Row::iterator::operator*() const {
-    return (*row_)[column_];
+    return row_[column_];
 }
 
 Row::iterator::pointer Row::iterator::operator->() const {
-    return &((*row_)[column_]);
+    return row_[column_];
 }
 
 Row::iterator& Row::iterator::operator++() {
@@ -208,27 +219,30 @@ Row::iterator Row::iterator::operator++(int) {
 }
 
 bool Row::iterator::operator==(const iterator& other) const {
-    return row_ == other.row_ && column_ == other.column_;
+    return row_.workbook_impl_ == other.row_.workbook_impl_ &&
+           row_.sheet_id_ == other.row_.sheet_id_ &&
+           row_.row_index_ == other.row_.row_index_ &&
+           column_ == other.column_;
 }
 
 bool Row::iterator::operator!=(const iterator& other) const {
     return !(*this == other);
 }
 
-// =============================================================================
+// ========================================
 // Row::const_iterator 实现
-// =============================================================================
+// ========================================
 
-Row::const_iterator::const_iterator(const Row* row, std::size_t column) 
-    : row_(row), column_(column) {
+Row::const_iterator::const_iterator(const Row& row, std::size_t column)
+    : row_(row), column_(column), max_column_(row.size()) {
 }
 
 Row::const_iterator::reference Row::const_iterator::operator*() const {
-    return (*row_)[column_];
+    return row_[column_];
 }
 
 Row::const_iterator::pointer Row::const_iterator::operator->() const {
-    return &((*row_)[column_]);
+    return row_[column_];
 }
 
 Row::const_iterator& Row::const_iterator::operator++() {
@@ -243,7 +257,10 @@ Row::const_iterator Row::const_iterator::operator++(int) {
 }
 
 bool Row::const_iterator::operator==(const const_iterator& other) const {
-    return row_ == other.row_ && column_ == other.column_;
+    return row_.workbook_impl_ == other.row_.workbook_impl_ &&
+           row_.sheet_id_ == other.row_.sheet_id_ &&
+           row_.row_index_ == other.row_.row_index_ &&
+           column_ == other.column_;
 }
 
 bool Row::const_iterator::operator!=(const const_iterator& other) const {
