@@ -77,11 +77,11 @@ std::string SharedStrings::generate_xml() const {
 
     // 为每个字符串生成 <si> 元素
     for (const auto& str : strings_) {
-        serializer.start_element("si");
+        serializer.start_element(excel::openxml_ns::main, "si");
 
         // 添加 <t> 元素包含文本内容
         // XmlSerializer会自动处理XML转义
-        serializer.element("t", str);
+        serializer.element_with_namespace(excel::openxml_ns::main, "t", str);
 
         serializer.end_element(); // si
     }

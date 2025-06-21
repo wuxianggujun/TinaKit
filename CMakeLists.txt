@@ -19,7 +19,7 @@ endif()
 
 # 项目选项
 option(TINAKIT_BUILD_TESTS "Build TinaKit tests" ON)
-option(TINAKIT_BUILD_EXAMPLES "Build TinaKit examples" OFF)
+option(TINAKIT_BUILD_EXAMPLES "Build TinaKit examples" ON)
 
 # 添加第三方库
 add_subdirectory(third_party/libstudxml)

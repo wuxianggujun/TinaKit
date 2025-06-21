@@ -732,6 +732,9 @@ void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
 
     std::string file_path = "xl/worksheets/sheet" + std::to_string(sheet_index) + ".xml";
 
+    std::cout << "📁 工作表 '" << name_ << "' 保存到: " << file_path << std::endl;
+    std::cout << "📊 XML内容长度: " << xml_content.length() << " 字符" << std::endl;
+
     // 转换为字节数组
     std::vector<std::byte> xml_bytes;
     for (char c : xml_content) {
@@ -740,6 +743,10 @@ void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
 
     // 保存到归档器
     async::sync_wait(archiver.add_file(file_path, std::move(xml_bytes)));
+}
+
+std::size_t worksheet_impl::cell_count() const {
+    return cells_.size();
 }
 
 std::string worksheet_impl::generate_worksheet_xml() {
@@ -758,7 +765,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
     // 添加工作表数据 - 只要有单元格数据就生成
     if (!cells_.empty()) {
-        serializer.start_element("sheetData");
+        serializer.start_element(excel::openxml_ns::main, "sheetData");
 
         // 按行组织单元格数据
         std::map<std::size_t, std::vector<std::pair<std::size_t, cell_data>>> rows_data;
@@ -768,7 +775,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
         // 生成行数据
         for (auto& [row_num, row_cells] : rows_data) {
-            serializer.start_element("row");
+            serializer.start_element(excel::openxml_ns::main, "row");
             serializer.attribute("r", std::to_string(row_num));
 
             // 排序列（按列号排序）
@@ -786,7 +793,7 @@ std::string worksheet_impl::generate_worksheet_xml() {
                 }
                 std::string cell_ref = col_name + std::to_string(row_num);
 
-                serializer.start_element("c");
+                serializer.start_element(excel::openxml_ns::main, "c");
                 serializer.attribute("r", cell_ref);
 
                 if (cell_data.style_id != 0) {
@@ -806,19 +813,19 @@ std::string worksheet_impl::generate_worksheet_xml() {
                                 // 使用内联字符串格式
                                 serializer.attribute("t", "inlineStr");
                                 serializer.start_element("is");
-                                serializer.element("t", value);
+                                serializer.element_with_namespace(excel::openxml_ns::main, "t", value);
                                 serializer.end_element(); // is
                             } else {
                                 // 使用共享字符串格式
                                 if (shared_strings) {
                                     std::uint32_t index = shared_strings->add_string(value);
                                     serializer.attribute("t", "s");
-                                    serializer.element("v", std::to_string(index));
+                                    serializer.element_with_namespace(excel::openxml_ns::main, "v", std::to_string(index));
                                 } else {
                                     // 回退到内联字符串
                                     serializer.attribute("t", "inlineStr");
                                     serializer.start_element("is");
-                                    serializer.element("t", value);
+                                    serializer.element_with_namespace(excel::openxml_ns::main, "t", value);
                                     serializer.end_element(); // is
                                 }
                             }
@@ -827,15 +834,15 @@ std::string worksheet_impl::generate_worksheet_xml() {
                     } else if constexpr (std::is_same_v<T, double>) {
                         // 数字类型：使用数值格式
                         serializer.attribute("t", "n");
-                        serializer.element("v", std::to_string(value));
+                        serializer.element_with_namespace(excel::openxml_ns::main, "v", std::to_string(value));
                     } else if constexpr (std::is_same_v<T, int>) {
                         // 整数类型：使用数值格式
                         serializer.attribute("t", "n");
-                        serializer.element("v", std::to_string(value));
+                        serializer.element_with_namespace(excel::openxml_ns::main, "v", std::to_string(value));
                     } else if constexpr (std::is_same_v<T, bool>) {
                         // 布尔类型：使用布尔格式
                         serializer.attribute("t", "b");
-                        serializer.element("v", value ? "1" : "0");
+                        serializer.element_with_namespace(excel::openxml_ns::main, "v", value ? "1" : "0");
                     }
                 }, cell_data.value);
 

@@ -143,19 +143,27 @@ void workbook_impl::rename_worksheet(const std::string& old_name, const std::str
     if (has_worksheet(new_name)) {
         throw DuplicateWorksheetNameException(new_name);
     }
-    
+
+    // 获取sheet_id（在移动之前）
+    auto sheet_id = sheet_name_to_id_[old_name];
+
     // 移动工作表实现
     auto worksheet = std::move(worksheets_[old_name]);
     worksheet->set_name(new_name);
     worksheets_.erase(old_name);
     worksheets_[new_name] = std::move(worksheet);
-    
+
+    // 更新ID映射（关键！）
+    sheet_name_to_id_.erase(old_name);
+    sheet_name_to_id_[new_name] = sheet_id;
+    sheet_id_to_name_[sheet_id] = new_name;  // 更新反向映射
+
     // 更新顺序列表
     auto it = std::find(worksheet_order_.begin(), worksheet_order_.end(), old_name);
     if (it != worksheet_order_.end()) {
         *it = new_name;
     }
-    
+
     is_dirty_ = true;
 }
 
@@ -341,7 +349,7 @@ void workbook_impl::ensure_worksheet_loaded(const std::string& sheet_name) {
     if (!has_worksheet(sheet_name)) {
         throw WorksheetNotFoundException(sheet_name);
     }
-    
+
     auto& worksheet = get_worksheet_impl(sheet_name);
     if (worksheet.load_state() == LoadState::NotLoaded) {
         // 触发惰性加载
@@ -559,13 +567,13 @@ void workbook_impl::generate_workbook_xml() {
     serializer.namespace_declaration(excel::openxml_ns::main, "");
     serializer.namespace_declaration(excel::openxml_ns::rel, excel::openxml_ns::r_prefix);
 
-    // 开始sheets元素（继承父元素的命名空间）
-    serializer.start_element("sheets");
+    // 开始sheets元素（明确使用主命名空间）
+    serializer.start_element(excel::openxml_ns::main, "sheets");
 
     // 添加工作表信息
     std::uint32_t sheet_id = 1;
     for (const auto& sheet_name : worksheet_order_) {
-        serializer.start_element("sheet");
+        serializer.start_element(excel::openxml_ns::main, "sheet");
         serializer.attribute("name", sheet_name);
         serializer.attribute("sheetId", std::to_string(sheet_id));
         serializer.attribute(excel::openxml_ns::rel, "id", "rId" + std::to_string(sheet_id));
@@ -605,7 +613,7 @@ void workbook_impl::generate_workbook_rels() {
     // 添加工作表关系
     std::uint32_t rel_id = 1;
     for (const auto& sheet_name : worksheet_order_) {
-        serializer.start_element("Relationship");
+        serializer.start_element(excel::openxml_ns::pkg_rel, "Relationship");
         serializer.attribute("Id", "rId" + std::to_string(rel_id));
         serializer.attribute("Type", excel::openxml_ns::rel + "/worksheet");
         serializer.attribute("Target", "worksheets/sheet" + std::to_string(rel_id) + ".xml");
@@ -614,7 +622,7 @@ void workbook_impl::generate_workbook_rels() {
     }
 
     // 添加样式关系（关键！）
-    serializer.start_element("Relationship");
+    serializer.start_element(excel::openxml_ns::pkg_rel, "Relationship");
     serializer.attribute("Id", "rId" + std::to_string(rel_id));
     serializer.attribute("Type", excel::openxml_ns::rel + "/styles");
     serializer.attribute("Target", "styles.xml");
@@ -622,7 +630,7 @@ void workbook_impl::generate_workbook_rels() {
     ++rel_id;
 
     // 添加共享字符串关系
-    serializer.start_element("Relationship");
+    serializer.start_element(excel::openxml_ns::pkg_rel, "Relationship");
     serializer.attribute("Id", "rId" + std::to_string(rel_id));
     serializer.attribute("Type", excel::openxml_ns::rel + "/sharedStrings");
     serializer.attribute("Target", "sharedStrings.xml");
@@ -655,28 +663,28 @@ void workbook_impl::generate_content_types() {
     serializer.namespace_declaration(excel::openxml_ns::ct, "");
 
     // 添加默认扩展名
-    serializer.start_element("Default");
+    serializer.start_element(excel::openxml_ns::ct, "Default");
     serializer.attribute("Extension", "rels");
     serializer.attribute("ContentType", "application/vnd.openxmlformats-package.relationships+xml");
     serializer.end_element(); // Default
 
-    serializer.start_element("Default");
+    serializer.start_element(excel::openxml_ns::ct, "Default");
     serializer.attribute("Extension", "xml");
     serializer.attribute("ContentType", "application/xml");
     serializer.end_element(); // Default
 
     // 添加Override元素
-    serializer.start_element("Override");
+    serializer.start_element(excel::openxml_ns::ct, "Override");
     serializer.attribute("PartName", "/xl/workbook.xml");
     serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml");
     serializer.end_element(); // Override
 
-    serializer.start_element("Override");
+    serializer.start_element(excel::openxml_ns::ct, "Override");
     serializer.attribute("PartName", "/xl/styles.xml");
     serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml");
     serializer.end_element(); // Override
 
-    serializer.start_element("Override");
+    serializer.start_element(excel::openxml_ns::ct, "Override");
     serializer.attribute("PartName", "/xl/sharedStrings.xml");
     serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml");
     serializer.end_element(); // Override
@@ -684,7 +692,7 @@ void workbook_impl::generate_content_types() {
     // 添加工作表内容类型
     std::uint32_t sheet_id = 1;
     for (const auto& sheet_name : worksheet_order_) {
-        serializer.start_element("Override");
+        serializer.start_element(excel::openxml_ns::ct, "Override");
         serializer.attribute("PartName", "/xl/worksheets/sheet" + std::to_string(sheet_id) + ".xml");
         serializer.attribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
         serializer.end_element(); // Override
@@ -720,7 +728,7 @@ void workbook_impl::generate_main_rels() {
     serializer.namespace_declaration(excel::openxml_ns::pkg_rel, "");
 
     // 添加主文档关系
-    serializer.start_element("Relationship");
+    serializer.start_element(excel::openxml_ns::pkg_rel, "Relationship");
     serializer.attribute("Id", "rId1");
     serializer.attribute("Type", excel::openxml_ns::rel + "/officeDocument");
     serializer.attribute("Target", "xl/workbook.xml");
@@ -815,8 +823,12 @@ void workbook_impl::save_to_archiver() {
     generate_styles_xml();
 
     // 5. 先保存所有工作表（这会填充共享字符串表）
+    std::cout << "💾 开始保存工作表，总数: " << worksheets_.size() << std::endl;
     for (auto& [name, worksheet] : worksheets_) {
+        std::cout << "📄 保存工作表: '" << name << "'" << std::endl;
+        std::cout << "   单元格数量: " << worksheet->cell_count() << std::endl;
         worksheet->save_to_archiver(*archiver_);
+        std::cout << "✅ 工作表 '" << name << "' 保存完成" << std::endl;
     }
 
     // 6. 最后生成共享字符串文件（包含所有字符串）

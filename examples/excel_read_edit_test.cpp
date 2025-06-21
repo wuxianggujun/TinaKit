@@ -13,7 +13,11 @@
 #include <iostream>
 #include <filesystem>
 #include <iomanip>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
+using namespace tinakit::excel;
 using namespace tinakit;
 
 void print_separator(const std::string& title) {
@@ -55,7 +59,7 @@ void test_read_existing_file() {
     // 首先创建一个测试文件
     std::cout << "1. 创建测试文件..." << std::endl;
     try {
-        auto workbook = excel::create();
+        auto workbook = Workbook::create();
         auto sheet = workbook.active_sheet();
         sheet.set_name("测试数据");
         
@@ -85,7 +89,7 @@ void test_read_existing_file() {
     // 现在读取文件
     std::cout << "\n2. 读取测试文件..." << std::endl;
     try {
-        auto workbook = excel::open("test_data.xlsx");
+        auto workbook = Workbook::load("test_data.xlsx");
         std::cout << "   ✅ 文件读取成功" << std::endl;
         
         std::cout << "   工作表数量: " << workbook.worksheet_count() << std::endl;
@@ -101,7 +105,7 @@ void test_read_existing_file() {
         // 读取标题行
         std::cout << "\n标题行 (第1行):" << std::endl;
         for (std::size_t col = 1; col <= 4; ++col) {
-            auto& cell = sheet.cell(1, col);
+            auto cell = sheet.cell(1, col);
             std::cout << "  " << cell.address() << ": ";
             print_cell_info(cell);
         }
@@ -110,7 +114,7 @@ void test_read_existing_file() {
         for (std::size_t row = 2; row <= 3; ++row) {
             std::cout << "\n数据行 (第" << row << "行):" << std::endl;
             for (std::size_t col = 1; col <= 4; ++col) {
-                auto& cell = sheet.cell(row, col);
+                auto cell = sheet.cell(row, col);
                 std::cout << "  " << cell.address() << ": ";
                 print_cell_info(cell);
             }
@@ -126,7 +130,7 @@ void test_edit_existing_file() {
     
     try {
         std::cout << "1. 打开现有文件..." << std::endl;
-        auto workbook = excel::open("test_data.xlsx");
+        auto workbook = Workbook::load("test_data.xlsx");
         auto sheet = workbook.active_sheet();
         std::cout << "   ✅ 文件打开成功" << std::endl;
         
@@ -157,7 +161,7 @@ void test_edit_existing_file() {
 
         // 第7行：测试9个连续单元格的绿色背景（模拟您的场景）
         for (int col = 1; col <= 9; ++col) {
-            std::string cell_addr = std::string(1, 'A' + col - 1) + "7";
+            std::string cell_addr = std::string(1, static_cast<char>('A' + col - 1)) + "7";
             if (col % 3 == 1) {
                 // 每3个单元格中的第1个有内容
                 sheet[cell_addr].value("数据" + std::to_string(col)).background_color(Color::Green);
@@ -169,7 +173,7 @@ void test_edit_existing_file() {
 
         // 第8行：同样的测试，但所有单元格都有空格
         for (int col = 1; col <= 9; ++col) {
-            std::string cell_addr = std::string(1, 'A' + col - 1) + "8";
+            std::string cell_addr = std::string(1, static_cast<char>('A' + col - 1)) + "8";
             if (col % 3 == 1) {
                 sheet[cell_addr].value("数据" + std::to_string(col)).background_color(Color::Blue);
             } else {
@@ -191,7 +195,7 @@ void test_edit_existing_file() {
         
         // 验证修改
         std::cout << "\n4. 验证修改结果..." << std::endl;
-        auto verify_workbook = excel::open("test_data_modified.xlsx");
+        auto verify_workbook = Workbook::load("test_data_modified.xlsx");
         auto verify_sheet = verify_workbook.active_sheet();
         
         std::cout << "   修改后的数据:" << std::endl;
@@ -209,7 +213,7 @@ void test_cell_operations() {
     print_separator("测试单元格操作");
     
     try {
-        auto workbook = excel::create();
+        auto workbook = Workbook::create();
         auto sheet = workbook.active_sheet();
         sheet.set_name("单元格操作测试");
         
@@ -253,6 +257,12 @@ void test_cell_operations() {
 }
 
 int main() {
+    // 设置控制台UTF-8编码（Windows）
+    #ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    #endif
+
     std::cout << "TinaKit Excel 读取编辑测试程序" << std::endl;
     std::cout << "================================" << std::endl;
     
