@@ -854,11 +854,9 @@ excel::Range workbook_impl::get_used_range(const std::string& sheet_name) {
         return excel::Range(); // 返回空范围
     }
 
-    // 获取工作表的使用范围
+    // 直接调用worksheet_impl的get_used_range方法
     auto& worksheet = *it->second;
-    auto used_range = worksheet.get_used_range();
-
-    return used_range;
+    return worksheet.get_used_range();
 }
 
 void workbook_impl::add_conditional_format(const std::string& sheet_name, const excel::ConditionalFormat& format) {

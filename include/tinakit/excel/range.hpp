@@ -202,6 +202,15 @@ public:
     Range& set_value(const T& value);
 
     /**
+     * @brief 批量设置范围内的值（字符数组特化）
+     * @tparam N 字符数组大小
+     * @param value 字符数组值
+     * @return 自身引用，支持链式调用
+     */
+    template<std::size_t N>
+    Range& set_value(const char (&value)[N]);
+
+    /**
      * @brief 批量设置范围内的值（二维数组）
      * @param values 二维值数组，外层为行，内层为列
      * @return 自身引用，支持链式调用
@@ -336,5 +345,11 @@ private:
 
 // 为字符数组提供特化声明
 template<> Range& Range::set_value<const char*>(const char* const& value);
+
+// 字符数组模板实现（内联）
+template<std::size_t N>
+inline Range& Range::set_value(const char (&value)[N]) {
+    return set_value(std::string(value));
+}
 
 } // namespace tinakit::excel

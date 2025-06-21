@@ -17,6 +17,7 @@
 #include "tinakit/excel/workbook.hpp"
 #include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/style_manager.hpp"
+#include "tinakit/excel/style.hpp"
 #include "tinakit/excel/cell.hpp"
 #include "tinakit/excel/row.hpp"
 #include <filesystem>

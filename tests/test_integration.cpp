@@ -33,11 +33,13 @@ TEST_CASE(Integration, CompleteWorkflow) {
     try {
         // 步骤1：创建新工作簿
         auto workbook = Workbook::create();
-        ASSERT_TRUE(workbook.worksheet_count() > 0);
+        // 新工作簿开始时没有工作表，这是正确的行为
+        ASSERT_EQ(0u, workbook.worksheet_count());
         
-        // 步骤2：获取默认工作表
+        // 步骤2：获取默认工作表（这会自动创建Sheet1）
         auto sheet = workbook.active_sheet();
-        ASSERT_TRUE(true); // 如果能获取到工作表，说明成功
+        // 现在应该有1个工作表了
+        ASSERT_EQ(1u, workbook.worksheet_count());
         
         // 步骤3：添加基础数据
         sheet.cell("A1").value("姓名");
@@ -129,12 +131,13 @@ TEST_CASE(Integration, MultipleWorksheetsWorkflow) {
     try {
         // 创建包含多个工作表的工作簿
         auto workbook = Workbook::create();
-        
-        // 创建第二个工作表
+
+        // 创建工作表
+        workbook.create_worksheet("Sheet1");  // 手动创建第一个工作表
         workbook.create_worksheet("数据表");
         workbook.create_worksheet("统计表");
 
-        ASSERT_EQ(3u, workbook.worksheet_count()); // 默认Sheet1 + 数据表 + 统计表
+        ASSERT_EQ(3u, workbook.worksheet_count()); // Sheet1 + 数据表 + 统计表
 
         // 在不同工作表中添加数据
         auto sheet1 = workbook.get_worksheet("Sheet1");

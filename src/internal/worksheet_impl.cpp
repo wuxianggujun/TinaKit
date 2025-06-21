@@ -77,9 +77,10 @@ excel::Range worksheet_impl::get_used_range() const {
     core::Coordinate bottom_right(max_row, max_col);
     core::range_address range_addr(top_left, bottom_right);
 
-    // 返回空的Range（因为新的Range需要workbook_impl参数）
-    // TODO: 这个方法需要重新设计，因为新的Range需要workbook_impl
-    return excel::Range();
+    // 创建Range对象，需要workbook_impl的shared_ptr
+    // 通过workbook_引用获取shared_ptr
+    auto workbook_shared = workbook_.shared_from_this();
+    return excel::Range(workbook_shared, name_, range_addr);
 }
 
 LoadState worksheet_impl::load_state() const {

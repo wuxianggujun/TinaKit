@@ -21,7 +21,7 @@ target_sources(tinakit PRIVATE
         excel/style_manager.cpp
         excel/types.cpp
         excel/conditional_format.cpp
-        excel/style_template.cpp
+        excel/style.cpp
         excel/range_view.cpp
         internal/workbook_impl.cpp
         internal/worksheet_impl.cpp

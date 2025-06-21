@@ -64,9 +64,16 @@ bool Range::overlaps(const Range& other) const {
 
 template<typename T>
 Range& Range::set_value(const T& value) {
-    // 委托给workbook_impl进行批量值设置
-    workbook_impl_->set_range_value_uniform(sheet_name_, range_addr_, value);
-    return *this;
+    // 对于字符数组，转换为 string
+    if constexpr (std::is_array_v<T> && std::is_same_v<std::remove_extent_t<T>, char>) {
+        return set_value(std::string(value));
+    } else if constexpr (std::is_same_v<T, const char*> || std::is_same_v<T, char*>) {
+        return set_value(std::string(value));
+    } else {
+        // 对于其他类型，委托给workbook_impl
+        workbook_impl_->set_range_value_uniform(sheet_name_, range_addr_, value);
+        return *this;
+    }
 }
 
 // 显式实例化常用类型
@@ -83,8 +90,9 @@ Range& Range::set_value<const char*>(const char* const& value) {
 
 Range& Range::set_style(const Style& style_template) {
     // 委托给workbook_impl进行批量样式设置
-    // TODO: 实现StyleTemplate到style_id的转换
-    auto style_id = 1; // 临时使用默认样式ID
+    // 通过StyleManager将StyleTemplate转换为style_id
+    auto& style_manager = workbook_impl_->style_manager();
+    auto style_id = style_template.apply_to_style_manager(style_manager);
     return set_style(style_id);
 }
 

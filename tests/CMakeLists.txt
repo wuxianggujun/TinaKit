@@ -14,6 +14,7 @@ add_executable(tinakit_tests
     test_conditional_format.cpp
     test_integration.cpp
     test_advanced_features.cpp
+    test_fixes.cpp
 )
 
 # 链接TinaKit库
@@ -61,6 +62,8 @@ add_test(NAME ErrorHandlingTests COMMAND tinakit_tests ErrorHandling)
 add_test(NAME CompatibilityTests COMMAND tinakit_tests Compatibility)
 add_test(NAME EdgeCasesTests COMMAND tinakit_tests EdgeCases)
 add_test(NAME PerformanceTests COMMAND tinakit_tests Performance)
+add_test(NAME StyleFixesTests COMMAND tinakit_tests StyleFixes)
+add_test(NAME UsedRangeFixesTests COMMAND tinakit_tests UsedRangeFixes)
 
 # 设置测试属性
 set_tests_properties(AllTests PROPERTIES TIMEOUT 60)
