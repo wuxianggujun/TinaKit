@@ -12,6 +12,7 @@
 #include <map>
 #include <functional>
 #include <libstudxml/parser.hxx>
+#include <libstudxml/serializer.hxx>
 
 #include "tinakit/core/exceptions.hpp"
 
@@ -19,11 +20,66 @@
 namespace xml
 {
     class parser;
+    class serializer;
 }
 
 
 namespace tinakit::core
 {
+    /**
+     * @brief XML解析错误信息
+     */
+    struct XmlParseError {
+        std::string message;
+        std::size_t line;
+        std::size_t column;
+        std::string element_name;
+        std::string attribute_name;
+
+        XmlParseError(const std::string& msg, std::size_t ln = 0, std::size_t col = 0,
+                     const std::string& elem = "", const std::string& attr = "")
+            : message(msg), line(ln), column(col), element_name(elem), attribute_name(attr) {}
+    };
+
+    /**
+     * @brief XML序列化器包装类，提供正确的命名空间处理
+     */
+    class XmlSerializer
+    {
+    public:
+        explicit XmlSerializer(std::ostream& stream, const std::string& document_name = "document", unsigned short indentation = 2);
+        ~XmlSerializer();
+
+        XmlSerializer(const XmlSerializer&) = delete;
+        XmlSerializer& operator=(const XmlSerializer&) = delete;
+        XmlSerializer(XmlSerializer&&) = delete;
+        XmlSerializer& operator=(XmlSerializer&&) = delete;
+
+        // XML声明
+        void xml_declaration(const std::string& version = "1.0", const std::string& encoding = "UTF-8", const std::string& standalone = "yes");
+
+        // 元素操作
+        void start_element(const std::string& name);
+        void start_element(const std::string& namespace_uri, const std::string& name);
+        void end_element();
+        void element(const std::string& name, const std::string& content);
+        void element_with_namespace(const std::string& namespace_uri, const std::string& name, const std::string& content);
+
+        // 属性操作
+        void attribute(const std::string& name, const std::string& value);
+        void attribute(const std::string& namespace_uri, const std::string& name, const std::string& value);
+
+        // 命名空间声明
+        void namespace_declaration(const std::string& namespace_uri, const std::string& prefix = "");
+
+        // 文本内容
+        void characters(const std::string& text);
+
+    private:
+        struct Impl;
+        std::unique_ptr<Impl> impl_;
+    };
+
     class XmlParser
     {
     public:
@@ -56,15 +112,54 @@ namespace tinakit::core
          * @return A sentinel end iterator
          */
         iterator end();
+
+        /**
+         * @brief Reset the parser to the beginning of the document for re-parsing
+         * @return true if reset was successful, false otherwise
+         */
+        bool reset();
+
+        /**
+         * @brief Parse multiple element types in a single pass for better performance
+         * @param element_handlers Map of element names to their handlers
+         */
+        void parse_multiple_elements(const std::map<std::string, std::function<void(iterator&)>>& element_handlers);
+
+        /**
+         * @brief Parse multiple element types with namespace support in a single pass
+         * @param element_handlers Map of (namespace, element_name) pairs to their handlers
+         */
+        void parse_multiple_elements_ns(const std::map<std::pair<std::string, std::string>, std::function<void(iterator&)>>& element_handlers);
+
+        /**
+         * @brief Get the last parsing error (if any)
+         * @return Optional error information
+         */
+        std::optional<XmlParseError> get_last_error() const;
+
+        /**
+         * @brief Enable or disable error recovery mode
+         * @param enable If true, parser will try to continue parsing after errors
+         */
+        void set_error_recovery(bool enable);
         
         /**
          * @brief 便利方法：解析整个 XML 元素及其子元素
          * @param element_name 要查找的元素名称
          * @param callback 处理元素的回调函数
          */
-        void for_each_element(const std::string& element_name, 
+        void for_each_element(const std::string& element_name,
                             std::function<void(iterator&)> callback);
-        
+
+        /**
+         * @brief 便利方法：解析整个 XML 元素及其子元素（支持命名空间）
+         * @param namespace_uri 命名空间URI
+         * @param element_name 要查找的元素名称
+         * @param callback 处理元素的回调函数
+         */
+        void for_each_element_ns(const std::string& namespace_uri, const std::string& element_name,
+                               std::function<void(iterator&)> callback);
+
         /**
          * @brief 便利方法：获取第一个匹配的元素的文本内容
          * @param element_name 元素名称

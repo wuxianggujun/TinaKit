@@ -401,185 +401,198 @@ void worksheet_impl::parse_cell_data(const std::string& xml_content) {
         std::istringstream xml_stream(xml_content);
         core::XmlParser parser(xml_stream, name_ + ".xml");
 
-        // 解析单元格数据
-        parser.for_each_element("c", [this, &parser](core::XmlParser::iterator& it) {
-            // 获取单元格引用（如 A1, B2 等）
-            auto cell_ref = it.attribute("r");
-            auto cell_type = it.attribute("t");
-            auto style_id = it.attribute("s");
+        // 启用错误恢复模式，以便在遇到未知属性时继续解析
+        parser.set_error_recovery(true);
 
-            if (cell_ref && !cell_ref->empty()) {
-                // 解析单元格位置
-                auto pos = core::Coordinate::from_address(*cell_ref);
+        // 使用单次遍历解析多种元素类型以提高性能
+        const std::string main_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-                // 创建单元格数据
-                cell_data data;
-                data.style_id = style_id ? std::stoul(*style_id) : 0;
+        std::map<std::pair<std::string, std::string>, std::function<void(core::XmlParser::iterator&)>> handlers = {
+            // 单元格数据解析
+            {{main_ns, "c"}, [this, &parser](core::XmlParser::iterator& it) {
+                parse_single_cell(it, parser);
+            }},
 
-                // 查找单元格值
-                std::string cell_value;
+            // 条件格式解析
+            {{main_ns, "conditionalFormatting"}, [this, &parser](core::XmlParser::iterator& it) {
+                parse_conditional_formatting(it, parser);
+            }}
+        };
 
-                // 在当前单元格元素中查找值
-                auto current_it = it;
-                ++current_it; // 移动到单元格内容
+        parser.parse_multiple_elements_ns(handlers);
 
-                while (current_it != parser.end() &&
-                       !(current_it.is_end_element() && current_it.name() == "c")) {
-
-                    if (current_it.is_start_element() && current_it.name() == "v") {
-                        cell_value = current_it.text_content();
-                        break;
-                    } else if (current_it.is_start_element() && current_it.name() == "f") {
-                        // 处理公式
-                        data.formula = current_it.text_content();
-                    } else if (current_it.is_start_element() && current_it.name() == "is") {
-                        // 处理内联字符串：查找 <is><t>...</t></is> 结构
-                        auto is_it = current_it;
-                        ++is_it;
-                        while (is_it != parser.end() &&
-                               !(is_it.is_end_element() && is_it.name() == "is")) {
-                            if (is_it.is_start_element() && is_it.name() == "t") {
-                                cell_value = is_it.text_content();
-                                break;
-                            }
-                            ++is_it;
-                        }
-                        break;
-                    }
-                    ++current_it;
-                }
-
-                // 根据单元格类型设置值
-                if (cell_type && *cell_type == "s") {
-                    // 共享字符串：需要从共享字符串表中查找实际文本
-                    if (!cell_value.empty()) {
-                        try {
-                            std::uint32_t index = std::stoul(cell_value);
-                            auto shared_strings = workbook_.get_shared_strings();
-                            if (shared_strings && index < shared_strings->count()) {
-                                data.value = shared_strings->get_string(index);
-                            } else {
-                                // 如果索引无效，使用索引值作为后备
-                                data.value = cell_value;
-                            }
-                        } catch (...) {
-                            // 如果解析索引失败，使用原始值
-                            data.value = cell_value;
-                        }
-                    }
-                } else if (cell_type && *cell_type == "inlineStr") {
-                    // 内联字符串
-                    data.value = cell_value;
-                } else if (cell_type && *cell_type == "b") {
-                    // 布尔值
-                    data.value = (cell_value == "1");
-                } else if (!cell_type || cell_type->empty() || *cell_type == "n") {
-                    // 数字
-                    if (!cell_value.empty()) {
-                        try {
-                            if (cell_value.find('.') != std::string::npos) {
-                                data.value = std::stod(cell_value);
-                            } else {
-                                data.value = std::stoi(cell_value);
-                            }
-                        } catch (...) {
-                            data.value = cell_value;
-                        }
-                    }
-                } else {
-                    // 其他类型作为字符串处理
-                    data.value = cell_value;
-                }
-
-                // 存储单元格数据
-                // 只要有值或者有样式ID就存储单元格
-                bool has_value = false;
-                if (std::holds_alternative<std::string>(data.value)) {
-                    has_value = !std::get<std::string>(data.value).empty();
-                } else {
-                    has_value = true; // 非字符串值都认为有值
-                }
-
-                if (has_value || data.style_id != 0 || data.formula) {
-                    cells_[pos] = data;
-                    update_dimensions(pos);
-                }
-            }
-        });
-
-        // 解析条件格式
-        std::cout << "开始解析条件格式..." << std::endl;
-        std::cout << "XML内容长度: " << xml_content.length() << std::endl;
-        std::cout << "查找conditionalFormatting元素..." << std::endl;
-        parser.for_each_element("conditionalFormatting", [this, &parser](core::XmlParser::iterator& it) {
-            std::cout << "找到conditionalFormatting元素" << std::endl;
-            auto sqref = it.attribute("sqref");
-            if (sqref && !sqref->empty()) {
-                std::cout << "解析条件格式范围: " << *sqref << std::endl;
-                excel::ConditionalFormat format;
-                format.range = *sqref;
-                format.priority = 1; // 默认优先级
-
-                // 解析条件格式规则
-                auto current_it = it;
-                ++current_it;
-
-                while (current_it != parser.end() &&
-                       !(current_it.is_end_element() && current_it.name() == "conditionalFormatting")) {
-
-                    if (current_it.is_start_element() && current_it.name() == "cfRule") {
-                        excel::ConditionalFormatRule rule;
-
-                        // 解析规则属性
-                        auto type_attr = current_it.attribute("type");
-                        auto operator_attr = current_it.attribute("operator");
-                        auto dxf_id_attr = current_it.attribute("dxfId");
-                        auto priority_attr = current_it.attribute("priority");
-
-                        if (type_attr) {
-                            rule.type = string_to_conditional_format_type(*type_attr);
-                        }
-                        if (operator_attr) {
-                            rule.operator_type = string_to_conditional_format_operator(*operator_attr);
-                        }
-                        if (dxf_id_attr) {
-                            rule.dxf_id = std::stoul(*dxf_id_attr);
-                        }
-                        if (priority_attr) {
-                            format.priority = std::stoi(*priority_attr);
-                        }
-
-                        // 解析公式
-                        auto rule_it = current_it;
-                        ++rule_it;
-                        while (rule_it != parser.end() &&
-                               !(rule_it.is_end_element() && rule_it.name() == "cfRule")) {
-                            if (rule_it.is_start_element() && rule_it.name() == "formula") {
-                                rule.formulas.push_back(rule_it.text_content());
-                            }
-                            ++rule_it;
-                        }
-
-                        format.rules.push_back(rule);
-                    }
-                    ++current_it;
-                }
-
-                if (!format.rules.empty()) {
-                    std::cout << "添加条件格式，规则数量: " << format.rules.size() << std::endl;
-                    conditional_formats_.push_back(format);
-                } else {
-                    std::cout << "条件格式没有规则，跳过" << std::endl;
-                }
-            } else {
-                std::cout << "条件格式没有sqref属性" << std::endl;
-            }
-        });
-        std::cout << "条件格式解析完成，总数量: " << conditional_formats_.size() << std::endl;
+        // 检查是否有解析错误
+        if (auto error = parser.get_last_error()) {
+            std::cerr << "XML解析警告: " << error->message
+                     << " at line " << error->line << ", column " << error->column << std::endl;
+        }
 
     } catch (const std::exception& e) {
-        // 解析失败时忽略错误
-        std::cout << "XML解析异常: " << e.what() << std::endl;
+        // 解析失败时忽略错误，但记录日志用于调试
+        std::cerr << "XML解析异常: " << e.what() << std::endl;
+    }
+}
+
+void worksheet_impl::parse_single_cell(core::XmlParser::iterator& it, core::XmlParser& parser) {
+    // 获取单元格引用（如 A1, B2 等）
+    auto cell_ref = it.attribute("r");
+    auto cell_type = it.attribute("t");
+    auto style_id = it.attribute("s");
+
+    if (cell_ref && !cell_ref->empty()) {
+        // 解析单元格位置
+        auto pos = core::Coordinate::from_address(*cell_ref);
+
+        // 创建单元格数据
+        cell_data data;
+        data.style_id = style_id ? std::stoul(*style_id) : 0;
+
+        // 查找单元格值
+        std::string cell_value;
+
+        // 在当前单元格元素中查找值
+        auto current_it = it;
+        ++current_it; // 移动到单元格内容
+
+        while (current_it != parser.end() &&
+               !(current_it.is_end_element() && current_it.name() == "c")) {
+
+            if (current_it.is_start_element() && current_it.name() == "v") {
+                cell_value = current_it.text_content();
+                break;
+            } else if (current_it.is_start_element() && current_it.name() == "f") {
+                // 处理公式
+                data.formula = current_it.text_content();
+            } else if (current_it.is_start_element() && current_it.name() == "is") {
+                // 处理内联字符串：查找 <is><t>...</t></is> 结构
+                auto is_it = current_it;
+                ++is_it;
+                while (is_it != parser.end() &&
+                       !(is_it.is_end_element() && is_it.name() == "is")) {
+                    if (is_it.is_start_element() && is_it.name() == "t") {
+                        cell_value = is_it.text_content();
+                        break;
+                    }
+                    ++is_it;
+                }
+                break;
+            }
+            ++current_it;
+        }
+
+        // 根据单元格类型设置值
+        if (cell_type && *cell_type == "s") {
+            // 共享字符串：需要从共享字符串表中查找实际文本
+            if (!cell_value.empty()) {
+                try {
+                    std::uint32_t index = std::stoul(cell_value);
+                    auto shared_strings = this->workbook_.get_shared_strings();
+                    if (shared_strings && index < shared_strings->count()) {
+                        data.value = shared_strings->get_string(index);
+                    } else {
+                        // 如果索引无效，使用索引值作为后备
+                        data.value = cell_value;
+                    }
+                } catch (...) {
+                    // 如果解析索引失败，使用原始值
+                    data.value = cell_value;
+                }
+            }
+        } else if (cell_type && *cell_type == "inlineStr") {
+            // 内联字符串
+            data.value = cell_value;
+        } else if (cell_type && *cell_type == "b") {
+            // 布尔值
+            data.value = (cell_value == "1");
+        } else if (!cell_type || cell_type->empty() || *cell_type == "n") {
+            // 数字
+            if (!cell_value.empty()) {
+                try {
+                    if (cell_value.find('.') != std::string::npos) {
+                        data.value = std::stod(cell_value);
+                    } else {
+                        data.value = std::stoi(cell_value);
+                    }
+                } catch (...) {
+                    data.value = cell_value;
+                }
+            }
+        } else {
+            // 其他类型作为字符串处理
+            data.value = cell_value;
+        }
+
+        // 存储单元格数据
+        // 只要有值或者有样式ID就存储单元格
+        bool has_value = false;
+        if (std::holds_alternative<std::string>(data.value)) {
+            has_value = !std::get<std::string>(data.value).empty();
+        } else {
+            has_value = true; // 非字符串值都认为有值
+        }
+
+        if (has_value || data.style_id != 0 || data.formula) {
+            this->cells_[pos] = data;
+            this->update_dimensions(pos);
+        }
+    }
+}
+
+void worksheet_impl::parse_conditional_formatting(core::XmlParser::iterator& it, core::XmlParser& parser) {
+    auto sqref = it.attribute("sqref");
+    if (sqref && !sqref->empty()) {
+        excel::ConditionalFormat format;
+        format.range = *sqref;
+        format.priority = 1; // 默认优先级
+
+        // 解析条件格式规则
+        auto current_it = it;
+        ++current_it;
+
+        while (current_it != parser.end() &&
+               !(current_it.is_end_element() && current_it.name() == "conditionalFormatting")) {
+
+            if (current_it.is_start_element() && current_it.name() == "cfRule") {
+                excel::ConditionalFormatRule rule;
+
+                // 解析规则属性
+                auto type_attr = current_it.attribute("type");
+                auto operator_attr = current_it.attribute("operator");
+                auto dxf_id_attr = current_it.attribute("dxfId");
+                auto priority_attr = current_it.attribute("priority");
+
+                if (type_attr) {
+                    rule.type = this->string_to_conditional_format_type(*type_attr);
+                }
+                if (operator_attr) {
+                    rule.operator_type = this->string_to_conditional_format_operator(*operator_attr);
+                }
+                if (dxf_id_attr) {
+                    rule.dxf_id = std::stoul(*dxf_id_attr);
+                }
+                if (priority_attr) {
+                    format.priority = std::stoi(*priority_attr);
+                }
+
+                // 解析公式
+                auto rule_it = current_it;
+                ++rule_it;
+                while (rule_it != parser.end() &&
+                       !(rule_it.is_end_element() && rule_it.name() == "cfRule")) {
+                    if (rule_it.is_start_element() && rule_it.name() == "formula") {
+                        rule.formulas.push_back(rule_it.text_content());
+                    }
+                    ++rule_it;
+                }
+
+                format.rules.push_back(rule);
+            }
+            ++current_it;
+        }
+
+        if (!format.rules.empty()) {
+            this->conditional_formats_.push_back(format);
+        }
     }
 }
 
@@ -606,12 +619,22 @@ void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
 }
 
 std::string worksheet_impl::generate_worksheet_xml() {
-    std::string xml_content = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">)";
+    std::ostringstream oss;
+    core::XmlSerializer serializer(oss, "worksheet.xml");
+
+    // XML声明
+    serializer.xml_declaration("1.0", "UTF-8", "yes");
+
+    // 开始worksheet元素
+    serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "worksheet");
+
+    // 声明命名空间
+    serializer.namespace_declaration("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "");
+    serializer.namespace_declaration("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "r");
 
     // 添加工作表数据 - 只要有单元格数据就生成
     if (!cells_.empty()) {
-        xml_content += "<sheetData>";
+        serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "sheetData");
 
         // 按行组织单元格数据
         std::map<std::size_t, std::vector<std::pair<std::size_t, cell_data>>> rows_data;
@@ -621,7 +644,8 @@ std::string worksheet_impl::generate_worksheet_xml() {
 
         // 生成行数据
         for (auto& [row_num, row_cells] : rows_data) {
-            xml_content += "<row r=\"" + std::to_string(row_num) + "\">";
+            serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "row");
+            serializer.attribute("r", std::to_string(row_num));
 
             // 排序列（按列号排序）
             std::sort(row_cells.begin(), row_cells.end(),
@@ -637,90 +661,104 @@ std::string worksheet_impl::generate_worksheet_xml() {
                     temp_col = (temp_col - 1) / 26;
                 }
                 std::string cell_ref = col_name + std::to_string(row_num);
-                xml_content += "<c r=\"" + cell_ref + "\"";
+
+                serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "c");
+                serializer.attribute("r", cell_ref);
 
                 if (cell_data.style_id != 0) {
-                    xml_content += " s=\"" + std::to_string(cell_data.style_id) + "\"";
+                    serializer.attribute("s", std::to_string(cell_data.style_id));
                 }
 
                 // 根据值类型添加类型属性和内容
                 // 为了避免lambda捕获问题，先获取需要的对象
                 auto shared_strings = workbook_.get_shared_strings();
 
-                std::visit([&xml_content, shared_strings, this](const auto& value) {
+                std::visit([&serializer, shared_strings, this](const auto& value) {
                     using T = std::decay_t<decltype(value)>;
                     if constexpr (std::is_same_v<T, std::string>) {
                         if (!value.empty()) {
                             // 智能选择字符串存储方式
                             if (this->should_use_inline_string(value)) {
                                 // 使用内联字符串格式
-                                xml_content += " t=\"inlineStr\"><is><t>" + value + "</t></is>";
+                                serializer.attribute("t", "inlineStr");
+                                serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "is");
+                                serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "t", value);
+                                serializer.end_element(); // is
                             } else {
                                 // 使用共享字符串格式
                                 if (shared_strings) {
                                     std::uint32_t index = shared_strings->add_string(value);
-                                    xml_content += " t=\"s\"><v>" + std::to_string(index) + "</v>";
+                                    serializer.attribute("t", "s");
+                                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", std::to_string(index));
                                 } else {
                                     // 回退到内联字符串
-                                    xml_content += " t=\"inlineStr\"><is><t>" + value + "</t></is>";
+                                    serializer.attribute("t", "inlineStr");
+                                    serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "is");
+                                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "t", value);
+                                    serializer.end_element(); // is
                                 }
                             }
-                        } else {
-                            // 空字符串也要有结构
-                            xml_content += ">";
                         }
+                        // 空字符串不需要特殊处理
                     } else if constexpr (std::is_same_v<T, double>) {
                         // 数字类型：使用数值格式
-                        xml_content += " t=\"n\"><v>" + std::to_string(value) + "</v>";
+                        serializer.attribute("t", "n");
+                        serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", std::to_string(value));
                     } else if constexpr (std::is_same_v<T, int>) {
                         // 整数类型：使用数值格式
-                        xml_content += " t=\"n\"><v>" + std::to_string(value) + "</v>";
+                        serializer.attribute("t", "n");
+                        serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", std::to_string(value));
                     } else if constexpr (std::is_same_v<T, bool>) {
                         // 布尔类型：使用布尔格式
-                        xml_content += " t=\"b\"><v>" + std::string(value ? "1" : "0") + "</v>";
-                    } else {
-                        xml_content += ">";
+                        serializer.attribute("t", "b");
+                        serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "v", value ? "1" : "0");
                     }
                 }, cell_data.value);
 
                 // 添加公式（如果有）
                 if (cell_data.formula) {
-                    xml_content += "<f>" + *cell_data.formula + "</f>";
+                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "f", *cell_data.formula);
                 }
 
-                xml_content += "</c>";
+                serializer.end_element(); // c
             }
 
-            xml_content += "</row>";
+            serializer.end_element(); // row
         }
 
-        xml_content += "</sheetData>";
+        serializer.end_element(); // sheetData
     }
 
     // 添加条件格式
     if (!conditional_formats_.empty()) {
         for (const auto& format : conditional_formats_) {
-            xml_content += "<conditionalFormatting sqref=\"" + format.range + "\">";
+            serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "conditionalFormatting");
+            serializer.attribute("sqref", format.range);
+
             for (const auto& rule : format.rules) {
-                xml_content += "<cfRule type=\"" + conditional_format_type_to_string(rule.type) + "\"";
-                xml_content += " operator=\"" + conditional_format_operator_to_string(rule.operator_type) + "\"";
+                serializer.start_element("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "cfRule");
+                serializer.attribute("type", conditional_format_type_to_string(rule.type));
+                serializer.attribute("operator", conditional_format_operator_to_string(rule.operator_type));
                 if (rule.dxf_id.has_value()) {
-                    xml_content += " dxfId=\"" + std::to_string(rule.dxf_id.value()) + "\"";
+                    serializer.attribute("dxfId", std::to_string(rule.dxf_id.value()));
                 }
-                xml_content += " priority=\"" + std::to_string(format.priority) + "\">";
+                serializer.attribute("priority", std::to_string(format.priority));
 
                 // 添加公式
                 for (const auto& formula : rule.formulas) {
-                    xml_content += "<formula>" + formula + "</formula>";
+                    serializer.element_with_namespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "formula", formula);
                 }
 
-                xml_content += "</cfRule>";
+                serializer.end_element(); // cfRule
             }
-            xml_content += "</conditionalFormatting>";
+            serializer.end_element(); // conditionalFormatting
         }
     }
 
-    xml_content += "</worksheet>";
+    serializer.end_element(); // worksheet
+
+    // 获取生成的XML内容
+    std::string xml_content = oss.str();
 
     // 调试输出：打印生成的工作表XML
     std::cout << "\n=== 生成的工作表XML (" << name_ << ") ===" << std::endl;

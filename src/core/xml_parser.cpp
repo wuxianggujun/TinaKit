@@ -6,10 +6,86 @@
 #include <fstream>
 #include <iostream>
 #include <libstudxml/parser.hxx>
+#include <libstudxml/serializer.hxx>
 #include <unordered_set>
 
 namespace tinakit::core
 {
+    // ========================================
+    // XmlSerializer Implementation
+    // ========================================
+
+    struct XmlSerializer::Impl
+    {
+        std::unique_ptr<xml::serializer> serializer;
+
+        Impl(std::ostream& stream, const std::string& document_name, unsigned short indentation)
+            : serializer(std::make_unique<xml::serializer>(stream, document_name, indentation))
+        {
+        }
+    };
+
+    XmlSerializer::XmlSerializer(std::ostream& stream, const std::string& document_name, unsigned short indentation)
+        : impl_(std::make_unique<Impl>(stream, document_name, indentation))
+    {
+    }
+
+    XmlSerializer::~XmlSerializer() = default;
+
+    void XmlSerializer::xml_declaration(const std::string& version, const std::string& encoding, const std::string& standalone)
+    {
+        impl_->serializer->xml_decl(version, encoding, standalone);
+    }
+
+    void XmlSerializer::start_element(const std::string& name)
+    {
+        impl_->serializer->start_element(name);
+    }
+
+    void XmlSerializer::start_element(const std::string& namespace_uri, const std::string& name)
+    {
+        impl_->serializer->start_element(namespace_uri, name);
+    }
+
+    void XmlSerializer::end_element()
+    {
+        impl_->serializer->end_element();
+    }
+
+    void XmlSerializer::element(const std::string& name, const std::string& content)
+    {
+        impl_->serializer->element(name, content);
+    }
+
+    void XmlSerializer::element_with_namespace(const std::string& namespace_uri, const std::string& name, const std::string& content)
+    {
+        impl_->serializer->element(namespace_uri, name, content);
+    }
+
+    void XmlSerializer::attribute(const std::string& name, const std::string& value)
+    {
+        impl_->serializer->attribute(name, value);
+    }
+
+    void XmlSerializer::attribute(const std::string& namespace_uri, const std::string& name, const std::string& value)
+    {
+        impl_->serializer->attribute(namespace_uri, name, value);
+    }
+
+    void XmlSerializer::namespace_declaration(const std::string& namespace_uri, const std::string& prefix)
+    {
+        impl_->serializer->namespace_decl(namespace_uri, prefix);
+    }
+
+    void XmlSerializer::characters(const std::string& text)
+    {
+        impl_->serializer->characters(text);
+    }
+
+    // ========================================
+    // XmlParser Implementation
+    // ========================================
+
     // OpenXML标准属性集合
     const std::unordered_set<std::string> known_openxml_attributes = {
             // 通用属性
@@ -29,6 +105,8 @@ namespace tinakit::core
             "applyFont", "applyFill", "applyBorder", "applyAlignment", "applyNumberFormat", "applyProtection",
             // Excel兼容性属性
             "pivotButton", "quotePrefix", "builtinId",
+            // 条件格式属性
+            "dxfId", "priority", "operator", "type", "sqref",
             // 其他常见属性
             "val", "sz", "b", "i", "u", "color", "rgb", "theme", "indexed"
         };
@@ -41,25 +119,51 @@ namespace tinakit::core
         std::istream& stream_ref;
         // The actual libstudxml parser
         std::unique_ptr<xml::parser> parser;
+        // Document name for error reporting
+        std::string document_name;
+        // Error handling
+        std::optional<XmlParseError> last_error;
+        bool error_recovery_enabled = false;
 
-        Impl(std::unique_ptr<std::ifstream> stream, const std::string& document_name): owned_stream(std::move(stream)),
+        Impl(std::unique_ptr<std::ifstream> stream, const std::string& doc_name):
+            owned_stream(std::move(stream)),
             stream_ref(*owned_stream),
-            parser(std::make_unique<xml::parser>(stream_ref, document_name,
+            document_name(doc_name)
+        {
+            create_parser();
+        }
+
+        Impl(std::istream& stream, const std::string& doc_name):
+            owned_stream(nullptr),
+            stream_ref(stream),
+            document_name(doc_name)
+        {
+            create_parser();
+        }
+
+        void create_parser() {
+            parser = std::make_unique<xml::parser>(stream_ref, document_name,
                 xml::parser::receive_elements |
                 xml::parser::receive_characters |
                 xml::parser::receive_attributes_map |
-                xml::parser::receive_namespace_decls))
-        {
+                xml::parser::receive_namespace_decls);
         }
 
-        Impl(std::istream& stream, const std::string& document_name): owned_stream(nullptr), stream_ref(stream),
-                                                                      parser(std::make_unique<xml::parser>(
-                                                                          stream_ref, document_name,
-                                                                          xml::parser::receive_elements |
-                                                                          xml::parser::receive_characters |
-                                                                          xml::parser::receive_attributes_map |
-                                                                          xml::parser::receive_namespace_decls))
-        {
+        bool reset() {
+            try {
+                // Reset stream position to beginning
+                stream_ref.clear(); // Clear any error flags
+                stream_ref.seekg(0, std::ios::beg);
+
+                if (stream_ref.good()) {
+                    // Recreate parser with fresh stream
+                    create_parser();
+                    return true;
+                }
+                return false;
+            } catch (...) {
+                return false;
+            }
         }
     };
 
@@ -93,8 +197,65 @@ namespace tinakit::core
     {
         return {};
     }
+
+    bool XmlParser::reset()
+    {
+        impl_->last_error.reset(); // Clear any previous errors
+        return impl_->reset();
+    }
+
+    void XmlParser::parse_multiple_elements(const std::map<std::string, std::function<void(iterator&)>>& element_handlers)
+    {
+        for (auto it = begin(); it != end(); ++it)
+        {
+            if (it.is_start_element()) {
+                auto handler_it = element_handlers.find(it.name());
+                if (handler_it != element_handlers.end()) {
+                    try {
+                        handler_it->second(it);
+                    } catch (const std::exception& e) {
+                        impl_->last_error = XmlParseError(e.what(), it.line(), it.column(), it.name());
+                        if (!impl_->error_recovery_enabled) {
+                            throw;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void XmlParser::parse_multiple_elements_ns(const std::map<std::pair<std::string, std::string>, std::function<void(iterator&)>>& element_handlers)
+    {
+        for (auto it = begin(); it != end(); ++it)
+        {
+            if (it.is_start_element()) {
+                std::pair<std::string, std::string> key = {it.namespace_uri(), it.name()};
+                auto handler_it = element_handlers.find(key);
+                if (handler_it != element_handlers.end()) {
+                    try {
+                        handler_it->second(it);
+                    } catch (const std::exception& e) {
+                        impl_->last_error = XmlParseError(e.what(), it.line(), it.column(), it.name());
+                        if (!impl_->error_recovery_enabled) {
+                            throw;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    std::optional<XmlParseError> XmlParser::get_last_error() const
+    {
+        return impl_->last_error;
+    }
+
+    void XmlParser::set_error_recovery(bool enable)
+    {
+        impl_->error_recovery_enabled = enable;
+    }
     
-    void XmlParser::for_each_element(const std::string& element_name, 
+    void XmlParser::for_each_element(const std::string& element_name,
                                     std::function<void(iterator&)> callback)
     {
         for (auto it = begin(); it != end(); ++it)
@@ -105,7 +266,19 @@ namespace tinakit::core
             }
         }
     }
-    
+
+    void XmlParser::for_each_element_ns(const std::string& namespace_uri, const std::string& element_name,
+                                       std::function<void(iterator&)> callback)
+    {
+        for (auto it = begin(); it != end(); ++it)
+        {
+            if (it.is_start_element() && it.name() == element_name && it.namespace_uri() == namespace_uri)
+            {
+                callback(it);
+            }
+        }
+    }
+
     std::string XmlParser::get_element_text(const std::string& element_name)
     {
         for (auto it = begin(); it != end(); ++it)

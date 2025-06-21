@@ -8,6 +8,7 @@
 #pragma once
 
 #include "tinakit/core/types.hpp"
+#include "tinakit/core/xml_parser.hpp"
 #include "workbook_impl.hpp"
 #include <map>
 #include <string>
@@ -288,6 +289,10 @@ private:
     void update_dimensions(const core::Coordinate& pos);
     void parse_cell_data(const std::string& xml_content);
     std::string generate_worksheet_xml();
+
+    // 优化的解析方法
+    void parse_single_cell(core::XmlParser::iterator& it, core::XmlParser& parser);
+    void parse_conditional_formatting(core::XmlParser::iterator& it, core::XmlParser& parser);
 
     // 条件格式辅助方法
     bool is_cell_in_range(const core::Coordinate& pos, const std::string& range_str) const;
