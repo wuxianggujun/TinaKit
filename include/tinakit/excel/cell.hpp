@@ -329,12 +329,6 @@ template<> std::optional<int> Cell::try_as<int>() const noexcept;
 template<> std::optional<double> Cell::try_as<double>() const noexcept;
 template<> std::optional<bool> Cell::try_as<bool>() const noexcept;
 
-// as() 函数的特化声明
-template<> std::string Cell::as<std::string>() const;
-template<> int Cell::as<int>() const;
-template<> double Cell::as<double>() const;
-template<> bool Cell::as<bool>() const;
-
 
 
 } // namespace tinakit::excel

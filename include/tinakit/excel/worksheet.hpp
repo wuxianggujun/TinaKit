@@ -410,11 +410,6 @@ public:
     /**
      * @brief 清空缓存（用于测试和性能分析）
      */
-    void clear_cache();
-
-    /**
-     * @brief 清空缓存
-     */
     void clear_cache() const {
         fast_cell_cache_.clear();
         cache_hits_ = 0;
