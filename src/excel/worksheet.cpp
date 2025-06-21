@@ -404,10 +404,7 @@ const std::vector<ConditionalFormat>& Worksheet::get_conditional_formats() const
         return empty_formats;
     }
 
-    // TODO: 实现workbook_impl的get_conditional_formats方法
-    // return workbook_impl_->get_conditional_formats(sheet_name_);
-    static std::vector<ConditionalFormat> empty_formats;
-    return empty_formats;
+    return workbook_impl_->get_conditional_formats(sheet_name_);
 }
 
 // ========================================

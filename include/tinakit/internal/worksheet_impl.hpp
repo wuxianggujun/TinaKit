@@ -106,6 +106,11 @@ public:
     cell_data get_cell_data(const core::Coordinate& pos);
 
     /**
+     * @brief 获取单元格数据（const版本）
+     */
+    cell_data get_cell_data(const core::Coordinate& pos) const;
+
+    /**
      * @brief 设置单元格数据
      */
     void set_cell_data(const core::Coordinate& pos, const cell_data& data);
@@ -223,6 +228,29 @@ public:
      */
     void save_to_archiver(core::OpenXmlArchiver& archiver);
 
+    // ========================================
+    // 条件格式
+    // ========================================
+
+    /**
+     * @brief 添加条件格式
+     * @param format 条件格式
+     */
+    void add_conditional_format(const excel::ConditionalFormat& format);
+
+    /**
+     * @brief 获取所有条件格式
+     * @return 条件格式列表
+     */
+    const std::vector<excel::ConditionalFormat>& get_conditional_formats() const;
+
+    /**
+     * @brief 应用条件格式到单元格
+     * @param pos 单元格位置
+     * @return 应用的样式ID（如果有）
+     */
+    std::optional<std::uint32_t> apply_conditional_format(const core::Coordinate& pos);
+
 private:
     /**
      * @brief 判断字符串是否应该使用内联存储
@@ -251,12 +279,30 @@ private:
     
     // 合并单元格范围
     std::vector<core::range_address> merged_ranges_;
+
+    // 条件格式
+    std::vector<excel::ConditionalFormat> conditional_formats_;
     
     // 内部方法
     void load_from_xml();
     void update_dimensions(const core::Coordinate& pos);
     void parse_cell_data(const std::string& xml_content);
     std::string generate_worksheet_xml();
+
+    // 条件格式辅助方法
+    bool is_cell_in_range(const core::Coordinate& pos, const std::string& range_str) const;
+    bool evaluate_conditional_rule(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const;
+    double get_cell_value_for_condition(const core::Coordinate& pos) const;
+    std::string get_cell_text_for_condition(const core::Coordinate& pos) const;
+    bool evaluate_cell_value_condition(double cell_value, const excel::ConditionalFormatRule& rule) const;
+    bool evaluate_text_condition(double cell_value, const excel::ConditionalFormatRule& rule) const;
+    bool evaluate_expression_condition(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const;
+    bool evaluate_duplicate_values_condition(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const;
+    bool evaluate_unique_values_condition(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const;
+    std::string conditional_format_type_to_string(excel::ConditionalFormatType type) const;
+    std::string conditional_format_operator_to_string(excel::ConditionalFormatOperator op) const;
+    excel::ConditionalFormatType string_to_conditional_format_type(const std::string& str) const;
+    excel::ConditionalFormatOperator string_to_conditional_format_operator(const std::string& str) const;
 };
 
 } // namespace tinakit::internal

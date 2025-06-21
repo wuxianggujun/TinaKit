@@ -751,14 +751,15 @@ excel::Range workbook_impl::get_used_range(const std::string& sheet_name) {
 
 void workbook_impl::add_conditional_format(const std::string& sheet_name, const excel::ConditionalFormat& format) {
     ensure_worksheet_loaded(sheet_name);
+    auto& worksheet = get_worksheet_impl(sheet_name);
+    worksheet.add_conditional_format(format);
+    is_dirty_ = true;
+}
 
-    auto it = worksheets_.find(sheet_name);
-    if (it != worksheets_.end()) {
-        // 这里应该将条件格式添加到工作表中
-        // 暂时只标记为已修改
-        it->second->mark_dirty();
-        is_dirty_ = true;
-    }
+const std::vector<excel::ConditionalFormat>& workbook_impl::get_conditional_formats(const std::string& sheet_name) const {
+    const_cast<workbook_impl*>(this)->ensure_worksheet_loaded(sheet_name);
+    const auto& worksheet = const_cast<workbook_impl*>(this)->get_worksheet_impl(sheet_name);
+    return worksheet.get_conditional_formats();
 }
 
 

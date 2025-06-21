@@ -6,6 +6,7 @@
  */
 
 #include "tinakit/internal/worksheet_impl.hpp"
+#include "tinakit/internal/coordinate_utils.hpp"
 #include "tinakit/excel/range.hpp"
 #include "tinakit/core/exceptions.hpp"
 #include "tinakit/core/async.hpp"
@@ -17,6 +18,8 @@
 #include <limits>
 
 namespace tinakit::internal {
+
+using namespace utils;
 
 // ========================================
 // 构造函数和析构函数
@@ -87,12 +90,22 @@ LoadState worksheet_impl::load_state() const {
 
 cell_data worksheet_impl::get_cell_data(const core::Coordinate& pos) {
     ensure_loaded(pos);
-    
+
     auto it = cells_.find(pos);
     if (it != cells_.end()) {
         return it->second;
     }
-    
+
+    // 返回空的单元格数据
+    return cell_data();
+}
+
+cell_data worksheet_impl::get_cell_data(const core::Coordinate& pos) const {
+    auto it = cells_.find(pos);
+    if (it != cells_.end()) {
+        return it->second;
+    }
+
     // 返回空的单元格数据
     return cell_data();
 }
@@ -494,8 +507,79 @@ void worksheet_impl::parse_cell_data(const std::string& xml_content) {
             }
         });
 
-    } catch (const std::exception&) {
+        // 解析条件格式
+        std::cout << "开始解析条件格式..." << std::endl;
+        std::cout << "XML内容长度: " << xml_content.length() << std::endl;
+        std::cout << "查找conditionalFormatting元素..." << std::endl;
+        parser.for_each_element("conditionalFormatting", [this, &parser](core::XmlParser::iterator& it) {
+            std::cout << "找到conditionalFormatting元素" << std::endl;
+            auto sqref = it.attribute("sqref");
+            if (sqref && !sqref->empty()) {
+                std::cout << "解析条件格式范围: " << *sqref << std::endl;
+                excel::ConditionalFormat format;
+                format.range = *sqref;
+                format.priority = 1; // 默认优先级
+
+                // 解析条件格式规则
+                auto current_it = it;
+                ++current_it;
+
+                while (current_it != parser.end() &&
+                       !(current_it.is_end_element() && current_it.name() == "conditionalFormatting")) {
+
+                    if (current_it.is_start_element() && current_it.name() == "cfRule") {
+                        excel::ConditionalFormatRule rule;
+
+                        // 解析规则属性
+                        auto type_attr = current_it.attribute("type");
+                        auto operator_attr = current_it.attribute("operator");
+                        auto dxf_id_attr = current_it.attribute("dxfId");
+                        auto priority_attr = current_it.attribute("priority");
+
+                        if (type_attr) {
+                            rule.type = string_to_conditional_format_type(*type_attr);
+                        }
+                        if (operator_attr) {
+                            rule.operator_type = string_to_conditional_format_operator(*operator_attr);
+                        }
+                        if (dxf_id_attr) {
+                            rule.dxf_id = std::stoul(*dxf_id_attr);
+                        }
+                        if (priority_attr) {
+                            format.priority = std::stoi(*priority_attr);
+                        }
+
+                        // 解析公式
+                        auto rule_it = current_it;
+                        ++rule_it;
+                        while (rule_it != parser.end() &&
+                               !(rule_it.is_end_element() && rule_it.name() == "cfRule")) {
+                            if (rule_it.is_start_element() && rule_it.name() == "formula") {
+                                rule.formulas.push_back(rule_it.text_content());
+                            }
+                            ++rule_it;
+                        }
+
+                        format.rules.push_back(rule);
+                    }
+                    ++current_it;
+                }
+
+                if (!format.rules.empty()) {
+                    std::cout << "添加条件格式，规则数量: " << format.rules.size() << std::endl;
+                    conditional_formats_.push_back(format);
+                } else {
+                    std::cout << "条件格式没有规则，跳过" << std::endl;
+                }
+            } else {
+                std::cout << "条件格式没有sqref属性" << std::endl;
+            }
+        });
+        std::cout << "条件格式解析完成，总数量: " << conditional_formats_.size() << std::endl;
+
+    } catch (const std::exception& e) {
         // 解析失败时忽略错误
+        std::cout << "XML解析异常: " << e.what() << std::endl;
     }
 }
 
@@ -613,6 +697,29 @@ std::string worksheet_impl::generate_worksheet_xml() {
         xml_content += "</sheetData>";
     }
 
+    // 添加条件格式
+    if (!conditional_formats_.empty()) {
+        for (const auto& format : conditional_formats_) {
+            xml_content += "<conditionalFormatting sqref=\"" + format.range + "\">";
+            for (const auto& rule : format.rules) {
+                xml_content += "<cfRule type=\"" + conditional_format_type_to_string(rule.type) + "\"";
+                xml_content += " operator=\"" + conditional_format_operator_to_string(rule.operator_type) + "\"";
+                if (rule.dxf_id.has_value()) {
+                    xml_content += " dxfId=\"" + std::to_string(rule.dxf_id.value()) + "\"";
+                }
+                xml_content += " priority=\"" + std::to_string(format.priority) + "\">";
+
+                // 添加公式
+                for (const auto& formula : rule.formulas) {
+                    xml_content += "<formula>" + formula + "</formula>";
+                }
+
+                xml_content += "</cfRule>";
+            }
+            xml_content += "</conditionalFormatting>";
+        }
+    }
+
     xml_content += "</worksheet>";
 
     // 调试输出：打印生成的工作表XML
@@ -664,6 +771,250 @@ bool worksheet_impl::should_use_inline_string(const std::string& str) const {
         // 如果出现任何异常，默认使用内联字符串（更安全）
         return true;
     }
+}
+
+// ========================================
+// 条件格式实现
+// ========================================
+
+void worksheet_impl::add_conditional_format(const excel::ConditionalFormat& format) {
+    conditional_formats_.push_back(format);
+    mark_dirty();
+}
+
+const std::vector<excel::ConditionalFormat>& worksheet_impl::get_conditional_formats() const {
+    return conditional_formats_;
+}
+
+std::optional<std::uint32_t> worksheet_impl::apply_conditional_format(const core::Coordinate& pos) {
+    // 遍历所有条件格式，按优先级排序
+    std::vector<std::pair<int, const excel::ConditionalFormat*>> sorted_formats;
+    for (const auto& format : conditional_formats_) {
+        sorted_formats.emplace_back(format.priority, &format);
+    }
+
+    // 按优先级排序（数字越小优先级越高）
+    std::sort(sorted_formats.begin(), sorted_formats.end());
+
+    // 检查每个条件格式是否适用于当前单元格
+    for (const auto& [priority, format] : sorted_formats) {
+        if (is_cell_in_range(pos, format->range)) {
+            for (const auto& rule : format->rules) {
+                if (evaluate_conditional_rule(pos, rule)) {
+                    // 找到匹配的规则，返回对应的dxf_id
+                    if (rule.dxf_id.has_value()) {
+                        return rule.dxf_id.value();
+                    }
+                }
+            }
+        }
+    }
+
+    return std::nullopt; // 没有匹配的条件格式
+}
+
+bool worksheet_impl::is_cell_in_range(const core::Coordinate& pos, const std::string& range_str) const {
+    try {
+        auto range_addr = utils::CoordinateUtils::string_to_range_address(range_str);
+        return pos.row >= range_addr.start.row && pos.row <= range_addr.end.row &&
+               pos.column >= range_addr.start.column && pos.column <= range_addr.end.column;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool worksheet_impl::evaluate_conditional_rule(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const {
+    // 获取单元格的值
+    auto cell_value = get_cell_value_for_condition(pos);
+
+    switch (rule.type) {
+        case excel::ConditionalFormatType::CellValue:
+            return evaluate_cell_value_condition(cell_value, rule);
+
+        case excel::ConditionalFormatType::ContainsText:
+            return evaluate_text_condition(cell_value, rule);
+
+        case excel::ConditionalFormatType::Expression:
+            return evaluate_expression_condition(pos, rule);
+
+        case excel::ConditionalFormatType::DuplicateValues:
+            return evaluate_duplicate_values_condition(pos, rule);
+
+        case excel::ConditionalFormatType::UniqueValues:
+            return evaluate_unique_values_condition(pos, rule);
+
+        default:
+            return false;
+    }
+}
+
+double worksheet_impl::get_cell_value_for_condition(const core::Coordinate& pos) const {
+    if (has_cell_data(pos)) {
+        auto cell_data = get_cell_data(pos);
+
+        if (std::holds_alternative<double>(cell_data.value)) {
+            return std::get<double>(cell_data.value);
+        } else if (std::holds_alternative<int>(cell_data.value)) {
+            return static_cast<double>(std::get<int>(cell_data.value));
+        } else if (std::holds_alternative<std::string>(cell_data.value)) {
+            try {
+                return std::stod(std::get<std::string>(cell_data.value));
+            } catch (...) {
+                return 0.0;
+            }
+        } else if (std::holds_alternative<bool>(cell_data.value)) {
+            return std::get<bool>(cell_data.value) ? 1.0 : 0.0;
+        }
+    }
+    return 0.0;
+}
+
+std::string worksheet_impl::get_cell_text_for_condition(const core::Coordinate& pos) const {
+    if (has_cell_data(pos)) {
+        auto cell_data = get_cell_data(pos);
+
+        if (std::holds_alternative<std::string>(cell_data.value)) {
+            return std::get<std::string>(cell_data.value);
+        } else if (std::holds_alternative<double>(cell_data.value)) {
+            return std::to_string(std::get<double>(cell_data.value));
+        } else if (std::holds_alternative<int>(cell_data.value)) {
+            return std::to_string(std::get<int>(cell_data.value));
+        } else if (std::holds_alternative<bool>(cell_data.value)) {
+            return std::get<bool>(cell_data.value) ? "TRUE" : "FALSE";
+        }
+    }
+    return "";
+}
+
+bool worksheet_impl::evaluate_cell_value_condition(double cell_value, const excel::ConditionalFormatRule& rule) const {
+    if (rule.formulas.empty()) return false;
+
+    double condition_value;
+    try {
+        condition_value = std::stod(rule.formulas[0]);
+    } catch (...) {
+        return false;
+    }
+
+    switch (rule.operator_type) {
+        case excel::ConditionalFormatOperator::GreaterThan:
+            return cell_value > condition_value;
+        case excel::ConditionalFormatOperator::GreaterThanOrEqual:
+            return cell_value >= condition_value;
+        case excel::ConditionalFormatOperator::LessThan:
+            return cell_value < condition_value;
+        case excel::ConditionalFormatOperator::LessThanOrEqual:
+            return cell_value <= condition_value;
+        case excel::ConditionalFormatOperator::Equal:
+            return std::abs(cell_value - condition_value) < 1e-9;
+        case excel::ConditionalFormatOperator::NotEqual:
+            return std::abs(cell_value - condition_value) >= 1e-9;
+        case excel::ConditionalFormatOperator::Between:
+            if (rule.formulas.size() >= 2) {
+                try {
+                    double min_val = std::stod(rule.formulas[0]);
+                    double max_val = std::stod(rule.formulas[1]);
+                    return cell_value >= min_val && cell_value <= max_val;
+                } catch (...) {
+                    return false;
+                }
+            }
+            return false;
+        case excel::ConditionalFormatOperator::NotBetween:
+            if (rule.formulas.size() >= 2) {
+                try {
+                    double min_val = std::stod(rule.formulas[0]);
+                    double max_val = std::stod(rule.formulas[1]);
+                    return cell_value < min_val || cell_value > max_val;
+                } catch (...) {
+                    return false;
+                }
+            }
+            return false;
+        default:
+            return false;
+    }
+}
+
+bool worksheet_impl::evaluate_text_condition(double cell_value, const excel::ConditionalFormatRule& rule) const {
+    // 对于文本条件，我们需要获取单元格的文本表示
+    // 这里简化处理，实际应该根据单元格位置获取文本
+    return false; // TODO: 实现文本条件评估
+}
+
+bool worksheet_impl::evaluate_expression_condition(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const {
+    // TODO: 实现表达式条件评估（需要公式引擎支持）
+    return false;
+}
+
+bool worksheet_impl::evaluate_duplicate_values_condition(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const {
+    // TODO: 实现重复值条件评估
+    return false;
+}
+
+bool worksheet_impl::evaluate_unique_values_condition(const core::Coordinate& pos, const excel::ConditionalFormatRule& rule) const {
+    // TODO: 实现唯一值条件评估
+    return false;
+}
+
+std::string worksheet_impl::conditional_format_type_to_string(excel::ConditionalFormatType type) const {
+    switch (type) {
+        case excel::ConditionalFormatType::CellValue: return "cellIs";
+        case excel::ConditionalFormatType::Expression: return "expression";
+        case excel::ConditionalFormatType::ContainsText: return "containsText";
+        case excel::ConditionalFormatType::NotContainsText: return "notContainsText";
+        case excel::ConditionalFormatType::BeginsWith: return "beginsWith";
+        case excel::ConditionalFormatType::EndsWith: return "endsWith";
+        case excel::ConditionalFormatType::DuplicateValues: return "duplicateValues";
+        case excel::ConditionalFormatType::UniqueValues: return "uniqueValues";
+        default: return "cellIs";
+    }
+}
+
+std::string worksheet_impl::conditional_format_operator_to_string(excel::ConditionalFormatOperator op) const {
+    switch (op) {
+        case excel::ConditionalFormatOperator::GreaterThan: return "greaterThan";
+        case excel::ConditionalFormatOperator::GreaterThanOrEqual: return "greaterThanOrEqual";
+        case excel::ConditionalFormatOperator::LessThan: return "lessThan";
+        case excel::ConditionalFormatOperator::LessThanOrEqual: return "lessThanOrEqual";
+        case excel::ConditionalFormatOperator::Equal: return "equal";
+        case excel::ConditionalFormatOperator::NotEqual: return "notEqual";
+        case excel::ConditionalFormatOperator::Between: return "between";
+        case excel::ConditionalFormatOperator::NotBetween: return "notBetween";
+        case excel::ConditionalFormatOperator::ContainsText: return "containsText";
+        case excel::ConditionalFormatOperator::NotContains: return "notContains";
+        case excel::ConditionalFormatOperator::BeginsWith: return "beginsWith";
+        case excel::ConditionalFormatOperator::EndsWith: return "endsWith";
+        default: return "equal";
+    }
+}
+
+excel::ConditionalFormatType worksheet_impl::string_to_conditional_format_type(const std::string& str) const {
+    if (str == "cellIs") return excel::ConditionalFormatType::CellValue;
+    if (str == "expression") return excel::ConditionalFormatType::Expression;
+    if (str == "containsText") return excel::ConditionalFormatType::ContainsText;
+    if (str == "notContainsText") return excel::ConditionalFormatType::NotContainsText;
+    if (str == "beginsWith") return excel::ConditionalFormatType::BeginsWith;
+    if (str == "endsWith") return excel::ConditionalFormatType::EndsWith;
+    if (str == "duplicateValues") return excel::ConditionalFormatType::DuplicateValues;
+    if (str == "uniqueValues") return excel::ConditionalFormatType::UniqueValues;
+    return excel::ConditionalFormatType::CellValue; // 默认值
+}
+
+excel::ConditionalFormatOperator worksheet_impl::string_to_conditional_format_operator(const std::string& str) const {
+    if (str == "greaterThan") return excel::ConditionalFormatOperator::GreaterThan;
+    if (str == "greaterThanOrEqual") return excel::ConditionalFormatOperator::GreaterThanOrEqual;
+    if (str == "lessThan") return excel::ConditionalFormatOperator::LessThan;
+    if (str == "lessThanOrEqual") return excel::ConditionalFormatOperator::LessThanOrEqual;
+    if (str == "equal") return excel::ConditionalFormatOperator::Equal;
+    if (str == "notEqual") return excel::ConditionalFormatOperator::NotEqual;
+    if (str == "between") return excel::ConditionalFormatOperator::Between;
+    if (str == "notBetween") return excel::ConditionalFormatOperator::NotBetween;
+    if (str == "containsText") return excel::ConditionalFormatOperator::ContainsText;
+    if (str == "notContains") return excel::ConditionalFormatOperator::NotContains;
+    if (str == "beginsWith") return excel::ConditionalFormatOperator::BeginsWith;
+    if (str == "endsWith") return excel::ConditionalFormatOperator::EndsWith;
+    return excel::ConditionalFormatOperator::Equal; // 默认值
 }
 
 } // namespace tinakit::internal

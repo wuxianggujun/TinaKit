@@ -14,6 +14,16 @@
 
 namespace tinakit::excel {
 
+// 辅助函数：格式化数字为字符串，去掉不必要的小数点
+std::string format_number_for_condition(double value) {
+    // 检查是否为整数
+    if (value == std::floor(value)) {
+        return std::to_string(static_cast<long long>(value));
+    } else {
+        return std::to_string(value);
+    }
+}
+
 // =============================================================================
 // ConditionalFormatBuilder::Impl
 // =============================================================================
@@ -91,51 +101,93 @@ ConditionalFormatBuilder::ConditionalFormatBuilder(Worksheet& worksheet, const s
 
 ConditionalFormatBuilder::~ConditionalFormatBuilder() = default;
 
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_greater_than(int value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::GreaterThan,
+                        {std::to_string(value)});
+    return *this;
+}
+
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_greater_than(double value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::GreaterThan, 
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::GreaterThan,
+                        {format_number_for_condition(value)});
+    return *this;
+}
+
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_greater_than_or_equal(int value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::GreaterThanOrEqual,
                         {std::to_string(value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_greater_than_or_equal(double value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::GreaterThanOrEqual, 
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::GreaterThanOrEqual,
+                        {format_number_for_condition(value)});
+    return *this;
+}
+
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_less_than(int value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::LessThan,
                         {std::to_string(value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_less_than(double value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::LessThan, 
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::LessThan,
+                        {format_number_for_condition(value)});
+    return *this;
+}
+
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_less_than_or_equal(int value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::LessThanOrEqual,
                         {std::to_string(value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_less_than_or_equal(double value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::LessThanOrEqual, 
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::LessThanOrEqual,
+                        {format_number_for_condition(value)});
+    return *this;
+}
+
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_equal(int value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::Equal,
                         {std::to_string(value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_equal(double value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::Equal, 
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::Equal,
+                        {format_number_for_condition(value)});
+    return *this;
+}
+
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_not_equal(int value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::NotEqual,
                         {std::to_string(value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_not_equal(double value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::NotEqual, 
-                        {std::to_string(value)});
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::NotEqual,
+                        {format_number_for_condition(value)});
+    return *this;
+}
+
+ConditionalFormatBuilder& ConditionalFormatBuilder::when_between(int min_value, int max_value) {
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::Between,
+                        {std::to_string(min_value), std::to_string(max_value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_between(double min_value, double max_value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::Between, 
-                        {std::to_string(min_value), std::to_string(max_value)});
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::Between,
+                        {format_number_for_condition(min_value), format_number_for_condition(max_value)});
     return *this;
 }
 
 ConditionalFormatBuilder& ConditionalFormatBuilder::when_not_between(double min_value, double max_value) {
-    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::NotBetween, 
-                        {std::to_string(min_value), std::to_string(max_value)});
+    impl_->set_condition(ConditionalFormatType::CellValue, ConditionalFormatOperator::NotBetween,
+                        {format_number_for_condition(min_value), format_number_for_condition(max_value)});
     return *this;
 }
 

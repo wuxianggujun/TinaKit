@@ -164,10 +164,7 @@ public:
      */
     excel::Range get_used_range(const std::string& sheet_name);
 
-    /**
-     * @brief 添加条件格式
-     */
-    void add_conditional_format(const std::string& sheet_name, const excel::ConditionalFormat& format);
+
 
     /**
      * @brief 获取工作表实现（公开版本）
@@ -310,6 +307,24 @@ public:
      * @param sheet_name 工作表名称（空字符串表示所有工作表）
      */
     void recalculate_formulas(const std::string& sheet_name = "");
+
+    // ========================================
+    // 条件格式
+    // ========================================
+
+    /**
+     * @brief 添加条件格式
+     * @param sheet_name 工作表名称
+     * @param format 条件格式
+     */
+    void add_conditional_format(const std::string& sheet_name, const excel::ConditionalFormat& format);
+
+    /**
+     * @brief 获取工作表的条件格式
+     * @param sheet_name 工作表名称
+     * @return 条件格式列表
+     */
+    const std::vector<excel::ConditionalFormat>& get_conditional_formats(const std::string& sheet_name) const;
     
     // ========================================
     // 文件操作

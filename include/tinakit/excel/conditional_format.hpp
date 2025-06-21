@@ -38,12 +38,19 @@ public:
     ~ConditionalFormatBuilder();
     
     // 数值比较条件
+    ConditionalFormatBuilder& when_greater_than(int value);
     ConditionalFormatBuilder& when_greater_than(double value);
+    ConditionalFormatBuilder& when_greater_than_or_equal(int value);
     ConditionalFormatBuilder& when_greater_than_or_equal(double value);
+    ConditionalFormatBuilder& when_less_than(int value);
     ConditionalFormatBuilder& when_less_than(double value);
+    ConditionalFormatBuilder& when_less_than_or_equal(int value);
     ConditionalFormatBuilder& when_less_than_or_equal(double value);
+    ConditionalFormatBuilder& when_equal(int value);
     ConditionalFormatBuilder& when_equal(double value);
+    ConditionalFormatBuilder& when_not_equal(int value);
     ConditionalFormatBuilder& when_not_equal(double value);
+    ConditionalFormatBuilder& when_between(int min_value, int max_value);
     ConditionalFormatBuilder& when_between(double min_value, double max_value);
     ConditionalFormatBuilder& when_not_between(double min_value, double max_value);
     
