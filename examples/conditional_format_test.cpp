@@ -4,8 +4,10 @@
  */
 
 #include "tinakit/excel/workbook.hpp"
+#include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/conditional_format.hpp"
 #include "tinakit/core/color.hpp"
+
 #include <iostream>
 #include <vector>
 using namespace tinakit;
@@ -17,7 +19,8 @@ int main() {
         
         // 创建新工作簿
         auto workbook = Workbook::create();
-        auto& sheet = workbook.create_sheet("条件格式测试");
+        auto sheet = workbook.active_sheet();
+        sheet.set_name("条件格式测试");
         
         // ========================================
         // 测试1：数值条件格式（背景色）

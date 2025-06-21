@@ -137,6 +137,26 @@ public:
      */
     bool valid() const noexcept;
 
+    /**
+     * @brief 批量设置行中的值
+     * @param values 值列表
+     * @param start_column 起始列索引（1-based，默认为1）
+     */
+    void set_values(const std::vector<Cell::CellValue>& values, std::size_t start_column = 1);
+
+    /**
+     * @brief 批量获取行中的值
+     * @param start_column 起始列索引（1-based，默认为1）
+     * @param count 获取的列数（0表示到行末尾）
+     * @return 值列表
+     */
+    std::vector<Cell::CellValue> get_values(std::size_t start_column = 1, std::size_t count = 0) const;
+
+    /**
+     * @brief 清空整行
+     */
+    void clear();
+
 public:
     /**
      * @brief 迭代器支持

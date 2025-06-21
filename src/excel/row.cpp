@@ -160,6 +160,84 @@ bool Row::valid() const noexcept {
 }
 
 // ========================================
+// 批量操作
+// ========================================
+
+void Row::set_values(const std::vector<Cell::CellValue>& values, std::size_t start_column) {
+    if (!valid()) {
+        throw std::runtime_error("Invalid Row handle");
+    }
+
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        auto cell = (*this)[start_column + i];
+        std::visit([&cell](const auto& value) {
+            using T = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<T, std::monostate>) {
+                // 空值，清除单元格数据
+                auto sheet_name = cell.workbook_impl_->get_sheet_name(cell.sheet_id_);
+                auto& worksheet_impl = cell.workbook_impl_->get_worksheet_impl_public(sheet_name);
+                core::Coordinate pos(cell.row_, cell.column_);
+                worksheet_impl.clear_cell_data(pos);
+            } else {
+                cell.value(value);
+            }
+        }, values[i]);
+    }
+}
+
+std::vector<Cell::CellValue> Row::get_values(std::size_t start_column, std::size_t count) const {
+    if (!valid()) {
+        throw std::runtime_error("Invalid Row handle");
+    }
+
+    std::size_t end_column;
+    if (count == 0) {
+        end_column = size();
+    } else {
+        end_column = start_column + count - 1;
+    }
+
+    std::vector<Cell::CellValue> values;
+    values.reserve(end_column - start_column + 1);
+
+    for (std::size_t col = start_column; col <= end_column; ++col) {
+        auto cell = (*this)[col];
+        values.push_back(cell.raw_value());
+    }
+
+    return values;
+}
+
+void Row::clear() {
+    if (!valid()) {
+        throw std::runtime_error("Invalid Row handle");
+    }
+
+    try {
+        auto sheet_name = workbook_impl_->get_sheet_name(sheet_id_);
+        auto& worksheet_impl = workbook_impl_->get_worksheet_impl_public(sheet_name);
+
+        // 收集这一行中所有有数据的单元格位置
+        std::vector<core::Coordinate> cells_to_clear;
+        auto max_col = worksheet_impl.max_column();
+
+        for (std::size_t col = 1; col <= max_col; ++col) {
+            core::Coordinate pos(row_index_, col);
+            if (worksheet_impl.has_cell_data(pos)) {
+                cells_to_clear.push_back(pos);
+            }
+        }
+
+        // 清除所有找到的单元格
+        for (const auto& pos : cells_to_clear) {
+            worksheet_impl.clear_cell_data(pos);
+        }
+    } catch (...) {
+        // 忽略错误
+    }
+}
+
+// ========================================
 // 迭代器支持
 // ========================================
 

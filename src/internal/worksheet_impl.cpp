@@ -118,6 +118,14 @@ void worksheet_impl::set_cell_data(const core::Coordinate& pos, const cell_data&
     mark_dirty();
 }
 
+void worksheet_impl::clear_cell_data(const core::Coordinate& pos) {
+    auto it = cells_.find(pos);
+    if (it != cells_.end()) {
+        cells_.erase(it);
+        mark_dirty();
+    }
+}
+
 bool worksheet_impl::has_cell_data(const core::Coordinate& pos) const {
     return cells_.find(pos) != cells_.end();
 }

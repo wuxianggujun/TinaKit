@@ -293,6 +293,175 @@ TEST_CASE(RowSystem, AsTemplateMethod) {
 }
 
 // ========================================
+// Row 批量操作测试
+// ========================================
+
+TEST_CASE(RowSystem, BatchSetValues) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    auto row = sheet.row(1);
+
+    // 测试批量设置值
+    std::vector<Cell::CellValue> values = {
+        std::string("姓名"),
+        std::string("年龄"),
+        42,
+        3.14,
+        true
+    };
+
+    row.set_values(values);
+
+    // 验证设置的值
+    ASSERT_EQ("姓名", row[1].as<std::string>());
+    ASSERT_EQ("年龄", row[2].as<std::string>());
+    ASSERT_EQ(42, row[3].as<int>());
+    ASSERT_EQ(3.14, row[4].as<double>());
+    ASSERT_EQ(true, row[5].as<bool>());
+    ASSERT_EQ(5u, row.size());
+}
+
+TEST_CASE(RowSystem, BatchSetValuesWithStartColumn) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    auto row = sheet.row(1);
+
+    // 从第3列开始设置值
+    std::vector<Cell::CellValue> values = {
+        std::string("C列"),
+        std::string("D列"),
+        std::string("E列")
+    };
+
+    row.set_values(values, 3);
+
+    // 验证值设置在正确的位置
+    ASSERT_TRUE(row[1].empty());
+    ASSERT_TRUE(row[2].empty());
+    ASSERT_EQ("C列", row[3].as<std::string>());
+    ASSERT_EQ("D列", row[4].as<std::string>());
+    ASSERT_EQ("E列", row[5].as<std::string>());
+    ASSERT_EQ(5u, row.size());
+}
+
+TEST_CASE(RowSystem, BatchGetValues) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    auto row = sheet.row(1);
+
+    // 先设置一些值
+    row[1].value("测试1");
+    row[2].value(100);
+    row[3].value(2.5);
+    row[4].value(false);
+
+    // 获取所有值
+    auto values = row.get_values();
+
+    ASSERT_EQ(4u, values.size());
+
+    // 验证获取的值
+    ASSERT_TRUE(std::holds_alternative<std::string>(values[0]));
+    ASSERT_EQ("测试1", std::get<std::string>(values[0]));
+
+    ASSERT_TRUE(std::holds_alternative<int>(values[1]));
+    ASSERT_EQ(100, std::get<int>(values[1]));
+
+    ASSERT_TRUE(std::holds_alternative<double>(values[2]));
+    ASSERT_EQ(2.5, std::get<double>(values[2]));
+
+    ASSERT_TRUE(std::holds_alternative<bool>(values[3]));
+    ASSERT_EQ(false, std::get<bool>(values[3]));
+}
+
+TEST_CASE(RowSystem, BatchGetValuesWithRange) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    auto row = sheet.row(1);
+
+    // 设置测试数据
+    for (int i = 1; i <= 10; ++i) {
+        row[i].value("值" + std::to_string(i));
+    }
+
+    // 获取第3-6列的值
+    auto values = row.get_values(3, 4);
+
+    ASSERT_EQ(4u, values.size());
+    ASSERT_EQ("值3", std::get<std::string>(values[0]));
+    ASSERT_EQ("值4", std::get<std::string>(values[1]));
+    ASSERT_EQ("值5", std::get<std::string>(values[2]));
+    ASSERT_EQ("值6", std::get<std::string>(values[3]));
+}
+
+TEST_CASE(RowSystem, RowClear) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    auto row = sheet.row(1);
+
+    // 先填充数据
+    row[1].value("数据1");
+    row[2].value("数据2");
+    row[3].value("数据3");
+
+    ASSERT_FALSE(row.empty());
+    ASSERT_EQ(3u, row.size());
+
+    // 清空行
+    row.clear();
+
+    // 验证行已清空
+    ASSERT_TRUE(row.empty());
+    ASSERT_EQ(0u, row.size());
+    ASSERT_TRUE(row[1].empty());
+    ASSERT_TRUE(row[2].empty());
+    ASSERT_TRUE(row[3].empty());
+}
+
+TEST_CASE(RowSystem, BatchOperationsWithMonostate) {
+    auto workbook = Workbook::create();
+    auto sheet = workbook.active_sheet();
+
+    auto row = sheet.row(1);
+
+    // 测试包含空值的批量设置
+    std::vector<Cell::CellValue> values = {
+        std::string("有值"),
+        std::monostate{},  // 空值
+        std::string("也有值"),
+        std::monostate{}   // 空值
+    };
+
+    row.set_values(values);
+
+    // 验证结果
+    ASSERT_EQ("有值", row[1].as<std::string>());
+    ASSERT_TRUE(row[2].empty());
+    ASSERT_EQ("也有值", row[3].as<std::string>());
+    ASSERT_TRUE(row[4].empty());
+    ASSERT_EQ(3u, row.size()); // 最后一个非空单元格在第3列
+}
+
+// ========================================
+// Row 批量操作错误处理测试
+// ========================================
+
+TEST_CASE(RowSystem, BatchOperationsInvalidHandle) {
+    Row invalid_row;
+
+    std::vector<Cell::CellValue> values = {std::string("test")};
+
+    ASSERT_THROWS(invalid_row.set_values(values), std::runtime_error);
+    ASSERT_THROWS(invalid_row.get_values(), std::runtime_error);
+    ASSERT_THROWS(invalid_row.clear(), std::runtime_error);
+}
+
+// ========================================
 // Row 错误处理测试
 // ========================================
 

@@ -297,6 +297,7 @@ private:
     std::size_t column_;
 
     friend class Worksheet;
+    friend class Row;
 };
 
 // 为了支持字符数组，声明 value 函数的所有需要的特化

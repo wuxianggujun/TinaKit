@@ -49,8 +49,19 @@ std::size_t Cell::column() const noexcept {
 bool Cell::empty() const noexcept {
     auto pos = core::Coordinate(row_, column_);
     auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
-    return std::holds_alternative<std::string>(data.value) &&
-           std::get<std::string>(data.value).empty();
+
+    // 检查是否为空值
+    if (std::holds_alternative<std::monostate>(data.value)) {
+        return true;
+    }
+
+    // 检查字符串是否为空
+    if (std::holds_alternative<std::string>(data.value)) {
+        return std::get<std::string>(data.value).empty();
+    }
+
+    // 其他类型（数字、布尔值）认为非空
+    return false;
 }
 
 const Cell::CellValue& Cell::raw_value() const {

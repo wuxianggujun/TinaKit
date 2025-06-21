@@ -117,6 +117,11 @@ public:
     void set_cell_data(const core::Coordinate& pos, const cell_data& data);
 
     /**
+     * @brief 清除单元格数据
+     */
+    void clear_cell_data(const core::Coordinate& pos);
+
+    /**
      * @brief 检查单元格是否存在数据
      */
     bool has_cell_data(const core::Coordinate& pos) const;

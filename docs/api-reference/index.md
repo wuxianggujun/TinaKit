@@ -36,11 +36,11 @@ Excel 工作簿的主要接口。
 // 创建新的工作簿
 static Workbook create();
 
-// 从文件加载工作簿
-static Workbook load(const std::filesystem::path& file_path);
+// 从文件打开工作簿
+static Workbook open(const std::filesystem::path& file_path);
 
-// 异步加载工作簿
-static async::Task<Workbook> load_async(const std::filesystem::path& file_path);
+// 注意：异步API暂未实现
+// static async::Task<Workbook> open_async(const std::filesystem::path& file_path);
 ```
 
 #### 工作表管理
@@ -61,8 +61,8 @@ Worksheet create_worksheet(const std::string& name);
 // 删除工作表
 void remove_worksheet(const std::string& name);
 
-// 重命名工作表
-void rename_worksheet(const std::string& old_name, const std::string& new_name);
+// 重命名工作表（通过Worksheet对象）
+// worksheet.set_name(new_name);
 
 // 获取所有工作表名称
 std::vector<std::string> worksheet_names() const;
@@ -214,7 +214,42 @@ void add_conditional_format(const ConditionalFormat& format);
 const std::vector<ConditionalFormat>& get_conditional_formats() const;
 ```
 
-### 3. Cell 类
+### 3. Row 类
+
+Excel 行的抽象，支持迭代器模式和批量操作。
+
+```cpp
+class Row {
+public:
+    // 单元格访问
+    Cell operator[](std::size_t column_index) const;
+    Cell operator[](const std::string& column_name) const;
+
+    // 行属性
+    std::size_t index() const noexcept;
+    double height() const noexcept;
+    void set_height(double height);
+    Row& height(double height);  // 链式调用版本
+
+    // 状态查询
+    bool empty() const;
+    std::size_t size() const;
+    bool valid() const noexcept;
+
+    // 批量操作
+    void set_values(const std::vector<Cell::CellValue>& values, std::size_t start_column = 1);
+    std::vector<Cell::CellValue> get_values(std::size_t start_column = 1, std::size_t count = 0) const;
+    void clear();
+
+    // 迭代器支持
+    iterator begin() const;
+    iterator end() const;
+    const_iterator cbegin() const;
+    const_iterator cend() const;
+};
+```
+
+### 4. Cell 类
 
 单元格操作的主要接口。
 
