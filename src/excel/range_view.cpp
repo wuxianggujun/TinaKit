@@ -69,27 +69,36 @@ Cell& RangeView::cell(std::size_t row, std::size_t col) {
     // 转换相对坐标为绝对坐标
     std::size_t abs_row = range_addr_.start.row + row;
     std::size_t abs_col = range_addr_.start.column + col;
-    
+
     // 边界检查
     if (abs_row > range_addr_.end.row || abs_col > range_addr_.end.column) {
         throw std::out_of_range("Cell position out of range");
     }
-    
-    // 委托给workbook_impl获取Cell
-    // 注意：这里需要实现一个缓存机制来避免重复创建Cell对象
-    static thread_local std::unordered_map<std::uint64_t, Cell> cell_cache;
-    
-    std::uint64_t key = (static_cast<std::uint64_t>(abs_row) << 32) | abs_col;
-    auto it = cell_cache.find(key);
-    if (it != cell_cache.end()) {
-        return it->second;
+
+    // 高效缓存机制：基于sheet和坐标的组合键
+    std::uint64_t coord_key = (static_cast<std::uint64_t>(abs_row) << 32) | abs_col;
+
+    // 检查实例级缓存
+    auto cache_it = cell_cache_.find(coord_key);
+    if (cache_it != cell_cache_.end()) {
+        return cache_it->second;
     }
-    
-    // 创建新的Cell对象并缓存
+
+    // 获取sheet_id（只在缓存未命中时调用）
     auto sheet_id = workbook_impl_->get_sheet_id(sheet_name_);
-    auto [inserted_it, success] = cell_cache.emplace(
-        key, Cell(workbook_impl_.get(), sheet_id, abs_row, abs_col)
+
+    // 创建新的Cell对象并缓存
+    auto [inserted_it, success] = cell_cache_.emplace(
+        coord_key, Cell(workbook_impl_.get(), sheet_id, abs_row, abs_col)
     );
+
+    // 限制缓存大小，避免内存泄漏
+    if (cell_cache_.size() > MAX_CACHE_SIZE) {
+        // 简单的LRU策略：清除一半缓存
+        auto half_point = std::next(cell_cache_.begin(), cell_cache_.size() / 2);
+        cell_cache_.erase(cell_cache_.begin(), half_point);
+    }
+
     return inserted_it->second;
 }
 
@@ -144,7 +153,7 @@ RangeView::const_iterator::const_iterator(const RangeView& range, std::size_t in
 RangeView::const_iterator::reference RangeView::const_iterator::operator*() const {
     std::size_t row = index_ / range_.column_count();
     std::size_t col = index_ % range_.column_count();
-    return range_.cell(row, col);
+    return range_.cell(row, col);  // 调用const版本的cell()方法
 }
 
 RangeView::const_iterator::pointer RangeView::const_iterator::operator->() const {
@@ -193,6 +202,18 @@ RangeView::const_iterator RangeView::cbegin() const {
 
 RangeView::const_iterator RangeView::cend() const {
     return end();
+}
+
+// ========================================
+// 缓存管理
+// ========================================
+
+void RangeView::clear_cache() const {
+    cell_cache_.clear();
+}
+
+std::size_t RangeView::cache_size() const {
+    return cell_cache_.size();
 }
 
 } // namespace tinakit::excel

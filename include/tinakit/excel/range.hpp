@@ -9,6 +9,7 @@
 
 #include "types.hpp"
 #include "range_view.hpp"
+#include "cell.hpp"
 #include "tinakit/core/types.hpp"
 #include "tinakit/core/color.hpp"
 #include <string>
@@ -201,6 +202,19 @@ public:
     Range& set_value(const T& value);
 
     /**
+     * @brief 批量设置范围内的值（二维数组）
+     * @param values 二维值数组，外层为行，内层为列
+     * @return 自身引用，支持链式调用
+     */
+    Range& set_values(const std::vector<std::vector<Cell::CellValue>>& values);
+
+    /**
+     * @brief 批量获取范围内的值
+     * @return 二维值数组，外层为行，内层为列
+     */
+    std::vector<std::vector<Cell::CellValue>> get_values() const;
+
+    /**
      * @brief 应用样式模板到整个范围
      * @param style_template 样式模板
      * @return 自身引用，支持链式调用
@@ -219,6 +233,58 @@ public:
      * @return 自身引用，支持链式调用
      */
     Range& clear();
+
+    // ========================================
+    // 范围操作
+    // ========================================
+
+    /**
+     * @brief 合并范围内的单元格
+     * @return 自身引用，支持链式调用
+     */
+    Range& merge();
+
+    /**
+     * @brief 取消合并范围内的单元格
+     * @return 自身引用，支持链式调用
+     */
+    Range& unmerge();
+
+    /**
+     * @brief 检查范围是否已合并
+     * @return 如果范围已合并返回true
+     */
+    bool is_merged() const;
+
+    /**
+     * @brief 复制范围到另一个位置
+     * @param destination 目标范围
+     * @return 自身引用，支持链式调用
+     */
+    Range& copy_to(const Range& destination);
+
+    /**
+     * @brief 移动范围到另一个位置
+     * @param destination 目标范围
+     * @return 自身引用，支持链式调用
+     */
+    Range& move_to(const Range& destination);
+
+    // ========================================
+    // 性能优化
+    // ========================================
+
+    /**
+     * @brief 清除内部缓存
+     * @return 自身引用，支持链式调用
+     */
+    Range& clear_cache();
+
+    /**
+     * @brief 获取缓存统计信息
+     * @return 缓存大小
+     */
+    std::size_t cache_size() const;
 
     // ========================================
     // 迭代支持 - 委托给 RangeView

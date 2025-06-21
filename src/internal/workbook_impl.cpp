@@ -180,6 +180,14 @@ cell_data workbook_impl::get_cell_data(const std::string& sheet_name, const core
     return worksheet.get_cell_data(pos);
 }
 
+cell_data workbook_impl::get_cell_data(const std::string& sheet_name, const core::Coordinate& pos) const {
+    auto it = worksheets_.find(sheet_name);
+    if (it == worksheets_.end()) {
+        return cell_data(); // 返回默认的空cell_data
+    }
+    return it->second->get_cell_data(pos);
+}
+
 cell_data workbook_impl::get_cell_data(std::uint32_t sheet_id, const core::Coordinate& pos) {
     std::string sheet_name = get_sheet_name(sheet_id);
     return get_cell_data(sheet_name, pos);
@@ -943,6 +951,96 @@ void workbook_impl::clear_range(const std::string& sheet_name,
             set_cell_value(sheet_name, pos, cell_data::CellValue(std::string("")));
         }
     }
+}
+
+std::vector<std::vector<cell_data::CellValue>> workbook_impl::get_range_values(
+    const std::string& sheet_name,
+    const core::range_address& range_addr) const {
+
+    std::vector<std::vector<cell_data::CellValue>> result;
+
+    // 计算范围大小
+    std::size_t rows = range_addr.end.row - range_addr.start.row + 1;
+    std::size_t cols = range_addr.end.column - range_addr.start.column + 1;
+
+    result.reserve(rows);
+
+    // 批量获取值
+    for (std::size_t r = 0; r < rows; ++r) {
+        std::vector<cell_data::CellValue> row_values;
+        row_values.reserve(cols);
+
+        for (std::size_t c = 0; c < cols; ++c) {
+            core::Coordinate pos(range_addr.start.row + r, range_addr.start.column + c);
+            auto cell_data = get_cell_data(sheet_name, pos);
+            row_values.push_back(cell_data.value);
+        }
+
+        result.push_back(std::move(row_values));
+    }
+
+    return result;
+}
+
+void workbook_impl::merge_range(const std::string& sheet_name,
+                               const core::range_address& range_addr) {
+    ensure_worksheet_loaded(sheet_name);
+    auto& worksheet = get_worksheet_impl(sheet_name);
+
+    // 添加到合并范围列表
+    worksheet.add_merged_range(range_addr);
+    mark_worksheet_dirty(sheet_name);
+}
+
+void workbook_impl::unmerge_range(const std::string& sheet_name,
+                                 const core::range_address& range_addr) {
+    ensure_worksheet_loaded(sheet_name);
+    auto& worksheet = get_worksheet_impl(sheet_name);
+
+    // 从合并范围列表中移除
+    worksheet.remove_merged_range(range_addr);
+    mark_worksheet_dirty(sheet_name);
+}
+
+bool workbook_impl::is_range_merged(const std::string& sheet_name,
+                                   const core::range_address& range_addr) const {
+    auto it = worksheets_.find(sheet_name);
+    if (it == worksheets_.end()) {
+        return false;
+    }
+
+    return it->second->is_range_merged(range_addr);
+}
+
+void workbook_impl::copy_range(const std::string& source_sheet,
+                              const core::range_address& source_range,
+                              const std::string& dest_sheet,
+                              const core::range_address& dest_range) {
+    ensure_worksheet_loaded(source_sheet);
+    ensure_worksheet_loaded(dest_sheet);
+
+    // 获取源范围的值
+    auto values = get_range_values(source_sheet, source_range);
+
+    // 设置到目标范围
+    set_range_values(dest_sheet, dest_range, values);
+
+    // 复制样式（简化实现，只复制第一个单元格的样式到整个目标范围）
+    auto source_cell_data = get_cell_data(source_sheet, source_range.start);
+    if (source_cell_data.style_id > 0) {
+        set_range_style(dest_sheet, dest_range, source_cell_data.style_id);
+    }
+}
+
+void workbook_impl::move_range(const std::string& source_sheet,
+                              const core::range_address& source_range,
+                              const std::string& dest_sheet,
+                              const core::range_address& dest_range) {
+    // 先复制
+    copy_range(source_sheet, source_range, dest_sheet, dest_range);
+
+    // 然后清除源范围
+    clear_range(source_sheet, source_range);
 }
 
 // ========================================

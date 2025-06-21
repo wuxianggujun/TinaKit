@@ -11,6 +11,7 @@
 #include "tinakit/core/types.hpp"
 #include <memory>
 #include <iterator>
+#include <unordered_map>
 
 namespace tinakit::internal {
 class workbook_impl;
@@ -241,11 +242,32 @@ public:
      */
     const_iterator cend() const;
 
+    // ========================================
+    // 缓存管理
+    // ========================================
+
+    /**
+     * @brief 清除Cell缓存
+     */
+    void clear_cache() const;
+
+    /**
+     * @brief 获取缓存统计信息
+     * @return 缓存大小
+     */
+    std::size_t cache_size() const;
+
 private:
     // 轻量级视图：只包含必要的引用信息
     std::shared_ptr<internal::workbook_impl> workbook_impl_;
     std::string sheet_name_;
     core::range_address range_addr_;
+
+    // 高效的实例级Cell缓存
+    mutable std::unordered_map<std::uint64_t, Cell> cell_cache_;
+
+    // 缓存大小限制
+    static constexpr std::size_t MAX_CACHE_SIZE = 1000;
 };
 
 } // namespace tinakit::excel

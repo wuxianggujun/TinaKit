@@ -150,6 +150,11 @@ public:
     cell_data get_cell_data(const std::string& sheet_name, const core::Coordinate& pos);
 
     /**
+     * @brief 获取单元格值（const版本）
+     */
+    cell_data get_cell_data(const std::string& sheet_name, const core::Coordinate& pos) const;
+
+    /**
      * @brief 获取单元格值（通过sheet_id）
      */
     cell_data get_cell_data(std::uint32_t sheet_id, const core::Coordinate& pos);
@@ -251,6 +256,65 @@ public:
      */
     void clear_range(const std::string& sheet_name,
                     const core::range_address& range_addr);
+
+    /**
+     * @brief 获取范围内所有单元格的值
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     * @return 二维值数组
+     */
+    std::vector<std::vector<cell_data::CellValue>> get_range_values(
+        const std::string& sheet_name,
+        const core::range_address& range_addr) const;
+
+    /**
+     * @brief 合并范围内的单元格
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     */
+    void merge_range(const std::string& sheet_name,
+                    const core::range_address& range_addr);
+
+    /**
+     * @brief 取消合并范围内的单元格
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     */
+    void unmerge_range(const std::string& sheet_name,
+                      const core::range_address& range_addr);
+
+    /**
+     * @brief 检查范围是否已合并
+     * @param sheet_name 工作表名称
+     * @param range_addr 范围地址
+     * @return 如果范围已合并返回true
+     */
+    bool is_range_merged(const std::string& sheet_name,
+                        const core::range_address& range_addr) const;
+
+    /**
+     * @brief 复制范围到另一个位置
+     * @param source_sheet 源工作表名称
+     * @param source_range 源范围地址
+     * @param dest_sheet 目标工作表名称
+     * @param dest_range 目标范围地址
+     */
+    void copy_range(const std::string& source_sheet,
+                   const core::range_address& source_range,
+                   const std::string& dest_sheet,
+                   const core::range_address& dest_range);
+
+    /**
+     * @brief 移动范围到另一个位置
+     * @param source_sheet 源工作表名称
+     * @param source_range 源范围地址
+     * @param dest_sheet 目标工作表名称
+     * @param dest_range 目标范围地址
+     */
+    void move_range(const std::string& source_sheet,
+                   const core::range_address& source_range,
+                   const std::string& dest_sheet,
+                   const core::range_address& dest_range);
 
     /**
      * @brief 获取性能统计信息

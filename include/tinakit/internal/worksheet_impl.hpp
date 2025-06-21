@@ -209,6 +209,30 @@ public:
      * @brief 检查列是否隐藏
      */
     bool is_column_hidden(std::size_t column) const;
+
+    // ========================================
+    // 合并范围管理
+    // ========================================
+
+    /**
+     * @brief 添加合并范围
+     */
+    void add_merged_range(const core::range_address& range);
+
+    /**
+     * @brief 移除合并范围
+     */
+    void remove_merged_range(const core::range_address& range);
+
+    /**
+     * @brief 检查范围是否已合并
+     */
+    bool is_range_merged(const core::range_address& range) const;
+
+    /**
+     * @brief 获取所有合并范围
+     */
+    const std::vector<core::range_address>& get_merged_ranges() const;
     
     /**
      * @brief 设置行高
@@ -264,30 +288,7 @@ public:
     // 合并单元格
     // ========================================
 
-    /**
-     * @brief 添加合并单元格范围
-     * @param range 要合并的范围
-     */
-    void add_merged_range(const core::range_address& range);
 
-    /**
-     * @brief 移除合并单元格范围
-     * @param range 要移除的范围
-     */
-    void remove_merged_range(const core::range_address& range);
-
-    /**
-     * @brief 获取所有合并单元格范围
-     * @return 合并单元格范围列表
-     */
-    const std::vector<core::range_address>& get_merged_ranges() const;
-
-    /**
-     * @brief 检查指定范围是否已合并
-     * @param range 要检查的范围
-     * @return true 如果范围已合并
-     */
-    bool is_merged_range(const core::range_address& range) const;
 
     /**
      * @brief 应用条件格式到单元格
@@ -325,7 +326,7 @@ private:
     // 列和行的隐藏状态
     std::set<std::size_t> hidden_columns_;
     std::set<std::size_t> hidden_rows_;
-    
+
     // 合并单元格范围
     std::vector<core::range_address> merged_ranges_;
 

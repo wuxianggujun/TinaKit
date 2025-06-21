@@ -100,6 +100,68 @@ Range& Range::clear() {
     return *this;
 }
 
+Range& Range::set_values(const std::vector<std::vector<Cell::CellValue>>& values) {
+    // 委托给workbook_impl进行批量值设置
+    workbook_impl_->set_range_values(sheet_name_, range_addr_, values);
+    return *this;
+}
+
+std::vector<std::vector<Cell::CellValue>> Range::get_values() const {
+    // 委托给workbook_impl获取批量值
+    return workbook_impl_->get_range_values(sheet_name_, range_addr_);
+}
+
+Range& Range::merge() {
+    // 委托给workbook_impl进行合并
+    workbook_impl_->merge_range(sheet_name_, range_addr_);
+    return *this;
+}
+
+Range& Range::unmerge() {
+    // 委托给workbook_impl取消合并
+    workbook_impl_->unmerge_range(sheet_name_, range_addr_);
+    return *this;
+}
+
+bool Range::is_merged() const {
+    // 委托给workbook_impl检查合并状态
+    return workbook_impl_->is_range_merged(sheet_name_, range_addr_);
+}
+
+Range& Range::copy_to(const Range& destination) {
+    // 委托给workbook_impl进行复制
+    workbook_impl_->copy_range(sheet_name_, range_addr_,
+                              destination.sheet_name_, destination.range_addr_);
+    return *this;
+}
+
+Range& Range::move_to(const Range& destination) {
+    // 委托给workbook_impl进行移动
+    workbook_impl_->move_range(sheet_name_, range_addr_,
+                              destination.sheet_name_, destination.range_addr_);
+    return *this;
+}
+
+// ========================================
+// 性能优化
+// ========================================
+
+Range& Range::clear_cache() {
+    // 清除RangeView的缓存（如果存在）
+    if (view_) {
+        view_->clear_cache();
+    }
+    return *this;
+}
+
+std::size_t Range::cache_size() const {
+    // 如果view_不存在，返回0
+    if (!view_) {
+        return 0;
+    }
+    return view_->cache_size();
+}
+
 // ========================================
 // 静态工厂方法实现
 // ========================================

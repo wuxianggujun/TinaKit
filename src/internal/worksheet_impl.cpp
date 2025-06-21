@@ -333,6 +333,8 @@ bool worksheet_impl::is_column_hidden(std::size_t column) const {
     return hidden_columns_.find(column) != hidden_columns_.end();
 }
 
+
+
 void worksheet_impl::set_row_height(std::size_t row, double height) {
     row_heights_[row] = height;
     mark_dirty();
@@ -699,7 +701,7 @@ const std::vector<core::range_address>& worksheet_impl::get_merged_ranges() cons
     return merged_ranges_;
 }
 
-bool worksheet_impl::is_merged_range(const core::range_address& range) const {
+bool worksheet_impl::is_range_merged(const core::range_address& range) const {
     return std::find(merged_ranges_.begin(), merged_ranges_.end(), range) != merged_ranges_.end();
 }
 

@@ -47,11 +47,12 @@ std::size_t Cell::column() const noexcept {
 }
 
 bool Cell::empty() const noexcept {
-    auto pos = core::Coordinate(row_, column_);
-    auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
+    try {
+        auto pos = core::Coordinate(row_, column_);
+        auto data = workbook_impl_->get_cell_data(sheet_id_, pos);
 
-    // 检查是否为空值
-    if (std::holds_alternative<std::monostate>(data.value)) {
+        // 检查是否为空值
+        if (std::holds_alternative<std::monostate>(data.value)) {
         return true;
     }
 
@@ -60,8 +61,12 @@ bool Cell::empty() const noexcept {
         return std::get<std::string>(data.value).empty();
     }
 
-    // 其他类型（数字、布尔值）认为非空
-    return false;
+        // 其他类型（数字、布尔值）认为非空
+        return false;
+    } catch (...) {
+        // 如果发生任何异常（如无效的sheet_id），认为单元格为空
+        return true;
+    }
 }
 
 const Cell::CellValue& Cell::raw_value() const {
