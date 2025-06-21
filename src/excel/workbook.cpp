@@ -112,6 +112,14 @@ bool Workbook::has_worksheet(const std::string& name) const {
 }
 
 // ========================================
+// 公式计算
+// ========================================
+
+void Workbook::recalculate_formulas(const std::string& sheet_name) {
+    impl_->recalculate_formulas(sheet_name);
+}
+
+// ========================================
 // 文件操作
 // ========================================
 
