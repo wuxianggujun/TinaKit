@@ -138,7 +138,7 @@ public:
     /**
      * @brief 确保默认结构已创建
      */
-    void ensure_default_structure();
+    void ensure_has_worksheet();
     
     // ========================================
     // 单元格数据访问（核心API）

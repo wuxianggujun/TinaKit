@@ -1,4 +1,5 @@
 #include <iostream>
+#include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/workbook.hpp"
 #include "tinakit/excel/conditional_format.hpp"
 
@@ -16,7 +17,7 @@ int main() {
         // 1. 字体和颜色测试
         // ========================================
         std::cout << "创建字体和颜色测试工作表..." << std::endl;
-        auto& font_sheet = workbook.create_sheet("字体和颜色");
+        auto font_sheet = workbook.create_worksheet("字体和颜色");
         
         // 标题
         font_sheet["A1"]
@@ -54,7 +55,7 @@ int main() {
         // 2. 对齐测试
         // ========================================
         std::cout << "创建对齐测试工作表..." << std::endl;
-        auto& align_sheet = workbook.create_sheet("对齐测试");
+        auto align_sheet = workbook.create_worksheet("对齐测试");
         
         // 标题
         align_sheet["A1"]
@@ -104,7 +105,7 @@ int main() {
         // 3. 数字格式测试
         // ========================================
         std::cout << "创建数字格式测试工作表..." << std::endl;
-        auto& number_sheet = workbook.create_sheet("数字格式");
+        auto number_sheet = workbook.create_worksheet("数字格式");
         
         // 标题
         number_sheet["A1"]
@@ -147,7 +148,7 @@ int main() {
         // 4. 边框测试
         // ========================================
         std::cout << "创建边框测试工作表..." << std::endl;
-        auto& border_sheet = workbook.create_sheet("边框测试");
+        auto border_sheet = workbook.create_worksheet("边框测试");
         
         // 标题
         border_sheet["A1"]
@@ -194,7 +195,7 @@ int main() {
         // 5. 高级格式测试
         // ========================================
         std::cout << "创建高级格式测试工作表..." << std::endl;
-        auto& advanced_sheet = workbook.create_sheet("高级格式");
+        auto advanced_sheet = workbook.create_worksheet("高级格式");
 
         // 标题
         advanced_sheet["A1"]
@@ -278,7 +279,7 @@ int main() {
         // 6. 条件格式测试
         // ========================================
         std::cout << "创建条件格式测试工作表..." << std::endl;
-        auto& conditional_sheet = workbook.create_sheet("条件格式");
+        auto conditional_sheet = workbook.create_worksheet("条件格式");
 
         // 标题
         conditional_sheet["A1"]
@@ -350,7 +351,7 @@ int main() {
         // 6. 综合样式测试
         // ========================================
         std::cout << "创建综合样式测试工作表..." << std::endl;
-        auto& combo_sheet = workbook.create_sheet("综合样式");
+        auto combo_sheet = workbook.create_worksheet("综合样式");
         
         // 标题
         combo_sheet["A1"]

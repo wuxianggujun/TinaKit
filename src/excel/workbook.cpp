@@ -41,7 +41,7 @@ async::Task<Workbook> Workbook::load_async(const std::filesystem::path& file_pat
 
 Workbook Workbook::create() {
     auto impl = std::make_shared<internal::workbook_impl>();
-    impl->ensure_default_structure();  // 现在安全地创建默认结构
+    // 不再自动创建默认结构，延迟到真正需要时创建
     return Workbook(impl);
 }
 
@@ -67,10 +67,8 @@ Worksheet Workbook::get_worksheet(std::size_t index) const {
 }
 
 Worksheet Workbook::active_sheet() const {
+    impl_->ensure_has_worksheet();  // 确保至少有一个工作表
     auto names = impl_->worksheet_names();
-    if (names.empty()) {
-        throw std::runtime_error("No worksheets available");
-    }
     auto sheet_id = impl_->get_sheet_id(names[0]);
     return Worksheet(impl_, sheet_id, names[0]); // 第一个工作表作为活动工作表
 }
@@ -100,6 +98,7 @@ void Workbook::rename_worksheet(const std::string& old_name, const std::string& 
 }
 
 std::vector<std::string> Workbook::worksheet_names() const {
+    impl_->ensure_has_worksheet();  // 确保至少有一个工作表
     return impl_->worksheet_names();
 }
 

@@ -229,11 +229,6 @@ public:
      */
     void save_to_archiver(core::OpenXmlArchiver& archiver);
 
-    /**
-     * @brief 获取单元格数量
-     */
-    std::size_t cell_count() const;
-
     // ========================================
     // 条件格式
     // ========================================

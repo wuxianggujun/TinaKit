@@ -732,9 +732,6 @@ void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
 
     std::string file_path = "xl/worksheets/sheet" + std::to_string(sheet_index) + ".xml";
 
-    std::cout << "📁 工作表 '" << name_ << "' 保存到: " << file_path << std::endl;
-    std::cout << "📊 XML内容长度: " << xml_content.length() << " 字符" << std::endl;
-
     // 转换为字节数组
     std::vector<std::byte> xml_bytes;
     for (char c : xml_content) {
@@ -745,9 +742,7 @@ void worksheet_impl::save_to_archiver(core::OpenXmlArchiver& archiver) {
     async::sync_wait(archiver.add_file(file_path, std::move(xml_bytes)));
 }
 
-std::size_t worksheet_impl::cell_count() const {
-    return cells_.size();
-}
+
 
 std::string worksheet_impl::generate_worksheet_xml() {
     std::ostringstream oss;

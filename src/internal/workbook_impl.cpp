@@ -84,9 +84,12 @@ std::uint32_t workbook_impl::get_sheet_id(const std::string& name) const {
     throw std::invalid_argument("Sheet '" + name + "' does not exist");
 }
 
-void workbook_impl::ensure_default_structure() {
+void workbook_impl::ensure_has_worksheet() {
     if (worksheets_.empty()) {
-        create_default_structure();
+        create_worksheet("Sheet1");
+        if (active_sheet_name_.empty()) {
+            active_sheet_name_ = "Sheet1";
+        }
     }
 }
 
@@ -327,10 +330,11 @@ void workbook_impl::save() {
     if (file_path_.empty()) {
         throw std::invalid_argument("No file path specified");
     }
-    
+
+    ensure_has_worksheet();  // 确保至少有一个工作表
     save_to_archiver();
     is_dirty_ = false;
-    
+
     // 清除所有工作表的修改标志
     for (auto& [name, worksheet] : worksheets_) {
         worksheet->clear_dirty();
@@ -513,14 +517,11 @@ void workbook_impl::load_styles_xml() {
             // 使用 StyleManager 加载样式
             style_manager_->load_from_xml(xml_content);
 
-            std::cout << "✅ 样式文件加载成功，样式数量: " << style_manager_->cell_style_count() << std::endl;
         } else {
-            std::cout << "⚠️  未找到样式文件，使用默认样式" << std::endl;
             // 如果没有样式文件，确保有默认样式
             style_manager_->initialize_defaults();
         }
     } catch (const std::exception& e) {
-        std::cout << "❌ 加载样式文件失败: " << e.what() << "，使用默认样式" << std::endl;
         // 如果加载失败，使用默认样式
         style_manager_->clear();
         style_manager_->initialize_defaults();
@@ -544,12 +545,8 @@ void workbook_impl::load_shared_strings_xml() {
             // 加载共享字符串数据
             shared_strings_->load_from_xml(xml_content);
 
-            std::cout << "✅ 共享字符串文件加载成功，字符串数量: " << shared_strings_->count() << std::endl;
-        } else {
-            std::cout << "⚠️  未找到共享字符串文件" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "❌ 加载共享字符串文件失败: " << e.what() << std::endl;
     }
 }
 
@@ -751,10 +748,7 @@ void workbook_impl::generate_styles_xml() {
     // 使用 StyleManager 生成完整的样式XML
     std::string xml_content = style_manager_->generate_xml();
 
-    // 调试输出：打印生成的样式XML
-    std::cout << "\n=== 生成的样式XML (styles.xml) ===" << std::endl;
-    std::cout << xml_content << std::endl;
-    std::cout << "=== 样式XML结束 ===" << std::endl;
+
 
     // 保存到归档器
     std::vector<std::byte> xml_bytes;
@@ -768,18 +762,11 @@ void workbook_impl::generate_shared_strings_xml() {
     // 使用共享字符串管理器生成XML
     std::string xml_content;
 
-    // 调试输出
-    if (shared_strings_) {
-        std::cout << "共享字符串管理器存在，字符串数量: " << shared_strings_->count() << std::endl;
-    } else {
-        std::cout << "共享字符串管理器不存在！" << std::endl;
-    }
+
 
     if (shared_strings_ && shared_strings_->count() > 0) {
-        std::cout << "生成包含 " << shared_strings_->count() << " 个字符串的共享字符串XML" << std::endl;
         xml_content = shared_strings_->generate_xml();
     } else {
-        std::cout << "生成空的共享字符串XML" << std::endl;
         // 如果没有共享字符串，使用序列化器生成空的共享字符串表
         std::ostringstream oss;
         core::XmlSerializer serializer(oss, "sharedStrings.xml");
@@ -823,12 +810,8 @@ void workbook_impl::save_to_archiver() {
     generate_styles_xml();
 
     // 5. 先保存所有工作表（这会填充共享字符串表）
-    std::cout << "💾 开始保存工作表，总数: " << worksheets_.size() << std::endl;
     for (auto& [name, worksheet] : worksheets_) {
-        std::cout << "📄 保存工作表: '" << name << "'" << std::endl;
-        std::cout << "   单元格数量: " << worksheet->cell_count() << std::endl;
         worksheet->save_to_archiver(*archiver_);
-        std::cout << "✅ 工作表 '" << name << "' 保存完成" << std::endl;
     }
 
     // 6. 最后生成共享字符串文件（包含所有字符串）

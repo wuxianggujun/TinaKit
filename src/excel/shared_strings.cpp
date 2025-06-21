@@ -18,13 +18,9 @@
 namespace tinakit::excel {
 
 std::uint32_t SharedStrings::add_string(const std::string& str) {
-    // 调试输出
-    std::cout << "SharedStrings::add_string() 被调用，字符串: \"" << str << "\"" << std::endl;
-
     // 检查字符串是否已存在
     auto it = string_to_index_.find(str);
     if (it != string_to_index_.end()) {
-        std::cout << "  字符串已存在，索引: " << it->second << std::endl;
         return it->second;
     }
 
@@ -32,8 +28,6 @@ std::uint32_t SharedStrings::add_string(const std::string& str) {
     std::uint32_t index = static_cast<std::uint32_t>(strings_.size());
     strings_.push_back(str);
     string_to_index_[str] = index;
-
-    std::cout << "  添加新字符串，索引: " << index << "，当前总数: " << strings_.size() << std::endl;
 
     return index;
 }
@@ -90,11 +84,6 @@ std::string SharedStrings::generate_xml() const {
 
     // 获取生成的XML内容
     std::string xml_content = oss.str();
-
-    // 在调试模式下输出XML内容
-    #ifdef _DEBUG
-    std::cout << "\n=== 生成的共享字符串XML ===\n" << xml_content << "\n=== 共享字符串XML结束 ===\n" << std::endl;
-    #endif
 
     return xml_content;
 }
