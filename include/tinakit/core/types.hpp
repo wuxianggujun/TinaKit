@@ -34,6 +34,7 @@
 #include <functional>
 #include <filesystem>
 #include <iostream>
+#include <cmath>
 #include "color.hpp"
 
 namespace tinakit {
@@ -64,6 +65,8 @@ namespace tinakit::core {
 
 // 前向声明
 struct Coordinate;
+struct Point;
+struct Rect;
 
 /**
  * @struct Coordinate
@@ -143,6 +146,151 @@ inline std::ostream& operator<<(std::ostream& os, const Coordinate& coord) {
     os << "(" << coord.row << "," << coord.column << ")";
     return os;
 }
+
+/**
+ * @struct Point
+ * @brief 表示2D坐标点
+ *
+ * 用于PDF等模块中的几何计算和定位。
+ * 坐标系统：左下角为原点(0,0)，向右为X正方向，向上为Y正方向。
+ */
+struct Point {
+    double x = 0.0;  ///< X坐标
+    double y = 0.0;  ///< Y坐标
+
+    /**
+     * @brief 默认构造函数
+     */
+    Point() = default;
+
+    /**
+     * @brief 构造函数
+     * @param x_val X坐标值
+     * @param y_val Y坐标值
+     */
+    Point(double x_val, double y_val) : x(x_val), y(y_val) {}
+
+    /**
+     * @brief 相等比较
+     */
+    bool operator==(const Point& other) const noexcept {
+        return std::abs(x - other.x) < 1e-9 && std::abs(y - other.y) < 1e-9;
+    }
+
+    /**
+     * @brief 不等比较
+     */
+    bool operator!=(const Point& other) const noexcept {
+        return !(*this == other);
+    }
+
+    /**
+     * @brief 点加法
+     */
+    Point operator+(const Point& other) const noexcept {
+        return Point(x + other.x, y + other.y);
+    }
+
+    /**
+     * @brief 点减法
+     */
+    Point operator-(const Point& other) const noexcept {
+        return Point(x - other.x, y - other.y);
+    }
+};
+
+/**
+ * @struct Rect
+ * @brief 表示矩形区域
+ *
+ * 用于PDF等模块中的区域定义和布局计算。
+ * 坐标系统：左下角为原点，x和y表示矩形左下角坐标。
+ */
+struct Rect {
+    double x = 0.0;      ///< 左下角X坐标
+    double y = 0.0;      ///< 左下角Y坐标
+    double width = 0.0;  ///< 宽度
+    double height = 0.0; ///< 高度
+
+    /**
+     * @brief 默认构造函数
+     */
+    Rect() = default;
+
+    /**
+     * @brief 构造函数
+     * @param x_val 左下角X坐标
+     * @param y_val 左下角Y坐标
+     * @param w 宽度
+     * @param h 高度
+     */
+    Rect(double x_val, double y_val, double w, double h)
+        : x(x_val), y(y_val), width(w), height(h) {}
+
+    /**
+     * @brief 从两个点构造矩形
+     * @param top_left 左上角点
+     * @param bottom_right 右下角点
+     */
+    static Rect from_points(const Point& top_left, const Point& bottom_right) {
+        return Rect(top_left.x, bottom_right.y,
+                   bottom_right.x - top_left.x,
+                   top_left.y - bottom_right.y);
+    }
+
+    /**
+     * @brief 获取左下角点
+     */
+    Point bottom_left() const noexcept {
+        return Point(x, y);
+    }
+
+    /**
+     * @brief 获取右上角点
+     */
+    Point top_right() const noexcept {
+        return Point(x + width, y + height);
+    }
+
+    /**
+     * @brief 获取中心点
+     */
+    Point center() const noexcept {
+        return Point(x + width / 2.0, y + height / 2.0);
+    }
+
+    /**
+     * @brief 检查点是否在矩形内
+     */
+    bool contains(const Point& point) const noexcept {
+        return point.x >= x && point.x <= x + width &&
+               point.y >= y && point.y <= y + height;
+    }
+
+    /**
+     * @brief 检查矩形是否有效（宽高都大于0）
+     */
+    bool is_valid() const noexcept {
+        return width > 0.0 && height > 0.0;
+    }
+
+    /**
+     * @brief 相等比较
+     */
+    bool operator==(const Rect& other) const noexcept {
+        return std::abs(x - other.x) < 1e-9 &&
+               std::abs(y - other.y) < 1e-9 &&
+               std::abs(width - other.width) < 1e-9 &&
+               std::abs(height - other.height) < 1e-9;
+    }
+
+    /**
+     * @brief 不等比较
+     */
+    bool operator!=(const Rect& other) const noexcept {
+        return !(*this == other);
+    }
+};
 
 /**
  * @struct range_address

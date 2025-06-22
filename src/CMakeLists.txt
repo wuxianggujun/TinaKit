@@ -9,6 +9,11 @@ target_sources(tinakit PRIVATE
         core/types.cpp
         core/performance_optimizations.cpp
         core/cache_system.cpp
+        core/logger.cpp
+        
+        pdf/document.cpp
+        pdf/binary_writer.cpp
+        
         excel/excel.cpp
         excel/workbook.cpp
         excel/worksheet.cpp
@@ -23,6 +28,9 @@ target_sources(tinakit PRIVATE
         excel/conditional_format.cpp
         excel/style.cpp
         excel/range_view.cpp
+        
+        internal/pdf_document_impl.cpp
+        
         internal/workbook_impl.cpp
         internal/worksheet_impl.cpp
         internal/coordinate_utils.cpp

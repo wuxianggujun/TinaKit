@@ -71,6 +71,7 @@ endfunction()
 
 option(TINAKIT_BUILD_CORE_EXAMPLES "Build core functionality examples" ON)
 option(TINAKIT_BUILD_STYLE_EXAMPLES "Build styling and formatting examples" ON)
+option(TINAKIT_BUILD_PDF_EXAMPLES "Build PDF functionality examples" ON)
 option(TINAKIT_BUILD_PERFORMANCE_EXAMPLES "Build performance test examples" ON)
 option(TINAKIT_BUILD_DEBUG_EXAMPLES "Build debugging and tool examples" OFF)
 
@@ -80,10 +81,11 @@ option(TINAKIT_BUILD_DEBUG_EXAMPLES "Build debugging and tool examples" OFF)
 
 if(TINAKIT_BUILD_CORE_EXAMPLES)
     message(STATUS "  Building core examples...")
-    add_tinakit_example(tinakit_xml_parser_example main.cpp)
-    add_tinakit_example(stream_demo stream_demo.cpp)
-    add_tinakit_example(xlsx_reader_test xlsx_reader_test.cpp)
-    add_tinakit_example(excel_read_edit_test excel_read_edit_test.cpp)
+    add_tinakit_example(tinakit_xml_parser_example basic/main.cpp)
+    add_tinakit_example(stream_demo basic/stream_demo.cpp)
+    add_tinakit_example(xlsx_reader_test excel/xlsx_reader_test.cpp)
+    add_tinakit_example(excel_read_edit_test excel/excel_read_edit_test.cpp)
+    
 endif()
 
 # ========================================
@@ -92,10 +94,22 @@ endif()
 
 if(TINAKIT_BUILD_STYLE_EXAMPLES)
     message(STATUS "  Building style examples...")
-    add_tinakit_example(comprehensive_style_test comprehensive_style_test.cpp)
-    add_tinakit_example(excel_with_styles excel_with_styles.cpp)
-    add_tinakit_example(conditional_format_test conditional_format_test.cpp)
-    add_tinakit_example(style_template_test style_template_test.cpp)
+    add_tinakit_example(comprehensive_style_test excel/comprehensive_style_test.cpp)
+    add_tinakit_example(excel_with_styles excel/excel_with_styles.cpp)
+    add_tinakit_example(conditional_format_test excel/conditional_format_test.cpp)
+    add_tinakit_example(style_template_test excel/style_template_test.cpp)
+    add_tinakit_example(xlsx_archiver_demo excel/xlsx_archiver_demo.cpp)
+    add_tinakit_example(debug_excel_xml excel/debug_excel_xml.cpp)
+    add_tinakit_example(handle_system_test excel/handle_system_test.cpp)
+endif()
+
+# ========================================
+# PDF 功能示例程序
+# ========================================
+
+if(TINAKIT_BUILD_PDF_EXAMPLES)
+    message(STATUS "  Building PDF examples...")
+    add_tinakit_example(basic_pdf_example pdf/basic_pdf_example.cpp)
 endif()
 
 # ========================================
@@ -104,18 +118,7 @@ endif()
 
 if(TINAKIT_BUILD_PERFORMANCE_EXAMPLES)
     message(STATUS "  Building performance examples...")
-    add_tinakit_example(unified_performance_test unified_performance_test.cpp)
-endif()
-
-# ========================================
-# 调试和工具示例程序
-# ========================================
-
-if(TINAKIT_BUILD_DEBUG_EXAMPLES)
-    message(STATUS "  Building debug examples...")
-    add_tinakit_example(xlsx_archiver_demo xlsx_archiver_demo.cpp)
-    add_tinakit_example(debug_excel_xml debug_excel_xml.cpp)
-    add_tinakit_example(debug_style_test debug_style_test.cpp)
+    add_tinakit_example(unified_performance_test performance/unified_performance_test.cpp)
 endif()
 
 # 特殊的测试程序（不使用 tinakit 库）
@@ -145,10 +148,10 @@ function(add_special_example target_name source_file libraries)
 endfunction()
 
 # 直接测试 minizip-ng API（使用特殊函数）
-add_special_example(minizip_direct_test minizip_direct_test.cpp "minizip;zlib")
+add_special_example(minizip_direct_test basic/minizip_direct_test.cpp "minizip;zlib")
 
 # Dream Code 示例（仅作为设计参考，不编译）
-# add_tinakit_example(dream_code dream_code.cpp)
+# add_tinakit_example(dream_code basic/dream_code.cpp)
 
 # 如果 CMake 版本支持，使用更现代的方法
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")

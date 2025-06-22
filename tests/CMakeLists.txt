@@ -4,17 +4,22 @@ cmake_minimum_required(VERSION 3.20)
 # 创建测试可执行文件
 add_executable(tinakit_tests
     main.cpp
-    test_coordinate_system.cpp
-    test_range_system.cpp
-    test_range_advanced.cpp
-    test_row_system.cpp
-    test_column.cpp
-    test_worksheet_features.cpp
-    test_formula_engine.cpp
-    test_conditional_format.cpp
-    test_integration.cpp
-    test_advanced_features.cpp
-    test_fixes.cpp
+    # Core tests
+    core/test_coordinate_system.cpp
+    core/test_logger.cpp
+    # Excel tests
+    excel/test_range_system.cpp
+    excel/test_range_advanced.cpp
+    excel/test_row_system.cpp
+    excel/test_column.cpp
+    excel/test_worksheet_features.cpp
+    excel/test_formula_engine.cpp
+    excel/test_conditional_format.cpp
+    excel/test_fixes.cpp
+    # Integration tests
+    integration/test_integration.cpp
+    # Performance tests
+    performance/test_advanced_features.cpp
 )
 
 # 链接TinaKit库
@@ -64,6 +69,7 @@ add_test(NAME EdgeCasesTests COMMAND tinakit_tests EdgeCases)
 add_test(NAME PerformanceTests COMMAND tinakit_tests Performance)
 add_test(NAME StyleFixesTests COMMAND tinakit_tests StyleFixes)
 add_test(NAME UsedRangeFixesTests COMMAND tinakit_tests UsedRangeFixes)
+add_test(NAME LoggerTests COMMAND tinakit_tests Logger)
 
 # 设置测试属性
 set_tests_properties(AllTests PROPERTIES TIMEOUT 60)

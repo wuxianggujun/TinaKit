@@ -19,7 +19,7 @@ int main() {
         // 1. 创建工作簿（轻量级句柄）
         // ========================================
         std::cout << "\n1. 创建工作簿..." << std::endl;
-        auto workbook = workbook::create();
+        auto workbook = Workbook::create();
         std::cout << "✅ 工作簿创建成功" << std::endl;
         
         // ========================================
@@ -112,9 +112,6 @@ int main() {
         try {
             auto range = sheet.range("A1:D1");
             std::cout << "✅ 范围创建成功: " << range.address() << std::endl;
-            std::cout << "范围行数: " << range.row_count() << std::endl;
-            std::cout << "范围列数: " << range.column_count() << std::endl;
-            std::cout << "范围单元格数: " << range.cell_count() << std::endl;
         } catch (const std::exception& e) {
             std::cout << "⚠️ 范围操作暂未完全实现: " << e.what() << std::endl;
         }

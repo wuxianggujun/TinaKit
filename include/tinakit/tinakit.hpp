@@ -11,6 +11,7 @@
 
 #include "tinakit/core/types.hpp"
 #include "tinakit/core/exceptions.hpp"
+#include "tinakit/core/color.hpp"
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/xml_parser.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
@@ -20,6 +21,7 @@
 #include "tinakit/excel/style.hpp"
 #include "tinakit/excel/cell.hpp"
 #include "tinakit/excel/row.hpp"
+#include "tinakit/pdf/document.hpp"
 #include <filesystem>
 #include <functional>
 
@@ -42,6 +44,14 @@ namespace excel {
 
 // 为了兼容性，提供 Excel 命名空间别名（首字母大写）
 namespace Excel = excel;
+
+/**
+ * @namespace pdf
+ * @brief PDF 文档处理功能
+ */
+namespace pdf {
+    // PDF 功能已实现，支持从Excel导出PDF
+} // namespace pdf
 
 /**
  * @namespace Word
