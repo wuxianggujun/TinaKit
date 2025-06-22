@@ -329,6 +329,35 @@ void PdfPage::closePath() {
 }
 
 // ========================================
+// 图像操作
+// ========================================
+
+void PdfPage::addImage(const std::string& image_resource, double x, double y, double width, double height) {
+    PDF_DEBUG("Adding image: " + image_resource + " at (" + std::to_string(x) + "," + std::to_string(y) +
+              ") size " + std::to_string(width) + "x" + std::to_string(height));
+
+    // 保存当前图形状态
+    saveGraphicsState();
+
+    // 设置变换矩阵：缩放到指定尺寸并移动到指定位置
+    // PDF图像默认是1x1单位，需要缩放到实际尺寸
+    std::ostringstream oss;
+    oss << formatFloat(width) << " 0 0 " << formatFloat(height) << " "
+        << formatFloat(x) << " " << formatFloat(y) << " cm\n";
+    addContent(oss.str());
+
+    // 绘制图像
+    oss.str("");
+    oss << "/" << image_resource << " Do\n";
+    addContent(oss.str());
+
+    // 恢复图形状态
+    restoreGraphicsState();
+
+    PDF_DEBUG("Image added successfully");
+}
+
+// ========================================
 // 高级操作
 // ========================================
 

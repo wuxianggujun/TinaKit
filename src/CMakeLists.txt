@@ -10,6 +10,7 @@ target_sources(tinakit PRIVATE
         core/performance_optimizations.cpp
         core/cache_system.cpp
         core/logger.cpp
+        core/image.cpp
         
         pdf/document.cpp
         pdf/types.cpp

@@ -291,6 +291,20 @@ public:
     void closePath();
 
     // ========================================
+    // 图像操作
+    // ========================================
+
+    /**
+     * @brief 添加图像
+     * @param image_resource 图像资源名称
+     * @param x X坐标
+     * @param y Y坐标
+     * @param width 图像宽度
+     * @param height 图像高度
+     */
+    void addImage(const std::string& image_resource, double x, double y, double width, double height);
+
+    // ========================================
     // 高级操作
     // ========================================
     

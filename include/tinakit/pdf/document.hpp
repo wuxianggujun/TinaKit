@@ -15,12 +15,19 @@
 #include "tinakit/pdf/style.hpp"
 #include "tinakit/excel/workbook.hpp"
 
+// 前向声明
+namespace tinakit::core {
+    class Image;
+}
+
 namespace tinakit::pdf {
 
 // 前向声明
 namespace internal {
     class pdf_document_impl;
 }
+
+
 
 // 类型定义在 types.hpp 中
 // Point, Rect, Color, Font, PageSize, PageOrientation, PageMargins, DocumentInfo, Table 等
@@ -154,6 +161,50 @@ public:
      * @param position 表格位置
      */
     Document& add_table(const Table& table, const Point& position);
+
+    // ========================================
+    // 图像功能
+    // ========================================
+
+    /**
+     * @brief 从文件添加图像
+     * @param image_path 图像文件路径
+     * @param position 图像位置（左下角）
+     * @param width 图像宽度（0表示使用原始宽度）
+     * @param height 图像高度（0表示使用原始高度或按比例缩放）
+     * @return 文档引用（支持链式调用）
+     *
+     * 支持的格式：JPEG, PNG, BMP, TGA, PSD, GIF, HDR, PIC, PNM
+     */
+    Document& add_image(const std::string& image_path, const Point& position,
+                       double width = 0, double height = 0);
+
+    /**
+     * @brief 从core::Image对象添加图像
+     * @param image 图像对象
+     * @param position 图像位置（左下角）
+     * @param width 图像宽度（0表示使用原始宽度）
+     * @param height 图像高度（0表示使用原始高度或按比例缩放）
+     * @return 文档引用（支持链式调用）
+     */
+    Document& add_image(const tinakit::core::Image& image, const Point& position,
+                       double width = 0, double height = 0);
+
+    /**
+     * @brief 从原始数据添加图像
+     * @param image_data 图像数据
+     * @param width 图像宽度（像素）
+     * @param height 图像高度（像素）
+     * @param channels 颜色通道数（1=灰度，3=RGB，4=RGBA）
+     * @param position 图像位置（左下角）
+     * @param display_width 显示宽度（0表示使用原始宽度）
+     * @param display_height 显示高度（0表示使用原始高度或按比例缩放）
+     * @return 文档引用（支持链式调用）
+     */
+    Document& add_image(const std::vector<std::uint8_t>& image_data,
+                       int width, int height, int channels,
+                       const Point& position,
+                       double display_width = 0, double display_height = 0);
 
     // ========================================
     // Excel集成功能

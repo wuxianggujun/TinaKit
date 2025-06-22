@@ -19,8 +19,12 @@
 #include "tinakit/pdf/core/writer.hpp"
 #include "tinakit/pdf/core/page.hpp"
 
+namespace tinakit::core {
+    class Image;
+}
+
 namespace tinakit::pdf::internal {
-    
+
 // 前向声明
 class pdf_document_impl;
 
@@ -67,6 +71,19 @@ public:
     void add_text_block(const std::string& text, const Rect& bounds,
                        const Font& font, TextAlignment alignment);
     void add_table(const Table& table, const Point& position);
+
+    // ========================================
+    // 图像功能
+    // ========================================
+
+    void add_image(const std::string& image_path, const Point& position,
+                   double width, double height);
+    void add_image(const tinakit::core::Image& image, const Point& position,
+                   double width, double height);
+    void add_image(const std::vector<std::uint8_t>& image_data,
+                   int width, int height, int channels,
+                   const Point& position,
+                   double display_width, double display_height);
 
     // ========================================
     // Excel集成

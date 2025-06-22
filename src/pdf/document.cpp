@@ -8,6 +8,7 @@
 #include "tinakit/pdf/document.hpp"
 #include "tinakit/internal/pdf_document_impl.hpp"
 #include "tinakit/core/exceptions.hpp"
+#include "tinakit/core/image.hpp"
 #include <stdexcept>
 
 namespace tinakit::pdf {
@@ -100,6 +101,30 @@ Document& Document::add_text_block(const std::string& text, const Rect& bounds,
 
 Document& Document::add_table(const Table& table, const Point& position) {
     impl_->add_table(table, position);
+    return *this;
+}
+
+// ========================================
+// 图像功能
+// ========================================
+
+Document& Document::add_image(const std::string& image_path, const Point& position,
+                             double width, double height) {
+    impl_->add_image(image_path, position, width, height);
+    return *this;
+}
+
+Document& Document::add_image(const tinakit::core::Image& image, const Point& position,
+                             double width, double height) {
+    impl_->add_image(image, position, width, height);
+    return *this;
+}
+
+Document& Document::add_image(const std::vector<std::uint8_t>& image_data,
+                             int width, int height, int channels,
+                             const Point& position,
+                             double display_width, double display_height) {
+    impl_->add_image(image_data, width, height, channels, position, display_width, display_height);
     return *this;
 }
 

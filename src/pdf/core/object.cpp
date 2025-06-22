@@ -14,9 +14,8 @@
 #include <fstream>
 #include <utf8.h>
 
-// STBI图像加载
-#define STB_IMAGE_IMPLEMENTATION
-#include "tinakit/internal/stb_image.h"
+// 使用core::Image类进行图像加载
+#include "tinakit/core/image.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -732,24 +731,20 @@ std::string getSystemFontPath(const std::string& font_name) {
 ImageData loadImageFile(const std::string& image_path) {
     ImageData result;
 
-    // 使用STBI加载图像
-    int width, height, channels;
-    unsigned char* data = stbi_load(image_path.c_str(), &width, &height, &channels, 0);
-
-    if (!data) {
-        PDF_ERROR("Failed to load image: " + image_path + " - " + std::string(stbi_failure_reason()));
+    // 使用core::Image加载图像
+    tinakit::core::Image image;
+    if (!image.loadFromFile(image_path)) {
+        PDF_ERROR("Failed to load image: " + image_path + " - " + image.getLastError());
         return result;
     }
 
     // 填充结果结构
-    result.width = width;
-    result.height = height;
-    result.channels = channels;
+    result.width = image.getWidth();
+    result.height = image.getHeight();
+    result.channels = image.getChannels();
 
     // 复制图像数据
-    size_t data_size = width * height * channels;
-    result.data.resize(data_size);
-    std::memcpy(result.data.data(), data, data_size);
+    result.data = image.getDataCopy();
 
     // 根据文件扩展名确定格式
     std::string ext = image_path.substr(image_path.find_last_of('.') + 1);
@@ -767,13 +762,10 @@ ImageData loadImageFile(const std::string& image_path) {
         result.format = "UNKNOWN";
     }
 
-    // 释放STBI分配的内存
-    stbi_image_free(data);
-
     PDF_DEBUG("Image loaded: " + image_path +
-              " (" + std::to_string(width) + "x" + std::to_string(height) +
-              ", " + std::to_string(channels) + " channels, " +
-              std::to_string(data_size) + " bytes, format=" + result.format + ")");
+              " (" + std::to_string(result.width) + "x" + std::to_string(result.height) +
+              ", " + std::to_string(result.channels) + " channels, " +
+              std::to_string(result.data.size()) + " bytes, format=" + result.format + ")");
 
     return result;
 }

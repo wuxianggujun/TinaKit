@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include "tinakit/tinakit.hpp"
+#include "tinakit/core/image.hpp"
 
 using namespace tinakit;
 
@@ -37,15 +38,48 @@ void createImageTestPDF() {
     pdf.add_text("- Automatic image loading with STBI", {120, 680}, info_font);
     pdf.add_text("- RGB and Grayscale color spaces", {120, 660}, info_font);
     
-    // 注意：实际的图像添加需要API支持
-    // 这里先添加占位符文本
-    pdf::Font placeholder_font;
-    placeholder_font.family = "Helvetica";
-    placeholder_font.size = 10;
-    placeholder_font.color = tinakit::Color::Red;
-    
-    pdf.add_text("[Image placeholder - API integration in progress]", {100, 600}, placeholder_font);
-    pdf.add_text("Future: pdf.add_image(\"logo.png\", {100, 500}, {200, 100});", {100, 580}, placeholder_font);
+    // 演示新的图像API
+    pdf::Font demo_font;
+    demo_font.family = "Helvetica";
+    demo_font.size = 12;
+    demo_font.color = tinakit::Color::Green;
+
+    pdf.add_text("Image API Examples:", {100, 600}, demo_font);
+
+    // 示例1：使用core::Image类加载图像
+    pdf::Font code_font;
+    code_font.family = "Courier";
+    code_font.size = 10;
+    code_font.color = tinakit::Color::DarkGray;
+
+    pdf.add_text("1. Using core::Image class:", {120, 580}, code_font);
+    pdf.add_text("   core::Image image;", {140, 560}, code_font);
+    pdf.add_text("   if (image.loadFromFile(\"photo.jpg\")) {", {140, 540}, code_font);
+    pdf.add_text("       pdf.add_image(image, {100, 400}, 200, 150);", {140, 520}, code_font);
+    pdf.add_text("   }", {140, 500}, code_font);
+
+    pdf.add_text("2. Direct from file:", {120, 470}, code_font);
+    pdf.add_text("   pdf.add_image(\"logo.png\", {300, 400}, 100, 100);", {140, 450}, code_font);
+
+    pdf.add_text("3. From raw data:", {120, 420}, code_font);
+    pdf.add_text("   pdf.add_image(data, width, height, channels, {100, 300});", {140, 400}, code_font);
+
+    // 实际尝试加载一个测试图像（如果存在的话）
+    tinakit::core::Image test_image;
+    // 注意：这里使用一个可能不存在的图像文件作为演示
+    // 在实际使用中，应该检查文件是否存在
+    if (test_image.loadFromFile("test_image.png")) {
+        pdf.add_text("✓ Test image loaded successfully!", {100, 350}, demo_font);
+        pdf.add_image(test_image, {100, 200}, 150, 100);
+    } else {
+        pdf::Font warning_font;
+        warning_font.family = "Helvetica";
+        warning_font.size = 10;
+        warning_font.color = tinakit::Color(255, 165, 0); // Orange color
+        pdf.add_text("⚠ Test image not found (test_image.png)", {100, 350}, warning_font);
+        pdf.add_text("  Place a PNG image named 'test_image.png' in the", {100, 330}, warning_font);
+        pdf.add_text("  working directory to see image embedding in action.", {100, 310}, warning_font);
+    }
     
     // 技术信息
     pdf::Font tech_font;
