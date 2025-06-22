@@ -91,7 +91,8 @@ const std::vector<std::unique_ptr<PdfPage>>& Writer::getPages() const {
 // ========================================
 
 std::string Writer::registerFont(const std::string& font_name,
-                                const std::vector<std::uint8_t>& font_data) {
+                                const std::vector<std::uint8_t>& font_data,
+                                bool embed_font) {
     PDF_DEBUG("Registering font: " + font_name);
 
     // 检查字体是否已注册
@@ -122,9 +123,46 @@ std::string Writer::registerFont(const std::string& font_name,
         font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type0");
         font_obj->setEncoding("Identity-H");  // Unicode编码
 
+        // 记录字体子类型
+        font_subtypes_[font_name] = "Type0";
+
         // 创建FontDescriptor对象
         int font_desc_id = getNextObjectId();
         auto font_desc_obj = std::make_unique<FontDescriptorObject>(font_desc_id, font_name);
+
+        // 字体嵌入处理
+        if (embed_font) {
+            if (!font_data.empty()) {
+                // 使用提供的字体数据
+                int font_file_id = getNextObjectId();
+                auto font_file_obj = std::make_unique<FontFileObject>(font_file_id, font_data, "FontFile2");
+                addObject(std::move(font_file_obj));
+
+                font_desc_obj->setFontFile(font_file_id, "FontFile2");
+                PDF_DEBUG("Font embedded: " + font_name + " (FontFile ID: " + std::to_string(font_file_id) + ")");
+            } else {
+                // 尝试自动加载系统字体
+                std::string font_path = getSystemFontPath(font_name);
+                if (!font_path.empty()) {
+                    std::vector<uint8_t> auto_font_data = loadFontFile(font_path);
+                    if (!auto_font_data.empty()) {
+                        int font_file_id = getNextObjectId();
+                        auto font_file_obj = std::make_unique<FontFileObject>(font_file_id, auto_font_data, "FontFile2");
+                        addObject(std::move(font_file_obj));
+
+                        font_desc_obj->setFontFile(font_file_id, "FontFile2");
+                        PDF_DEBUG("System font auto-embedded: " + font_name + " from " + font_path);
+                    } else {
+                        PDF_DEBUG("Font embedding failed, using reference-only: " + font_name);
+                    }
+                } else {
+                    PDF_DEBUG("System font not found, using reference-only: " + font_name);
+                }
+            }
+        } else {
+            PDF_DEBUG("Font embedding disabled, using reference-only: " + font_name);
+        }
+
         addObject(std::move(font_desc_obj));
 
         // 创建CIDFont对象
@@ -176,6 +214,10 @@ std::string Writer::registerFont(const std::string& font_name,
         // 创建Type1字体（标准字体）
         font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type1");
         font_obj->setEncoding("WinAnsiEncoding");
+
+        // 记录字体子类型
+        font_subtypes_[font_name] = "Type1";
+
         PDF_DEBUG("Created Type1 font with WinAnsiEncoding");
     }
 
@@ -189,18 +231,62 @@ std::string Writer::getFontResourceId(const std::string& font_name) const {
     return (it != font_resources_.end()) ? it->second : "";
 }
 
+std::string Writer::getFontSubtype(const std::string& font_name) const {
+    auto it = font_subtypes_.find(font_name);
+    return (it != font_subtypes_.end()) ? it->second : "";
+}
+
+std::string Writer::registerImage(const std::string& image_path) {
+    // 加载图像文件
+    ImageData image_data = loadImageFile(image_path);
+    if (image_data.data.empty()) {
+        PDF_ERROR("Failed to load image: " + image_path);
+        return "";
+    }
+
+    // 使用加载的数据注册图像
+    return registerImage(image_data.data, image_data.width, image_data.height, image_data.format);
+}
+
 std::string Writer::registerImage(const std::vector<std::uint8_t>& image_data,
                                 int width, int height, const std::string& format) {
-    // 避免未使用参数警告
-    (void)image_data;
-    (void)width;
-    (void)height;
-    (void)format;
+    if (image_data.empty() || width <= 0 || height <= 0) {
+        PDF_ERROR("Invalid image parameters");
+        return "";
+    }
 
     std::string resource_id = "Im" + std::to_string(next_resource_id_++);
-    image_resources_[resource_id] = resource_id;
 
-    // TODO: 实现图像对象创建
+    // 创建图像对象
+    int image_obj_id = getNextObjectId();
+
+    // 确定颜色空间
+    std::string color_space = "DeviceRGB";  // 默认RGB
+    if (format == "JPEG" || format == "PNG") {
+        // 根据数据大小推断颜色空间
+        size_t expected_rgb_size = width * height * 3;
+        size_t expected_rgba_size = width * height * 4;
+        size_t expected_gray_size = width * height * 1;
+
+        if (image_data.size() == expected_gray_size) {
+            color_space = "DeviceGray";
+        } else if (image_data.size() == expected_rgb_size) {
+            color_space = "DeviceRGB";
+        } else if (image_data.size() == expected_rgba_size) {
+            color_space = "DeviceRGB";  // 忽略Alpha通道
+        }
+    }
+
+    auto image_obj = std::make_unique<ImageObject>(image_obj_id, image_data, width, height, color_space);
+    addObject(std::move(image_obj));
+
+    // 记录图像资源
+    image_resources_[resource_id] = resource_id;
+    image_object_ids_[resource_id] = image_obj_id;
+
+    PDF_DEBUG("Image registered: " + resource_id + " (Object ID: " + std::to_string(image_obj_id) +
+              ", " + std::to_string(width) + "x" + std::to_string(height) + ", " + format + ")");
+
     return resource_id;
 }
 

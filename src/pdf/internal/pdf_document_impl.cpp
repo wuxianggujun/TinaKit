@@ -85,11 +85,13 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
 
     // 获取或注册字体
     std::string font_resource = get_font_resource_id(font);
+    std::string font_subtype = writer_->getFontSubtype(font.family);
     PDF_DEBUG("Font resource ID: " + font_resource);
+    PDF_DEBUG("Font subtype: " + font_subtype);
 
     // 添加文本到页面
     page->beginText();
-    page->setFont(font_resource, font.size);
+    page->setFont(font_resource, font.size, font_subtype);
     page->setTextPosition(position.x, position.y);
     page->setTextColor(font.color.red() / 255.0, font.color.green() / 255.0, font.color.blue() / 255.0);
     page->showText(text);
@@ -107,11 +109,12 @@ void pdf_document_impl::add_text_block(const std::string& text, const Rect& boun
     
     // 获取或注册字体
     std::string font_resource = get_font_resource_id(font);
-    
+    std::string font_subtype = writer_->getFontSubtype(font.family);
+
     // 简单实现：将文本放在边界框的左上角
     // TODO: 实现文本换行和对齐
     page->beginText();
-    page->setFont(font_resource, font.size);
+    page->setFont(font_resource, font.size, font_subtype);
     page->setTextPosition(bounds.x, bounds.y + bounds.height - font.size);
     page->setTextColor(font.color.red() / 255.0, font.color.green() / 255.0, font.color.blue() / 255.0);
     page->showText(text);

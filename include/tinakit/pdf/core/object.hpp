@@ -260,6 +260,55 @@ private:
 };
 
 /**
+ * @class FontFileObject
+ * @brief PDF字体文件对象（用于字体嵌入）
+ */
+class FontFileObject : public StreamObject {
+public:
+    /**
+     * @brief 构造函数
+     * @param id 对象ID
+     * @param font_data 字体文件数据
+     * @param subtype 字体文件子类型（FontFile2用于TrueType）
+     */
+    FontFileObject(int id, const std::vector<uint8_t>& font_data, const std::string& subtype = "FontFile2");
+
+    std::string getTypeName() const override { return "FontFile"; }
+
+private:
+    std::string subtype_;
+};
+
+/**
+ * @class ImageObject
+ * @brief PDF图像对象（用于图像嵌入）
+ */
+class ImageObject : public StreamObject {
+public:
+    /**
+     * @brief 构造函数
+     * @param id 对象ID
+     * @param image_data 图像数据
+     * @param width 图像宽度
+     * @param height 图像高度
+     * @param color_space 颜色空间（RGB, Gray等）
+     * @param bits_per_component 每个颜色分量的位数
+     */
+    ImageObject(int id, const std::vector<uint8_t>& image_data,
+                int width, int height,
+                const std::string& color_space = "DeviceRGB",
+                int bits_per_component = 8);
+
+    std::string getTypeName() const override { return "Image"; }
+
+private:
+    int width_;
+    int height_;
+    std::string color_space_;
+    int bits_per_component_;
+};
+
+/**
  * @class FontDescriptorObject
  * @brief PDF字体描述符对象
  */
@@ -288,6 +337,13 @@ public:
      * @brief 设置字体度量
      */
     void setFontMetrics(int ascent, int descent, int cap_height, int stem_v);
+
+    /**
+     * @brief 设置字体文件引用（用于字体嵌入）
+     * @param font_file_id 字体文件对象ID
+     * @param subtype 字体文件类型（FontFile2等）
+     */
+    void setFontFile(int font_file_id, const std::string& subtype = "FontFile2");
 
     std::string getTypeName() const override { return "FontDescriptor"; }
 
@@ -449,5 +505,52 @@ std::string convertToUTF16BE(const std::string& utf8_text);
  * @return 如果包含非ASCII字符返回true
  */
 bool containsNonASCII(const std::string& text);
+
+/**
+ * @brief 文本段结构
+ */
+struct TextSegment {
+    std::string text;       ///< 文本内容
+    bool is_unicode;        ///< 是否为Unicode文本
+};
+
+/**
+ * @brief 将混合文本分割为ASCII和Unicode段
+ * @param text 输入文本
+ * @return 文本段列表
+ */
+std::vector<TextSegment> segmentText(const std::string& text);
+
+/**
+ * @brief 从文件加载字体数据
+ * @param font_path 字体文件路径
+ * @return 字体文件数据，失败时返回空vector
+ */
+std::vector<uint8_t> loadFontFile(const std::string& font_path);
+
+/**
+ * @brief 获取系统字体路径
+ * @param font_name 字体名称
+ * @return 字体文件路径，未找到时返回空字符串
+ */
+std::string getSystemFontPath(const std::string& font_name);
+
+/**
+ * @brief 图像数据结构
+ */
+struct ImageData {
+    std::vector<uint8_t> data;  ///< 图像原始数据
+    int width;                  ///< 图像宽度
+    int height;                 ///< 图像高度
+    int channels;               ///< 颜色通道数
+    std::string format;         ///< 图像格式（JPEG, PNG等）
+};
+
+/**
+ * @brief 从文件加载图像
+ * @param image_path 图像文件路径
+ * @return 图像数据，失败时返回空结构
+ */
+ImageData loadImageFile(const std::string& image_path);
 
 } // namespace tinakit::pdf::core

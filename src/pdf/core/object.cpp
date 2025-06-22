@@ -11,7 +11,19 @@
 #include <iomanip>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 #include <utf8.h>
+
+// STBI图像加载
+#define STB_IMAGE_IMPLEMENTATION
+#include "tinakit/internal/stb_image.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#include <shlobj.h>
+#else
+#include <fontconfig/fontconfig.h>
+#endif
 
 namespace tinakit::pdf::core {
 
@@ -216,6 +228,67 @@ void CIDFontObject::setDefaultWidth(int width) {
 }
 
 // ========================================
+// FontFileObject实现
+// ========================================
+
+FontFileObject::FontFileObject(int id, const std::vector<uint8_t>& font_data, const std::string& subtype)
+    : StreamObject(id), subtype_(subtype) {
+
+    // 设置字体文件流数据
+    setStreamData(font_data);
+
+    // 设置字体文件特定的字典项
+    if (subtype == "FontFile2") {
+        // TrueType字体
+        set("Length1", std::to_string(font_data.size()));
+    } else if (subtype == "FontFile3") {
+        // OpenType字体
+        set("Subtype", "/OpenType");
+    }
+
+    PDF_DEBUG("FontFileObject created: ID=" + std::to_string(id) + ", size=" + std::to_string(font_data.size()) + " bytes, subtype=" + subtype);
+}
+
+
+
+// ========================================
+// ImageObject实现
+// ========================================
+
+ImageObject::ImageObject(int id, const std::vector<uint8_t>& image_data,
+                        int width, int height,
+                        const std::string& color_space,
+                        int bits_per_component)
+    : StreamObject(id), width_(width), height_(height),
+      color_space_(color_space), bits_per_component_(bits_per_component) {
+
+    // 设置图像流数据
+    setStreamData(image_data);
+
+    // 设置图像特定的字典项
+    set("Type", "/XObject");
+    set("Subtype", "/Image");
+    set("Width", std::to_string(width));
+    set("Height", std::to_string(height));
+    set("ColorSpace", "/" + color_space);
+    set("BitsPerComponent", std::to_string(bits_per_component));
+
+    // 根据颜色空间设置过滤器
+    if (color_space == "DeviceRGB") {
+        // RGB图像通常使用DCTDecode（JPEG）或FlateDecode压缩
+        set("Filter", "/FlateDecode");
+    } else if (color_space == "DeviceGray") {
+        // 灰度图像
+        set("Filter", "/FlateDecode");
+    }
+
+    PDF_DEBUG("ImageObject created: ID=" + std::to_string(id) +
+              ", size=" + std::to_string(width) + "x" + std::to_string(height) +
+              ", colorspace=" + color_space +
+              ", data=" + std::to_string(image_data.size()) + " bytes");
+}
+
+// ========================================
 // FontDescriptorObject实现
 // ========================================
 
@@ -251,6 +324,11 @@ void FontDescriptorObject::setFontMetrics(int ascent, int descent, int cap_heigh
     set("Descent", std::to_string(descent));
     set("CapHeight", std::to_string(cap_height));
     set("StemV", std::to_string(stem_v));
+}
+
+void FontDescriptorObject::setFontFile(int font_file_id, const std::string& subtype) {
+    setReference(subtype, font_file_id);
+    PDF_DEBUG("Set " + subtype + ": " + makeReference(font_file_id));
 }
 
 // ========================================
@@ -421,10 +499,44 @@ std::string getCurrentPdfDate() {
 }
 
 std::string convertToUTF16BE(const std::string& utf8_text) {
+    PDF_DEBUG("Converting UTF-8 text to UTF-16BE using utfcpp: '" + utf8_text + "'");
+
+    // 对于混合文本，我们需要特殊处理
+    // 检查是否为纯ASCII文本
+    bool hasNonASCII = false;
+    for (unsigned char c : utf8_text) {
+        if (c > 127) {
+            hasNonASCII = true;
+            break;
+        }
+    }
+
+    if (!hasNonASCII) {
+        // 纯ASCII文本，返回括号格式
+        std::string escaped_text;
+        for (char c : utf8_text) {
+            switch (c) {
+                case '(':
+                    escaped_text += "\\(";
+                    break;
+                case ')':
+                    escaped_text += "\\)";
+                    break;
+                case '\\':
+                    escaped_text += "\\\\";
+                    break;
+                default:
+                    escaped_text += c;
+                    break;
+            }
+        }
+        PDF_DEBUG("Pure ASCII detected, using bracket format");
+        return "(" + escaped_text + ")";
+    }
+
+    // 包含非ASCII字符，使用UTF-16BE格式
     std::ostringstream oss;
     oss << "<FEFF"; // UTF-16BE BOM
-
-    PDF_DEBUG("Converting UTF-8 text to UTF-16BE using utfcpp: '" + utf8_text + "'");
 
     try {
         // 使用utfcpp库进行准确的UTF-8到UTF-16转换
@@ -463,6 +575,207 @@ bool containsNonASCII(const std::string& text) {
         }
     }
     return false;
+}
+
+std::vector<TextSegment> segmentText(const std::string& text) {
+    std::vector<TextSegment> segments;
+
+    if (text.empty()) {
+        return segments;
+    }
+
+    std::string current_segment;
+    bool current_is_unicode = false;
+    bool segment_started = false;
+
+    // 使用UTF-8迭代器遍历字符
+    auto it = text.begin();
+    while (it != text.end()) {
+        // 检查当前字符是否为ASCII
+        bool char_is_ascii = (*it >= 0 && *it <= 127);
+        bool char_is_unicode = !char_is_ascii;
+
+        if (!segment_started) {
+            // 开始新段
+            current_is_unicode = char_is_unicode;
+            segment_started = true;
+        } else if (current_is_unicode != char_is_unicode) {
+            // 字符类型改变，保存当前段并开始新段
+            if (!current_segment.empty()) {
+                segments.push_back({current_segment, current_is_unicode});
+                current_segment.clear();
+            }
+            current_is_unicode = char_is_unicode;
+        }
+
+        // 添加字符到当前段
+        if (char_is_ascii) {
+            current_segment += *it;
+            ++it;
+        } else {
+            // UTF-8多字节字符，需要完整读取
+            auto char_start = it;
+            try {
+                // 使用utfcpp来正确处理UTF-8字符边界
+                utf8::next(it, text.end());
+                current_segment.append(char_start, it);
+            } catch (const std::exception&) {
+                // 如果UTF-8解析失败，按单字节处理
+                current_segment += *it;
+                ++it;
+            }
+        }
+    }
+
+    // 添加最后一段
+    if (!current_segment.empty()) {
+        segments.push_back({current_segment, current_is_unicode});
+    }
+
+    PDF_DEBUG("Text segmented into " + std::to_string(segments.size()) + " segments");
+    for (size_t i = 0; i < segments.size(); ++i) {
+        PDF_DEBUG("Segment " + std::to_string(i) + ": '" + segments[i].text +
+                  "' (Unicode: " + (segments[i].is_unicode ? "true" : "false") + ")");
+    }
+
+    return segments;
+}
+
+std::vector<uint8_t> loadFontFile(const std::string& font_path) {
+    std::vector<uint8_t> font_data;
+
+    std::ifstream file(font_path, std::ios::binary);
+    if (!file.is_open()) {
+        PDF_ERROR("Failed to open font file: " + font_path);
+        return font_data;
+    }
+
+    // 获取文件大小
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    // 读取文件数据
+    font_data.resize(file_size);
+    file.read(reinterpret_cast<char*>(font_data.data()), file_size);
+
+    if (file.good()) {
+        PDF_DEBUG("Font file loaded: " + font_path + " (" + std::to_string(file_size) + " bytes)");
+    } else {
+        PDF_ERROR("Failed to read font file: " + font_path);
+        font_data.clear();
+    }
+
+    return font_data;
+}
+
+std::string getSystemFontPath(const std::string& font_name) {
+#ifdef _WIN32
+    // Windows系统字体路径
+    std::string fonts_dir = "C:\\Windows\\Fonts\\";
+
+    // 常见中文字体映射
+    std::map<std::string, std::string> font_map = {
+        {"SimSun", "simsun.ttc"},
+        {"NSimSun", "simsun.ttc"},
+        {"Microsoft YaHei", "msyh.ttc"},
+        {"MicrosoftYaHei", "msyh.ttc"},
+        {"SimHei", "simhei.ttf"},
+        {"KaiTi", "kaiti.ttf"},
+        {"Arial", "arial.ttf"},
+        {"Times New Roman", "times.ttf"},
+        {"Helvetica", "arial.ttf"}  // Helvetica在Windows上通常映射到Arial
+    };
+
+    auto it = font_map.find(font_name);
+    if (it != font_map.end()) {
+        std::string font_path = fonts_dir + it->second;
+
+        // 检查文件是否存在
+        std::ifstream file(font_path);
+        if (file.good()) {
+            PDF_DEBUG("Found system font: " + font_name + " -> " + font_path);
+            return font_path;
+        }
+    }
+
+    PDF_DEBUG("System font not found: " + font_name);
+    return "";
+
+#else
+    // Linux/macOS使用fontconfig
+    FcConfig* config = FcInitLoadConfigAndFonts();
+    FcPattern* pattern = FcNameParse((const FcChar8*)font_name.c_str());
+    FcConfigSubstitute(config, pattern, FcMatchPattern);
+    FcDefaultSubstitute(pattern);
+
+    FcResult result;
+    FcPattern* match = FcFontMatch(config, pattern, &result);
+
+    std::string font_path;
+    if (match) {
+        FcChar8* file_path = nullptr;
+        if (FcPatternGetString(match, FC_FILE, 0, &file_path) == FcResultMatch) {
+            font_path = (char*)file_path;
+            PDF_DEBUG("Found system font: " + font_name + " -> " + font_path);
+        }
+        FcPatternDestroy(match);
+    }
+
+    FcPatternDestroy(pattern);
+    FcConfigDestroy(config);
+
+    return font_path;
+#endif
+}
+
+ImageData loadImageFile(const std::string& image_path) {
+    ImageData result;
+
+    // 使用STBI加载图像
+    int width, height, channels;
+    unsigned char* data = stbi_load(image_path.c_str(), &width, &height, &channels, 0);
+
+    if (!data) {
+        PDF_ERROR("Failed to load image: " + image_path + " - " + std::string(stbi_failure_reason()));
+        return result;
+    }
+
+    // 填充结果结构
+    result.width = width;
+    result.height = height;
+    result.channels = channels;
+
+    // 复制图像数据
+    size_t data_size = width * height * channels;
+    result.data.resize(data_size);
+    std::memcpy(result.data.data(), data, data_size);
+
+    // 根据文件扩展名确定格式
+    std::string ext = image_path.substr(image_path.find_last_of('.') + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if (ext == "jpg" || ext == "jpeg") {
+        result.format = "JPEG";
+    } else if (ext == "png") {
+        result.format = "PNG";
+    } else if (ext == "bmp") {
+        result.format = "BMP";
+    } else if (ext == "tga") {
+        result.format = "TGA";
+    } else {
+        result.format = "UNKNOWN";
+    }
+
+    // 释放STBI分配的内存
+    stbi_image_free(data);
+
+    PDF_DEBUG("Image loaded: " + image_path +
+              " (" + std::to_string(width) + "x" + std::to_string(height) +
+              ", " + std::to_string(channels) + " channels, " +
+              std::to_string(data_size) + " bytes, format=" + result.format + ")");
+
+    return result;
 }
 
 } // namespace tinakit::pdf::core

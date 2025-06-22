@@ -183,8 +183,9 @@ public:
      * @brief 设置字体
      * @param font_resource 字体资源名称
      * @param size 字体大小
+     * @param subtype 字体子类型（用于确定编码方式）
      */
-    void setFont(const std::string& font_resource, double size);
+    void setFont(const std::string& font_resource, double size, const std::string& subtype = "Type1");
     
     /**
      * @brief 设置文本位置
@@ -341,6 +342,7 @@ private:
     
     // 状态跟踪
     bool in_text_object_ = false;       ///< 是否在文本对象中
+    std::string current_font_subtype_;  ///< 当前字体子类型
     int graphics_state_level_ = 0;      ///< 图形状态嵌套级别
     
     // ========================================

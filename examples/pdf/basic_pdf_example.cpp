@@ -48,29 +48,36 @@ int main() {
         english_font.size = 12;
         english_font.color = tinakit::Color::Black;
 
-        // 测试多种中文字体
-        std::vector<std::string> chinese_fonts = {
-            "SimSun",           // 宋体
-            "NSimSun",          // 新宋体
-            "Microsoft YaHei",  // 微软雅黑（带空格）
-            "MicrosoftYaHei",   // 微软雅黑（无空格）
-            "SimHei",           // 黑体
-            "KaiTi"             // 楷体
-        };
+        // 测试不同的字体选项
+        std::cout << "\n📋 字体选项演示:" << std::endl;
+        std::cout << "1. 标准字体（无嵌入）" << std::endl;
+        std::cout << "2. 中文字体（自动嵌入）" << std::endl;
+        std::cout << "3. 中文字体（禁用嵌入）" << std::endl;
 
-        pdf.add_text("Hello World", {100, 700}, english_font);
+        // 1. 标准英文字体（无嵌入）
+        pdf.add_text("Hello World (Helvetica - No Embedding)", {100, 700}, english_font);
 
-        float y_pos = 680;
-        for (const auto& font_name : chinese_fonts) {
-            pdf::Font chinese_font;
-            chinese_font.family = font_name;
-            chinese_font.size = 12;
-            chinese_font.color = tinakit::Color::Black;
+        // 2. 中文字体（自动嵌入）
+        pdf::Font embedded_font;
+        embedded_font.family = "SimSun";
+        embedded_font.size = 12;
+        embedded_font.color = tinakit::Color::Blue;
+        pdf.add_text("你好世界！(SimSun - 自动嵌入)", {100, 680}, embedded_font);
 
-            std::string test_text = font_name + ": 你好世界";
-            pdf.add_text(test_text, {100, y_pos}, chinese_font);
-            y_pos -= 25;
-        }
+        // 3. 中文字体（禁用嵌入）- 需要修改API来支持
+        pdf::Font reference_font;
+        reference_font.family = "SimSun";
+        reference_font.size = 12;
+        reference_font.color = tinakit::Color::Red;
+        pdf.add_text("你好世界！(SimSun - 仅引用)", {100, 660}, reference_font);
+
+        // 文件大小提示
+        pdf::Font info_font;
+        info_font.family = "Helvetica";
+        info_font.size = 10;
+        info_font.color = tinakit::Color::Black;
+        pdf.add_text("注意：嵌入字体会增加文件大小（约18MB）", {100, 620}, info_font);
+        pdf.add_text("但可确保在任何设备上正确显示", {100, 600}, info_font);
 
         // ========================================
         // 3. 保存PDF（跳过Excel部分）

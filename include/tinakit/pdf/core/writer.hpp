@@ -121,10 +121,12 @@ public:
      * @brief 注册字体
      * @param font_name 字体名称
      * @param font_data 字体数据（可选，用于嵌入字体）
+     * @param embed_font 是否嵌入字体（默认true）
      * @return 字体资源ID
      */
-    std::string registerFont(const std::string& font_name, 
-                           const std::vector<std::uint8_t>& font_data = {});
+    std::string registerFont(const std::string& font_name,
+                           const std::vector<std::uint8_t>& font_data = {},
+                           bool embed_font = true);
     
     /**
      * @brief 获取字体资源ID
@@ -132,9 +134,23 @@ public:
      * @return 字体资源ID，如果不存在返回空字符串
      */
     std::string getFontResourceId(const std::string& font_name) const;
+
+    /**
+     * @brief 获取字体子类型
+     * @param font_name 字体名称
+     * @return 字体子类型（Type0或Type1），如果不存在返回空字符串
+     */
+    std::string getFontSubtype(const std::string& font_name) const;
     
     /**
-     * @brief 注册图像
+     * @brief 注册图像（从文件）
+     * @param image_path 图像文件路径
+     * @return 图像资源ID
+     */
+    std::string registerImage(const std::string& image_path);
+
+    /**
+     * @brief 注册图像（从数据）
      * @param image_data 图像数据
      * @param width 图像宽度
      * @param height 图像高度
@@ -246,7 +262,9 @@ private:
     // 资源管理
     std::map<std::string, std::string> font_resources_;   ///< 字体资源映射 (字体名 -> 资源ID)
     std::map<std::string, int> font_object_ids_;          ///< 字体对象ID映射 (字体名 -> 对象ID)
+    std::map<std::string, std::string> font_subtypes_;    ///< 字体子类型映射 (字体名 -> 子类型)
     std::map<std::string, std::string> image_resources_;  ///< 图像资源映射
+    std::map<std::string, int> image_object_ids_;         ///< 图像对象ID映射 (资源ID -> 对象ID)
     int next_resource_id_ = 1;                  ///< 下一个资源ID
     
     // 文档属性
