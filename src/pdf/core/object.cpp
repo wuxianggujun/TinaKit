@@ -23,8 +23,11 @@ PdfObject::PdfObject(int id, int generation)
 }
 
 void PdfObject::writeTo(BinaryWriter& writer) const {
+    std::string content = getContent();
+    PDF_DEBUG("Writing object " + std::to_string(id_) + " (" + getTypeName() + "): " + content.substr(0, 100) + (content.length() > 100 ? "..." : ""));
+
     writer.writeObjectStart(id_, generation_);
-    writer.write(getContent());
+    writer.write(content);
     writer.writeObjectEnd();
 }
 
@@ -101,18 +104,20 @@ std::size_t StreamObject::getStreamSize() const {
 }
 
 void StreamObject::writeTo(BinaryWriter& writer) const {
+    std::string stream_content(stream_data_.begin(), stream_data_.end());
+
+    PDF_DEBUG("Writing object " + std::to_string(getId()) + " (Stream): stream=" + stream_content.substr(0, 50) + "... (total " + std::to_string(stream_data_.size()) + " bytes)");
+
     writer.writeObjectStart(getId(), getGeneration());
-    
-    // 写入字典部分
-    writer.write(DictionaryObject::getContent());
-    writer.writeLine();
-    
+
+    // 写入字典部分（包含Length）
+    writer.writeLine("<< /Length " + std::to_string(stream_data_.size()) + " >>");
+
     // 写入流数据
-    writer.writeStreamStart(stream_data_.size());
+    writer.writeLine("stream");
     writer.writeBytes(stream_data_);
-    writer.writeLine();
-    writer.writeStreamEnd();
-    
+    writer.writeLine("endstream");
+
     writer.writeObjectEnd();
 }
 
@@ -184,6 +189,8 @@ FontObject::FontObject(int id, const std::string& base_font, const std::string& 
     set("Type", "/Font");
     set("Subtype", "/" + subtype);
     set("BaseFont", "/" + base_font);
+
+    PDF_DEBUG("FontObject created: ID=" + std::to_string(id) + ", BaseFont=/" + base_font + ", Subtype=/" + subtype);
 }
 
 void FontObject::setEncoding(const std::string& encoding) {
@@ -307,10 +314,16 @@ std::string makeArray(const std::vector<std::string>& values) {
 std::string getCurrentPdfDate() {
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
+
+#ifdef _WIN32
+    std::tm tm;
+    localtime_s(&tm, &time_t);
+#else
     auto tm = *std::localtime(&time_t);
+#endif
     
     std::ostringstream oss;
-    oss << "D:" 
+    oss << "D:"
         << std::setfill('0')
         << std::setw(4) << (tm.tm_year + 1900)
         << std::setw(2) << (tm.tm_mon + 1)

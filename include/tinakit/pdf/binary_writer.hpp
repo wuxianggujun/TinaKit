@@ -8,6 +8,7 @@
 #pragma once
 
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <cstddef>
@@ -42,11 +43,16 @@ public:
     // ========================================
     
     /**
-     * @brief 构造函数
+     * @brief 构造函数（文件写入）
      * @param filename 输出文件名
      * @throws std::runtime_error 如果无法创建文件
      */
     explicit BinaryWriter(const std::string& filename);
+
+    /**
+     * @brief 构造函数（内存写入）
+     */
+    BinaryWriter();
     
     /**
      * @brief 析构函数，自动关闭文件
@@ -234,10 +240,18 @@ public:
      */
     void writeComment(const std::string& comment);
 
+    /**
+     * @brief 获取内存缓冲区内容（仅用于内存写入模式）
+     * @return 缓冲区内容
+     */
+    std::vector<std::uint8_t> getBuffer() const;
+
 private:
     std::ofstream out_;         ///< 输出文件流
+    std::ostringstream buffer_; ///< 内存缓冲区
     std::string filename_;      ///< 文件名
     bool is_open_;             ///< 文件是否打开
+    bool use_memory_;          ///< 是否使用内存模式
     
     /**
      * @brief 检查文件状态，如果有错误则抛出异常

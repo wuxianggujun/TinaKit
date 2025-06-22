@@ -154,9 +154,11 @@ void PdfPage::moveTextPosition(double dx, double dy) {
 }
 
 void PdfPage::showText(const std::string& text) {
+    PDF_DEBUG("PdfPage::showText: '" + text + "'");
     std::ostringstream oss;
     oss << "(" << escapeText(text) << ") Tj\n";
     addContent(oss.str());
+    PDF_DEBUG("Content added: " + oss.str());
 }
 
 void PdfPage::showTextLine(const std::string& text) {
@@ -236,34 +238,52 @@ void PdfPage::addComment(const std::string& comment) {
     addContent("% " + comment + "\n");
 }
 
-std::unique_ptr<DictionaryObject> PdfPage::createPageObject(int parent_id, int content_id, 
+std::unique_ptr<DictionaryObject> PdfPage::createPageObject(int parent_id, int content_id,
                                                            const std::string& resources) const {
-    auto page_obj = std::make_unique<DictionaryObject>(id_);
-    
+    return createPageObjectWithId(id_, parent_id, content_id, resources);
+}
+
+std::unique_ptr<DictionaryObject> PdfPage::createPageObjectWithId(int page_id, int parent_id, int content_id,
+                                                                 const std::string& resources) const {
+    auto page_obj = std::make_unique<DictionaryObject>(page_id);
+
     page_obj->set("Type", "/Page");
     page_obj->setReference("Parent", parent_id);
     page_obj->setReference("Contents", content_id);
-    
+
     // 设置MediaBox
     std::vector<std::string> media_box_values;
     for (double value : media_box_) {
         media_box_values.push_back(formatFloat(value));
     }
     page_obj->setArray("MediaBox", media_box_values);
-    
+
     // 设置资源字典
     if (!resources.empty()) {
         page_obj->set("Resources", resources);
+        PDF_DEBUG("Page object resources set to: " + resources);
     } else {
         page_obj->set("Resources", "<<>>");
+        PDF_DEBUG("Page object resources set to empty dict");
     }
-    
+
+    PDF_DEBUG("Page object created with ID=" + std::to_string(page_id) + ", Parent=" + std::to_string(parent_id) + ", Contents=" + std::to_string(content_id));
+
     return page_obj;
 }
 
 std::unique_ptr<StreamObject> PdfPage::createContentObject(int content_id) const {
+    std::string content = getContentStream();
+    PDF_DEBUG("Page content stream (" + std::to_string(content.length()) + " bytes):");
+    PDF_DEBUG("--- Content Start ---");
+    PDF_DEBUG(content);
+    PDF_DEBUG("--- Content End ---");
+
     auto content_obj = std::make_unique<StreamObject>(content_id);
-    content_obj->setStreamData(getContentStream());
+    content_obj->setStreamData(content);
+
+    PDF_DEBUG("StreamObject created with ID=" + std::to_string(content_id) + ", data size=" + std::to_string(content.length()));
+
     return content_obj;
 }
 

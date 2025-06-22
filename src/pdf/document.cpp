@@ -22,6 +22,9 @@ Document Document::create() {
 }
 
 Document Document::load(const std::filesystem::path& file_path) {
+    // 避免未使用参数警告
+    (void)file_path;
+
     // TODO: 实现PDF文件读取功能
     throw std::runtime_error("PDF文件读取功能尚未实现");
 }

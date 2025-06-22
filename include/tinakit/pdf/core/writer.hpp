@@ -239,11 +239,13 @@ private:
     
     // 页面管理
     std::vector<std::unique_ptr<PdfPage>> pages_;  ///< 页面列表
+    std::vector<int> page_object_ids_;              ///< 页面对象ID列表（PDF生成时分配）
     int pages_object_id_ = 0;                   ///< 页面树对象ID
     int catalog_object_id_ = 0;                 ///< 目录对象ID
     
     // 资源管理
-    std::map<std::string, std::string> font_resources_;   ///< 字体资源映射
+    std::map<std::string, std::string> font_resources_;   ///< 字体资源映射 (字体名 -> 资源ID)
+    std::map<std::string, int> font_object_ids_;          ///< 字体对象ID映射 (字体名 -> 对象ID)
     std::map<std::string, std::string> image_resources_;  ///< 图像资源映射
     int next_resource_id_ = 1;                  ///< 下一个资源ID
     

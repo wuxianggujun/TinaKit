@@ -8,10 +8,12 @@
 #include "tinakit/pdf/core/writer.hpp"
 #include "tinakit/pdf/core/object.hpp"
 #include "tinakit/pdf/core/page.hpp"
+#include "tinakit/pdf/binary_writer.hpp"
 #include "tinakit/core/logger.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <iomanip>
 
 namespace tinakit::pdf::core {
 
@@ -28,12 +30,16 @@ Writer::Writer() {
 
 int Writer::addObject(std::unique_ptr<PdfObject> obj) {
     int id = obj->getId();
+    std::string type_name = obj->getTypeName();
+
     ObjectEntry entry;
     entry.object = std::move(obj);
     entry.written = false;
     entry.offset = 0;
-    
+
     objects_[id] = std::move(entry);
+
+    PDF_DEBUG("Added object " + std::to_string(id) + " (" + type_name + ") to objects map");
 
     return id;
 }
@@ -84,27 +90,34 @@ const std::vector<std::unique_ptr<PdfPage>>& Writer::getPages() const {
 // 资源管理
 // ========================================
 
-std::string Writer::registerFont(const std::string& font_name, 
+std::string Writer::registerFont(const std::string& font_name,
                                 const std::vector<std::uint8_t>& font_data) {
+    PDF_DEBUG("Registering font: " + font_name);
+
     // 检查字体是否已注册
     auto it = font_resources_.find(font_name);
     if (it != font_resources_.end()) {
+        PDF_DEBUG("Font already registered: " + it->second);
         return it->second;
     }
-    
+
     // 生成字体资源ID
     std::string resource_id = "F" + std::to_string(next_resource_id_++);
     font_resources_[font_name] = resource_id;
-    
+
     // 创建字体对象
     int font_obj_id = getNextObjectId();
-    auto font_obj = std::make_unique<FontObject>(font_obj_id, font_name);
-    
+    font_object_ids_[font_name] = font_obj_id;  // 记录对象ID
+
+    PDF_DEBUG("Font registered: " + font_name + " -> " + resource_id + " (obj " + std::to_string(font_obj_id) + ")");
+
+    auto font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type1");
+
     // 如果是标准字体，设置编码
     if (font_data.empty()) {
         font_obj->setEncoding("WinAnsiEncoding");
     }
-    
+
     addObject(std::move(font_obj));
 
     return resource_id;
@@ -117,6 +130,12 @@ std::string Writer::getFontResourceId(const std::string& font_name) const {
 
 std::string Writer::registerImage(const std::vector<std::uint8_t>& image_data,
                                 int width, int height, const std::string& format) {
+    // 避免未使用参数警告
+    (void)image_data;
+    (void)width;
+    (void)height;
+    (void)format;
+
     std::string resource_id = "Im" + std::to_string(next_resource_id_++);
     image_resources_[resource_id] = resource_id;
 
@@ -159,32 +178,47 @@ void Writer::saveToFile(const std::string& filename) {
 }
 
 std::vector<std::uint8_t> Writer::saveToBuffer() {
-    BinaryWriter writer("temp_buffer");  // 临时文件名，实际会写入内存
+    BinaryWriter writer;  // 使用内存模式
     writeTo(writer);
-
-    // TODO: 实现内存缓冲区写入
-    // 这里需要修改BinaryWriter以支持内存写入
-    return {};
+    return writer.getBuffer();
 }
 
 void Writer::writeTo(BinaryWriter& writer) {
-    
-    // 1. 创建必要的PDF结构对象
+    PDF_DEBUG("Starting PDF generation");
+
+    // 1. 创建Catalog对象（但不创建Pages对象，因为需要先知道页面ID）
     createCatalogObject();
-    createPagesObject();
     createInfoObject();
-    
+
+    PDF_DEBUG("Created catalog (ID: " + std::to_string(catalog_object_id_) + "), pages will be (ID: " + std::to_string(pages_object_id_) + ")");
+
+    // 清空并重新分配页面对象ID
+    page_object_ids_.clear();
+
     // 2. 为每个页面创建对象
-    for (auto& page : pages_) {
+    for (size_t i = 0; i < pages_.size(); ++i) {
+        auto& page = pages_[i];
         int content_id = getNextObjectId();
         auto content_obj = page->createContentObject(content_id);
         addObject(std::move(content_obj));
-        
-        auto page_obj = page->createPageObject(pages_object_id_, content_id, generateResourceDict());
+
+        // 重新分配页面对象ID（不使用页面创建时的旧ID）
+        int page_id = getNextObjectId();
+        page_object_ids_.push_back(page_id);  // 记录新的页面对象ID
+
+        // 创建页面对象时直接使用新的ID
+        auto page_obj = page->createPageObjectWithId(page_id, pages_object_id_, content_id, generateResourceDict());
         addObject(std::move(page_obj));
+
+        PDF_DEBUG("Created page " + std::to_string(i) + ": page_id=" + std::to_string(page_id) + ", content_id=" + std::to_string(content_id));
     }
-    
-    // 3. 写入PDF结构
+
+    // 3. 现在创建Pages对象（包含所有页面引用）
+    createPagesObject();
+
+    PDF_DEBUG("Total objects before writing: " + std::to_string(objects_.size()));
+
+    // 4. 写入PDF结构
     writeHeader(writer);
     writeObjects(writer);
     auto xref_offset = writeXrefTable(writer);
@@ -254,14 +288,16 @@ void Writer::createPagesObject() {
     if (pages_object_id_ == 0) {
         pages_object_id_ = getNextObjectId();
     }
-    
+
     auto pages_obj = std::make_unique<PagesObject>(pages_object_id_);
-    
-    // 添加所有页面引用
-    for (const auto& page : pages_) {
-        pages_obj->addPageReference(page->getId());
+
+    // 添加所有页面引用（使用新分配的页面对象ID）
+    for (int page_id : page_object_ids_) {
+        pages_obj->addPageReference(page_id);
     }
-    
+
+    PDF_DEBUG("Pages object created with " + std::to_string(page_object_ids_.size()) + " page references");
+
     addObject(std::move(pages_obj));
 }
 
@@ -284,15 +320,18 @@ void Writer::writeHeader(BinaryWriter& writer) {
 }
 
 void Writer::writeObjects(BinaryWriter& writer) {
+    PDF_DEBUG("Writing " + std::to_string(objects_.size()) + " objects:");
     for (auto& [id, entry] : objects_) {
+        PDF_DEBUG("Writing object " + std::to_string(id));
         entry.offset = writer.getOffsetLong();
         entry.object->writeTo(writer);
         entry.written = true;
-        
+
         if (debug_mode_) {
             writer.writeComment("对象 " + std::to_string(id) + " 结束");
         }
     }
+    PDF_DEBUG("All objects written");
 }
 
 std::size_t Writer::writeXrefTable(BinaryWriter& writer) {
@@ -324,24 +363,27 @@ void Writer::writeTrailer(BinaryWriter& writer, std::size_t xref_offset) {
 
 std::string Writer::generateResourceDict() const {
     if (font_resources_.empty()) {
+        PDF_DEBUG("No font resources, returning empty resource dict");
         return "<<>>";
     }
-    
+
     std::ostringstream oss;
     oss << "<<\n/Font <<\n";
-    
+
     for (const auto& [font_name, resource_id] : font_resources_) {
-        // 找到对应的字体对象ID
-        for (const auto& [obj_id, entry] : objects_) {
-            if (entry.object->getTypeName() == "Font") {
-                oss << "/" << resource_id << " " << obj_id << " 0 R\n";
-                break;
-            }
+        auto it = font_object_ids_.find(font_name);
+        if (it != font_object_ids_.end()) {
+            oss << "/" << resource_id << " " << it->second << " 0 R\n";
+            PDF_DEBUG("Added font to resource dict: /" + resource_id + " " + std::to_string(it->second) + " 0 R");
+        } else {
+            PDF_ERROR("Font object ID not found for: " + font_name);
         }
     }
-    
+
     oss << ">>\n>>";
-    return oss.str();
+    std::string result = oss.str();
+    PDF_DEBUG("Generated resource dict: " + result);
+    return result;
 }
 
 } // namespace tinakit::pdf::core

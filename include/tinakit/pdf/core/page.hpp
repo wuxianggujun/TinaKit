@@ -306,8 +306,19 @@ public:
      * @param resources 资源字典
      * @return 页面对象
      */
-    std::unique_ptr<DictionaryObject> createPageObject(int parent_id, int content_id, 
+    std::unique_ptr<DictionaryObject> createPageObject(int parent_id, int content_id,
                                                       const std::string& resources = "") const;
+
+    /**
+     * @brief 创建页面对象（指定ID）
+     * @param page_id 页面对象ID
+     * @param parent_id 父页面树对象ID
+     * @param content_id 内容流对象ID
+     * @param resources 资源字典
+     * @return 页面对象
+     */
+    std::unique_ptr<DictionaryObject> createPageObjectWithId(int page_id, int parent_id, int content_id,
+                                                            const std::string& resources = "") const;
     
     /**
      * @brief 创建内容流对象

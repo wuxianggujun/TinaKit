@@ -17,12 +17,16 @@ namespace tinakit::pdf {
 // ========================================
 
 BinaryWriter::BinaryWriter(const std::string& filename)
-    : filename_(filename), is_open_(false) {
+    : filename_(filename), is_open_(false), use_memory_(false) {
     out_.open(filename, std::ios::binary | std::ios::out | std::ios::trunc);
     if (!out_.is_open()) {
         throw std::runtime_error("无法创建文件: " + filename);
     }
     is_open_ = true;
+}
+
+BinaryWriter::BinaryWriter()
+    : is_open_(true), use_memory_(true) {
 }
 
 BinaryWriter::~BinaryWriter() {
@@ -32,7 +36,8 @@ BinaryWriter::~BinaryWriter() {
 }
 
 BinaryWriter::BinaryWriter(BinaryWriter&& other) noexcept
-    : out_(std::move(other.out_)), filename_(std::move(other.filename_)), is_open_(other.is_open_) {
+    : out_(std::move(other.out_)), buffer_(std::move(other.buffer_)),
+      filename_(std::move(other.filename_)), is_open_(other.is_open_), use_memory_(other.use_memory_) {
     other.is_open_ = false;
 }
 
@@ -42,8 +47,10 @@ BinaryWriter& BinaryWriter::operator=(BinaryWriter&& other) noexcept {
             close();
         }
         out_ = std::move(other.out_);
+        buffer_ = std::move(other.buffer_);
         filename_ = std::move(other.filename_);
         is_open_ = other.is_open_;
+        use_memory_ = other.use_memory_;
         other.is_open_ = false;
     }
     return *this;
@@ -55,17 +62,29 @@ BinaryWriter& BinaryWriter::operator=(BinaryWriter&& other) noexcept {
 
 void BinaryWriter::write(const std::string& text) {
     checkState();
-    out_ << text;
+    if (use_memory_) {
+        buffer_ << text;
+    } else {
+        out_ << text;
+    }
 }
 
 void BinaryWriter::writeLine(const std::string& line) {
     checkState();
-    out_ << line << '\n';
+    if (use_memory_) {
+        buffer_ << line << '\n';
+    } else {
+        out_ << line << '\n';
+    }
 }
 
 void BinaryWriter::writeBinary(const void* data, std::size_t size) {
     checkState();
-    out_.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+    if (use_memory_) {
+        buffer_.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+    } else {
+        out_.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+    }
 }
 
 void BinaryWriter::writeBytes(const std::vector<std::uint8_t>& data) {
@@ -92,7 +111,11 @@ void BinaryWriter::writeFloat(double value, int precision) {
 
 std::streampos BinaryWriter::getOffset() const {
     checkState();
-    return const_cast<std::ofstream&>(out_).tellp();
+    if (use_memory_) {
+        return const_cast<std::ostringstream&>(buffer_).tellp();
+    } else {
+        return const_cast<std::ofstream&>(out_).tellp();
+    }
 }
 
 long BinaryWriter::getOffsetLong() const {
@@ -100,24 +123,34 @@ long BinaryWriter::getOffsetLong() const {
 }
 
 void BinaryWriter::flush() {
-    if (is_open_) {
+    if (is_open_ && !use_memory_) {
         out_.flush();
     }
 }
 
 void BinaryWriter::close() {
     if (is_open_) {
-        out_.close();
+        if (!use_memory_) {
+            out_.close();
+        }
         is_open_ = false;
     }
 }
 
 bool BinaryWriter::isOpen() const {
-    return is_open_ && out_.is_open();
+    if (use_memory_) {
+        return is_open_;
+    } else {
+        return is_open_ && out_.is_open();
+    }
 }
 
 bool BinaryWriter::good() const {
-    return is_open_ && out_.good();
+    if (use_memory_) {
+        return is_open_ && buffer_.good();
+    } else {
+        return is_open_ && out_.good();
+    }
 }
 
 // ========================================
@@ -197,16 +230,31 @@ void BinaryWriter::writeComment(const std::string& comment) {
     writeLine("% " + comment);
 }
 
+std::vector<std::uint8_t> BinaryWriter::getBuffer() const {
+    if (!use_memory_) {
+        throw std::runtime_error("getBuffer() 只能在内存模式下使用");
+    }
+
+    std::string str = buffer_.str();
+    return std::vector<std::uint8_t>(str.begin(), str.end());
+}
+
 // ========================================
 // 私有方法
 // ========================================
 
 void BinaryWriter::checkState() const {
     if (!is_open_) {
-        throw std::runtime_error("文件未打开");
+        throw std::runtime_error("写入器未打开");
     }
-    if (!out_.good()) {
-        throw std::runtime_error("文件写入错误");
+    if (use_memory_) {
+        if (!buffer_.good()) {
+            throw std::runtime_error("内存缓冲区写入错误");
+        }
+    } else {
+        if (!out_.good()) {
+            throw std::runtime_error("文件写入错误");
+        }
     }
 }
 

@@ -9,6 +9,8 @@
 #include "tinakit/pdf/core/writer.hpp"
 #include "tinakit/core/logger.hpp"
 #include <stdexcept>
+#include <sstream>
+#include <iomanip>
 
 namespace tinakit::pdf::internal {
 
@@ -72,14 +74,19 @@ core::PdfPage* pdf_document_impl::current_page() {
 // ========================================
 
 void pdf_document_impl::add_text(const std::string& text, const Point& position, const Font& font) {
+    PDF_DEBUG("add_text called: text='" + text + "', pos=(" + std::to_string(position.x) + "," + std::to_string(position.y) + "), font=" + font.family);
+
     auto page = current_page();
     if (!page) {
+        PDF_ERROR("No current page!");
         return;
     }
-    
+    PDF_DEBUG("Current page found");
+
     // 获取或注册字体
     std::string font_resource = get_font_resource_id(font);
-    
+    PDF_DEBUG("Font resource ID: " + font_resource);
+
     // 添加文本到页面
     page->beginText();
     page->setFont(font_resource, font.size);
@@ -87,6 +94,8 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
     page->setTextColor(font.color.red() / 255.0, font.color.green() / 255.0, font.color.blue() / 255.0);
     page->showText(text);
     page->endText();
+
+    PDF_DEBUG("Text added successfully");
 }
 
 void pdf_document_impl::add_text_block(const std::string& text, const Rect& bounds,
@@ -139,11 +148,16 @@ void pdf_document_impl::add_excel_sheet(const excel::Worksheet& sheet, bool pres
 // ========================================
 
 void pdf_document_impl::save(const std::filesystem::path& file_path) {
+    PDF_DEBUG("Saving PDF to: " + file_path.string());
+    PDF_DEBUG("Page count: " + std::to_string(writer_->getPageCount()));
+
     if (writer_->getPageCount() == 0) {
+        PDF_WARN("No pages, adding default page");
         add_page();
     }
 
     writer_->saveToFile(file_path.string());
+    PDF_INFO("PDF saved successfully to: " + file_path.string());
 }
 
 std::vector<std::uint8_t> pdf_document_impl::save_to_buffer() {

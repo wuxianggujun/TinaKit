@@ -13,6 +13,7 @@ target_sources(tinakit PRIVATE
         
         pdf/document.cpp
         pdf/types.cpp
+        pdf/binary_writer.cpp
         pdf/core/object.cpp
         pdf/core/page.cpp
         pdf/core/writer.cpp
@@ -42,4 +43,4 @@ target_include_directories(tinakit PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR}/third_party/zlib-ng)
 
-target_link_libraries(tinakit PUBLIC libstudxml MINIZIP::minizip zlib-ng)
+target_link_libraries(tinakit PUBLIC libstudxml MINIZIP::minizip zlibstatic)

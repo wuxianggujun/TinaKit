@@ -15,6 +15,7 @@
 #include "tinakit/core/async.hpp"
 #include "tinakit/core/xml_parser.hpp"
 #include "tinakit/core/openxml_archiver.hpp"
+#include "tinakit/core/logger.hpp"
 #include "tinakit/excel/workbook.hpp"
 #include "tinakit/excel/worksheet.hpp"
 #include "tinakit/excel/style_manager.hpp"
