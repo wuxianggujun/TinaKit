@@ -44,7 +44,7 @@ int main() {
         title_font.family = "Arial";
         title_font.size = 24;
         title_font.bold = true;
-        title_font.color = Color::Blue;
+        title_font.color = tinakit::Color::Blue;
         
         pdf.add_text("TinaKit PDF 功能演示", {100, 750}, title_font);
         
@@ -52,7 +52,7 @@ int main() {
         pdf::Font body_font;
         body_font.family = "Arial";
         body_font.size = 12;
-        body_font.color = Color::Black;
+        body_font.color = tinakit::Color::Black;
         
         pdf.add_text("这是一个使用TinaKit库创建的PDF文档。", {100, 700}, body_font);
         pdf.add_text("TinaKit支持从Excel数据生成PDF报表。", {100, 680}, body_font);
@@ -71,8 +71,8 @@ int main() {
         auto header_style = excel::Style()
             .font("微软雅黑", 12)
             .bold()
-            .color(Color::White)
-            .background_color(Color::Blue)
+            .color(tinakit::Color::White)
+            .background_color(tinakit::Color::Blue)
             .align_horizontal(excel::Alignment::Horizontal::Center);
         
         sheet["A1"].value("产品名称").style(header_style);
@@ -129,7 +129,7 @@ int main() {
         pdf::Font footer_font;
         footer_font.family = "Arial";
         footer_font.size = 10;
-        footer_font.color = Color::Black;
+        footer_font.color = tinakit::Color::Black;
         
         pdf.add_text("由 TinaKit PDF 库生成", {100, 50}, footer_font);
         pdf.add_text("生成时间: 2025-06-22", {400, 50}, footer_font);

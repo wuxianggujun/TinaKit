@@ -11,8 +11,7 @@
 #include <vector>
 #include <memory>
 #include <filesystem>
-#include "tinakit/core/types.hpp"
-#include "tinakit/core/color.hpp"
+#include "tinakit/pdf/types.hpp"
 #include "tinakit/pdf/style.hpp"
 #include "tinakit/excel/workbook.hpp"
 
@@ -23,98 +22,8 @@ namespace internal {
     class pdf_document_impl;
 }
 
-// 使用core命名空间中的几何类型
-using Point = core::Point;
-using Rect = core::Rect;
-
-/**
- * @brief PDF页面大小枚举
- */
-enum class PageSize {
-    A4,         ///< A4 (210 × 297 mm)
-    A3,         ///< A3 (297 × 420 mm)
-    Letter,     ///< US Letter (8.5 × 11 inch)
-    Legal,      ///< US Legal (8.5 × 14 inch)
-    Custom      ///< 自定义大小
-};
-
-/**
- * @brief PDF页面方向
- */
-enum class PageOrientation {
-    Portrait,   ///< 纵向
-    Landscape   ///< 横向
-};
-
-// TextAlignment 在 style.hpp 中定义
-
-// 使用PDF样式系统中的字体样式
-using Font = FontStyle;
-
-/**
- * @brief PDF页面边距
- */
-struct PageMargins {
-    double top = 72.0;      ///< 上边距 (点)
-    double bottom = 72.0;   ///< 下边距 (点)
-    double left = 72.0;     ///< 左边距 (点)
-    double right = 72.0;    ///< 右边距 (点)
-};
-
-/**
- * @brief PDF文档元数据
- */
-struct DocumentInfo {
-    std::string title;          ///< 文档标题
-    std::string author;         ///< 作者
-    std::string subject;        ///< 主题
-    std::string keywords;       ///< 关键词
-    std::string creator = "TinaKit PDF Library";  ///< 创建者
-};
-
-/**
- * @brief PDF表格单元格
- */
-struct TableCell {
-    std::string text;                       ///< 单元格文本
-    CellStyle style;                        ///< 单元格样式
-
-    /**
-     * @brief 默认构造函数
-     */
-    TableCell() = default;
-
-    /**
-     * @brief 构造函数
-     */
-    TableCell(const std::string& cell_text, const CellStyle& cell_style = CellStyle())
-        : text(cell_text), style(cell_style) {}
-};
-
-/**
- * @brief PDF表格行
- */
-using TableRow = std::vector<TableCell>;
-
-/**
- * @brief PDF表格
- */
-struct Table {
-    std::vector<TableRow> rows;         ///< 表格行
-    std::vector<double> column_widths;  ///< 列宽度
-    TableStyle style;                   ///< 表格样式
-    bool has_header = false;            ///< 是否有表头
-
-    /**
-     * @brief 默认构造函数
-     */
-    Table() = default;
-
-    /**
-     * @brief 构造函数
-     */
-    Table(const TableStyle& table_style) : style(table_style) {}
-};
+// 类型定义在 types.hpp 中
+// Point, Rect, Color, Font, PageSize, PageOrientation, PageMargins, DocumentInfo, Table 等
 
 /**
  * @brief PDF文档类

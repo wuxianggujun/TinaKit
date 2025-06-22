@@ -8,25 +8,12 @@
 #pragma once
 
 #include <string>
-#include "tinakit/core/color.hpp"
+#include "tinakit/pdf/types.hpp"
 
 namespace tinakit::pdf {
 
-// 前向声明
-enum class TextAlignment;
-
-// 使用Color类型
-using Color = tinakit::Color;
-
-/**
- * @brief 文本对齐方式
- */
-enum class TextAlignment {
-    Left,       ///< 左对齐
-    Center,     ///< 居中
-    Right,      ///< 右对齐
-    Justify     ///< 两端对齐
-};
+// 使用types.hpp中定义的类型
+// Color, TextAlignment, VerticalAlignment 等已在types.hpp中定义
 
 /**
  * @brief PDF字体样式

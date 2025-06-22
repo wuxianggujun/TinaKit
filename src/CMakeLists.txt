@@ -12,7 +12,12 @@ target_sources(tinakit PRIVATE
         core/logger.cpp
         
         pdf/document.cpp
-        pdf/binary_writer.cpp
+        pdf/types.cpp
+        pdf/core/object.cpp
+        pdf/core/page.cpp
+        pdf/core/writer.cpp
+        pdf/utils/compression.cpp
+        pdf/internal/pdf_document_impl.cpp
         
         excel/excel.cpp
         excel/workbook.cpp
@@ -28,15 +33,13 @@ target_sources(tinakit PRIVATE
         excel/conditional_format.cpp
         excel/style.cpp
         excel/range_view.cpp
-        
-        internal/pdf_document_impl.cpp
-        
         internal/workbook_impl.cpp
         internal/worksheet_impl.cpp
         internal/coordinate_utils.cpp
 )
 
 target_include_directories(tinakit PUBLIC
-        ${PROJECT_SOURCE_DIR}/include)
+        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_BINARY_DIR}/third_party/zlib-ng)
 
-target_link_libraries(tinakit PUBLIC libstudxml MINIZIP::minizip)
+target_link_libraries(tinakit PUBLIC libstudxml MINIZIP::minizip zlib-ng)

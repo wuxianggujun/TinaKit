@@ -84,18 +84,18 @@ std::size_t Document::page_count() const {
 // 内容添加
 // ========================================
 
-Document& Document::add_text(const std::string& text, const core::Point& position, const Font& font) {
+Document& Document::add_text(const std::string& text, const Point& position, const Font& font) {
     impl_->add_text(text, position, font);
     return *this;
 }
 
-Document& Document::add_text_block(const std::string& text, const core::Rect& bounds,
+Document& Document::add_text_block(const std::string& text, const Rect& bounds,
                                   const Font& font, TextAlignment alignment) {
     impl_->add_text_block(text, bounds, font, alignment);
     return *this;
 }
 
-Document& Document::add_table(const Table& table, const core::Point& position) {
+Document& Document::add_table(const Table& table, const Point& position) {
     impl_->add_table(table, position);
     return *this;
 }
@@ -106,14 +106,14 @@ Document& Document::add_table(const Table& table, const core::Point& position) {
 
 Document& Document::add_excel_table(const excel::Worksheet& sheet,
                                     const std::string& range_address,
-                                    const core::Point& position,
+                                    const Point& position,
                                     bool preserve_formatting) {
     impl_->add_excel_table(sheet, range_address, position, preserve_formatting);
     return *this;
 }
 
 Document& Document::add_excel_range(const excel::Range& range,
-                                   const core::Point& position,
+                                   const Point& position,
                                    bool preserve_formatting) {
     impl_->add_excel_range(range, position, preserve_formatting);
     return *this;

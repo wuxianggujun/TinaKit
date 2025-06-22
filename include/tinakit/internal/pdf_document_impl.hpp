@@ -12,59 +12,17 @@
 #include <memory>
 #include <sstream>
 #include <map>
+#include <iomanip>
+#include <filesystem>
 #include "tinakit/pdf/document.hpp"
+#include "tinakit/pdf/types.hpp"
+#include "tinakit/pdf/core/writer.hpp"
+#include "tinakit/pdf/core/page.hpp"
 
 namespace tinakit::pdf::internal {
-
-/**
- * @brief PDF对象基类
- */
-class pdf_object {
-public:
-    pdf_object(int id) : object_id_(id) {}
-    virtual ~pdf_object() = default;
     
-    int object_id() const { return object_id_; }
-    virtual std::string to_pdf_string() const = 0;
-
-private:
-    int object_id_;
-};
-
-/**
- * @brief PDF页面对象
- */
-class pdf_page : public pdf_object {
-public:
-    pdf_page(int id, double width, double height);
-    
-    void add_content(const std::string& content);
-    std::string to_pdf_string() const override;
-    
-    double width() const { return width_; }
-    double height() const { return height_; }
-
-    const std::vector<std::string>& get_content_streams() const { return content_streams_; }
-
-private:
-    double width_;
-    double height_;
-    std::vector<std::string> content_streams_;
-};
-
-/**
- * @brief PDF字体对象
- */
-class pdf_font : public pdf_object {
-public:
-    pdf_font(int id, const std::string& name);
-    std::string to_pdf_string() const override;
-    
-    const std::string& name() const { return font_name_; }
-
-private:
-    std::string font_name_;
-};
+// 前向声明
+class pdf_document_impl;
 
 /**
  * @brief PDF文档实现类
@@ -77,6 +35,12 @@ public:
     
     pdf_document_impl();
     ~pdf_document_impl() = default;
+
+    // 禁用拷贝，支持移动
+    pdf_document_impl(const pdf_document_impl&) = delete;
+    pdf_document_impl& operator=(const pdf_document_impl&) = delete;
+    pdf_document_impl(pdf_document_impl&&) = default;
+    pdf_document_impl& operator=(pdf_document_impl&&) = default;
 
     // ========================================
     // 文档设置
@@ -93,16 +57,16 @@ public:
     
     void add_page();
     std::size_t page_count() const;
-    pdf_page* current_page();
+    core::PdfPage* current_page();
 
     // ========================================
     // 内容添加
     // ========================================
     
-    void add_text(const std::string& text, const core::Point& position, const Font& font);
-    void add_text_block(const std::string& text, const core::Rect& bounds,
+    void add_text(const std::string& text, const Point& position, const Font& font);
+    void add_text_block(const std::string& text, const Rect& bounds,
                        const Font& font, TextAlignment alignment);
-    void add_table(const Table& table, const core::Point& position);
+    void add_table(const Table& table, const Point& position);
 
     // ========================================
     // Excel集成
@@ -110,11 +74,11 @@ public:
     
     void add_excel_table(const excel::Worksheet& sheet,
                          const std::string& range_address,
-                         const core::Point& position,
+                         const Point& position,
                          bool preserve_formatting);
 
     void add_excel_range(const excel::Range& range,
-                         const core::Point& position,
+                         const Point& position,
                          bool preserve_formatting);
     
     void add_excel_sheet(const excel::Worksheet& sheet, bool preserve_formatting);
@@ -132,19 +96,9 @@ private:
     // ========================================
     
     /**
-     * @brief 获取下一个对象ID
-     */
-    int next_object_id();
-    
-    /**
-     * @brief 添加PDF对象
-     */
-    void add_object(std::unique_ptr<pdf_object> obj);
-    
-    /**
      * @brief 获取或创建字体对象
      */
-    int get_font_id(const Font& font);
+    std::string get_font_resource_id(const Font& font);
     
     /**
      * @brief 转换颜色到PDF格式
@@ -161,35 +115,7 @@ private:
      */
     std::string text_to_hex(const std::string& text);
     
-    /**
-     * @brief 生成PDF文档结构
-     */
-    std::string generate_pdf_document();
-    
-    /**
-     * @brief 生成PDF头部
-     */
-    std::string generate_pdf_header();
-    
-    /**
-     * @brief 生成PDF目录
-     */
-    std::string generate_pdf_catalog();
-    
-    /**
-     * @brief 生成PDF页面树
-     */
-    std::string generate_pdf_pages();
-    
-    /**
-     * @brief 生成PDF交叉引用表
-     */
-    std::string generate_xref_table(const std::vector<size_t>& offsets);
-    
-    /**
-     * @brief 生成PDF尾部
-     */
-    std::string generate_pdf_trailer(size_t xref_offset, const std::vector<size_t>& offsets);
+    // PDF生成功能现在由core::Writer类统一处理
     
     /**
      * @brief 从Excel单元格创建表格单元格
@@ -216,14 +142,9 @@ private:
     PageMargins margins_;           ///< 页面边距
     DocumentInfo doc_info_;         ///< 文档信息
     
-    // 对象管理
-    int next_object_id_ = 1;        ///< 下一个对象ID
-    std::vector<std::unique_ptr<pdf_object>> objects_;  ///< PDF对象列表
-    std::vector<std::unique_ptr<pdf_page>> pages_;      ///< 页面列表
-    
-    // 字体管理
-    std::map<std::string, int> font_cache_;  ///< 字体缓存（字体名->对象ID）
-    
+    // 核心写入器 - 统一管理PDF对象和结构
+    std::unique_ptr<core::Writer> writer_;  ///< PDF核心写入器
+
     // 当前状态
     int current_page_index_ = -1;   ///< 当前页面索引
 };
