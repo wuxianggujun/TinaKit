@@ -10,6 +10,7 @@
 #include "tinakit/pdf/core/page.hpp"
 #include "tinakit/pdf/binary_writer.hpp"
 #include "tinakit/core/logger.hpp"
+#include "tinakit/core/unicode.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -22,6 +23,8 @@ namespace tinakit::pdf::core {
 // ========================================
 
 Writer::Writer() {
+    // 设置默认的字体回退机制
+    setupDefaultFontFallbacks();
 }
 
 // ========================================
@@ -234,6 +237,58 @@ std::string Writer::getFontResourceId(const std::string& font_name) const {
 std::string Writer::getFontSubtype(const std::string& font_name) const {
     auto it = font_subtypes_.find(font_name);
     return (it != font_subtypes_.end()) ? it->second : "";
+}
+
+void Writer::registerFontFallback(const std::string& primary_font, const std::string& fallback_font) {
+    font_fallbacks_[primary_font] = fallback_font;
+    PDF_DEBUG("Font fallback registered: " + primary_font + " -> " + fallback_font);
+
+    // 确保回退字体也被注册
+    if (font_resources_.find(fallback_font) == font_resources_.end()) {
+        registerFont(fallback_font);
+        PDF_DEBUG("Fallback font auto-registered: " + fallback_font);
+    }
+}
+
+std::string Writer::getFallbackFont(const std::string& font_name) const {
+    auto it = font_fallbacks_.find(font_name);
+    return (it != font_fallbacks_.end()) ? it->second : "";
+}
+
+std::string Writer::selectBestFont(const std::string& text, const std::string& preferred_font) const {
+    if (text.empty()) {
+        return preferred_font;
+    }
+
+    // 检查文本是否包含CJK字符
+    bool has_cjk = false;
+    bool has_ascii = false;
+
+    has_ascii = !tinakit::core::unicode::contains_non_ascii(text);
+    has_cjk = tinakit::core::unicode::contains_cjk(text);
+
+    // 根据文本内容选择最佳字体
+    if (has_cjk) {
+        // 包含CJK字符，优先使用支持Unicode的字体
+        if (isUnicodeFont(preferred_font)) {
+            return preferred_font;
+        } else {
+            // 首选字体不支持Unicode，查找回退字体
+            std::string fallback = getFallbackFont(preferred_font);
+            if (!fallback.empty() && isUnicodeFont(fallback)) {
+                PDF_DEBUG("Using fallback font for CJK text: " + fallback);
+                return fallback;
+            } else {
+                // 没有合适的回退字体，使用默认的CJK字体
+                return "SimSun";  // 或其他默认CJK字体
+            }
+        }
+    } else if (has_ascii) {
+        // 纯ASCII文本，可以使用任何字体
+        return preferred_font;
+    }
+
+    return preferred_font;
 }
 
 std::string Writer::registerImage(const std::string& image_path) {
@@ -531,6 +586,33 @@ std::string Writer::generateResourceDict() const {
     std::string result = oss.str();
     PDF_DEBUG("Generated resource dict: " + result);
     return result;
+}
+
+bool Writer::isUnicodeFont(const std::string& font_name) const {
+    // 检查字体子类型
+    std::string subtype = getFontSubtype(font_name);
+    return (subtype == "Type0");
+}
+
+bool Writer::isCJKCharacter(uint32_t codepoint) const {
+    return tinakit::core::unicode::is_cjk_character(codepoint);
+}
+
+void Writer::setupDefaultFontFallbacks() {
+    // 为常用的西文字体设置中文回退字体
+    registerFontFallback("Helvetica", "SimSun");
+    registerFontFallback("Times-Roman", "SimSun");
+    registerFontFallback("Courier", "SimSun");
+    registerFontFallback("Arial", "SimSun");
+    registerFontFallback("Times New Roman", "SimSun");
+
+    // 为中文字体设置英文回退字体（虽然通常不需要，但为了完整性）
+    registerFontFallback("SimSun", "Helvetica");
+    registerFontFallback("NSimSun", "Helvetica");
+    registerFontFallback("Microsoft YaHei", "Helvetica");
+    registerFontFallback("微软雅黑", "Helvetica");
+
+    PDF_DEBUG("Default font fallbacks configured");
 }
 
 } // namespace tinakit::pdf::core

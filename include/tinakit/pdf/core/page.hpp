@@ -369,6 +369,33 @@ private:
      * @return 转义后的文本
      */
     std::string escapeText(const std::string& text) const;
+
+    /**
+     * @brief 智能分段显示文本
+     * @param text 要显示的文本
+     *
+     * 将中英文混合文本智能分段，为不同类型的文本选择合适的编码方式
+     */
+    void showTextWithSmartSegmentation(const std::string& text);
+
+    /**
+     * @brief 判断字符是否为CJK字符
+     * @param codepoint Unicode码点
+     * @return 是CJK字符返回true，否则返回false
+     */
+    bool isCJKCharacter(uint32_t codepoint) const;
+
+    /**
+     * @brief 显示ASCII文本段
+     * @param text ASCII文本
+     */
+    void showASCIISegment(const std::string& text);
+
+    /**
+     * @brief 显示Unicode文本段
+     * @param text Unicode文本
+     */
+    void showUnicodeSegment(const std::string& text);
     
     /**
      * @brief 格式化浮点数

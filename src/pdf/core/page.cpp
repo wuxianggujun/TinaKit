@@ -8,9 +8,9 @@
 #include "tinakit/pdf/core/page.hpp"
 #include "tinakit/pdf/core/object.hpp"
 #include "tinakit/core/logger.hpp"
+#include "tinakit/core/unicode.hpp"
 #include <sstream>
 #include <iomanip>
-#include <utf8.h>
 #include <cmath>
 
 namespace tinakit::pdf::core {
@@ -171,92 +171,8 @@ void PdfPage::showText(const std::string& text) {
         return;
     }
 
-    // Unicode字体：检查是否包含中文
-    if (!containsNonASCII(text)) {
-        // 纯ASCII文本，使用括号格式避免间距问题
-        std::ostringstream oss;
-        oss << "(" << escapeText(text) << ") Tj\n";
-        addContent(oss.str());
-        PDF_DEBUG("Using ASCII format for pure ASCII text in Unicode font");
-    } else {
-        // 包含中文的文本，使用简单的分段处理
-        std::string current_ascii;
-        std::string current_unicode;
-        bool in_unicode = false;
-
-        auto it = text.begin();
-        while (it != text.end()) {
-            unsigned char c = static_cast<unsigned char>(*it);
-
-            if (c <= 127) {
-                // ASCII字符
-                if (in_unicode && !current_unicode.empty()) {
-                    // 输出之前的Unicode段
-                    std::ostringstream oss;
-                    oss << "<FEFF";
-                    try {
-                        std::u16string utf16_string;
-                        utf8::utf8to16(current_unicode.begin(), current_unicode.end(), std::back_inserter(utf16_string));
-                        for (char16_t ch : utf16_string) {
-                            oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(ch);
-                        }
-                    } catch (const std::exception&) {
-                        // 回退处理
-                    }
-                    oss << "> Tj\n";
-                    addContent(oss.str());
-                    current_unicode.clear();
-                }
-                current_ascii += c;
-                in_unicode = false;
-                ++it;
-            } else {
-                // 非ASCII字符（可能是UTF-8多字节）
-                if (!in_unicode && !current_ascii.empty()) {
-                    // 输出之前的ASCII段
-                    std::ostringstream oss;
-                    oss << "(" << escapeText(current_ascii) << ") Tj\n";
-                    addContent(oss.str());
-                    current_ascii.clear();
-                }
-
-                // 读取完整的UTF-8字符
-                auto char_start = it;
-                try {
-                    utf8::next(it, text.end());
-                    current_unicode.append(char_start, it);
-                } catch (const std::exception&) {
-                    current_unicode += *it;
-                    ++it;
-                }
-                in_unicode = true;
-            }
-        }
-
-        // 输出剩余的段
-        if (!current_ascii.empty()) {
-            std::ostringstream oss;
-            oss << "(" << escapeText(current_ascii) << ") Tj\n";
-            addContent(oss.str());
-        }
-        if (!current_unicode.empty()) {
-            std::ostringstream oss;
-            oss << "<FEFF";
-            try {
-                std::u16string utf16_string;
-                utf8::utf8to16(current_unicode.begin(), current_unicode.end(), std::back_inserter(utf16_string));
-                for (char16_t ch : utf16_string) {
-                    oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(ch);
-                }
-            } catch (const std::exception&) {
-                // 回退处理
-            }
-            oss << "> Tj\n";
-            addContent(oss.str());
-        }
-
-        PDF_DEBUG("Mixed text processed with inline segmentation");
-    }
+    // Unicode字体：使用智能分段处理
+    showTextWithSmartSegmentation(text);
 }
 
 void PdfPage::showTextLine(const std::string& text) {
@@ -465,6 +381,68 @@ std::string PdfPage::formatFloat(double value, int precision) const {
     }
     
     return result;
+}
+
+void PdfPage::showTextWithSmartSegmentation(const std::string& text) {
+    PDF_DEBUG("Smart segmentation for text: '" + text + "'");
+
+    if (text.empty()) {
+        return;
+    }
+
+    // 使用core::unicode进行智能分段
+    auto segments = tinakit::core::unicode::segment_text(text);
+
+    if (segments.empty()) {
+        PDF_DEBUG("No segments found, treating as ASCII");
+        showASCIISegment(text);
+        return;
+    }
+
+    // 逐段渲染
+    for (const auto& segment : segments) {
+        switch (segment.type) {
+            case tinakit::core::unicode::TextSegmentType::ASCII:
+                showASCIISegment(segment.text);
+                PDF_DEBUG("Rendered ASCII segment: '" + segment.text + "'");
+                break;
+
+            case tinakit::core::unicode::TextSegmentType::CJK:
+            case tinakit::core::unicode::TextSegmentType::OTHER:
+                showUnicodeSegment(segment.text);
+                PDF_DEBUG("Rendered Unicode segment: '" + segment.text + "'");
+                break;
+        }
+    }
+
+    PDF_DEBUG("Smart segmentation completed with " + std::to_string(segments.size()) + " segments");
+}
+
+bool PdfPage::isCJKCharacter(uint32_t codepoint) const {
+    return tinakit::core::unicode::is_cjk_character(codepoint);
+}
+
+void PdfPage::showASCIISegment(const std::string& text) {
+    if (text.empty()) {
+        return;
+    }
+
+    std::ostringstream oss;
+    oss << "(" << tinakit::core::unicode::escape_pdf_string(text) << ") Tj\n";
+    addContent(oss.str());
+
+    PDF_DEBUG("ASCII segment rendered: '" + text + "'");
+}
+
+void PdfPage::showUnicodeSegment(const std::string& text) {
+    if (text.empty()) {
+        return;
+    }
+
+    std::string hex_string = tinakit::core::unicode::utf8_to_utf16be_hex(text);
+    addContent(hex_string + " Tj\n");
+
+    PDF_DEBUG("Unicode segment rendered: '" + text + "'");
 }
 
 } // namespace tinakit::pdf::core

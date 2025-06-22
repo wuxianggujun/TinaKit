@@ -11,6 +11,7 @@ target_sources(tinakit PRIVATE
         core/cache_system.cpp
         core/logger.cpp
         core/image.cpp
+        core/unicode.cpp
         
         pdf/document.cpp
         pdf/types.cpp

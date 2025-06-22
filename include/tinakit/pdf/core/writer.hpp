@@ -141,6 +141,31 @@ public:
      * @return 字体子类型（Type0或Type1），如果不存在返回空字符串
      */
     std::string getFontSubtype(const std::string& font_name) const;
+
+    /**
+     * @brief 注册字体回退链
+     * @param primary_font 主字体名称
+     * @param fallback_font 回退字体名称
+     *
+     * 为混合文本设置字体回退机制，当主字体无法正确显示某些字符时，
+     * 自动切换到回退字体
+     */
+    void registerFontFallback(const std::string& primary_font, const std::string& fallback_font);
+
+    /**
+     * @brief 获取字体的回退字体
+     * @param font_name 字体名称
+     * @return 回退字体名称，如果没有设置回退字体则返回空字符串
+     */
+    std::string getFallbackFont(const std::string& font_name) const;
+
+    /**
+     * @brief 为文本选择最佳字体
+     * @param text 要显示的文本
+     * @param preferred_font 首选字体
+     * @return 最适合显示该文本的字体名称
+     */
+    std::string selectBestFont(const std::string& text, const std::string& preferred_font) const;
     
     /**
      * @brief 注册图像（从文件）
@@ -263,6 +288,7 @@ private:
     std::map<std::string, std::string> font_resources_;   ///< 字体资源映射 (字体名 -> 资源ID)
     std::map<std::string, int> font_object_ids_;          ///< 字体对象ID映射 (字体名 -> 对象ID)
     std::map<std::string, std::string> font_subtypes_;    ///< 字体子类型映射 (字体名 -> 子类型)
+    std::map<std::string, std::string> font_fallbacks_;   ///< 字体回退映射 (主字体 -> 回退字体)
     std::map<std::string, std::string> image_resources_;  ///< 图像资源映射
     std::map<std::string, int> image_object_ids_;         ///< 图像对象ID映射 (资源ID -> 对象ID)
     int next_resource_id_ = 1;                  ///< 下一个资源ID
@@ -324,6 +350,25 @@ private:
      * @return 资源字典字符串
      */
     std::string generateResourceDict() const;
+
+    /**
+     * @brief 判断字体是否支持Unicode
+     * @param font_name 字体名称
+     * @return 支持Unicode返回true，否则返回false
+     */
+    bool isUnicodeFont(const std::string& font_name) const;
+
+    /**
+     * @brief 判断字符是否为CJK字符
+     * @param codepoint Unicode码点
+     * @return 是CJK字符返回true，否则返回false
+     */
+    bool isCJKCharacter(uint32_t codepoint) const;
+
+    /**
+     * @brief 设置默认字体回退机制
+     */
+    void setupDefaultFontFallbacks();
 };
 
 } // namespace tinakit::pdf::core

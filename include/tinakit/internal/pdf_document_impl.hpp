@@ -116,6 +116,11 @@ private:
      * @brief 获取或创建字体对象
      */
     std::string get_font_resource_id(const Font& font);
+
+    /**
+     * @brief 根据字体名称获取或创建字体资源ID
+     */
+    std::string get_font_resource_id_for_font_name(const std::string& font_name);
     
     /**
      * @brief 转换颜色到PDF格式

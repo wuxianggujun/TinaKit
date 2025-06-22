@@ -16,6 +16,7 @@
 
 // 使用core::Image类进行图像加载
 #include "tinakit/core/image.hpp"
+#include "tinakit/core/unicode.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -534,101 +535,26 @@ std::string convertToUTF16BE(const std::string& utf8_text) {
     }
 
     // 包含非ASCII字符，使用UTF-16BE格式
-    std::ostringstream oss;
-    oss << "<FEFF"; // UTF-16BE BOM
-
-    try {
-        // 使用utfcpp库进行准确的UTF-8到UTF-16转换
-        std::u16string utf16_string;
-        utf8::utf8to16(utf8_text.begin(), utf8_text.end(), std::back_inserter(utf16_string));
-
-        // 转换为UTF-16BE十六进制格式
-        for (char16_t c : utf16_string) {
-            oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(c);
-        }
-
-        PDF_DEBUG("UTF-8 to UTF-16 conversion successful, " + std::to_string(utf16_string.length()) + " characters");
-
-    } catch (const std::exception& e) {
-        PDF_ERROR("UTF-8 to UTF-16 conversion failed: " + std::string(e.what()));
-        // 回退到ASCII处理
-        for (char c : utf8_text) {
-            if (static_cast<unsigned char>(c) < 128) {
-                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(c);
-            } else {
-                oss << "003F"; // 问号字符作为替换
-            }
-        }
-    }
-
-    oss << ">";
-    std::string result = oss.str();
+    std::string result = tinakit::core::unicode::utf8_to_utf16be_hex(utf8_text);
     PDF_DEBUG("UTF-16BE result: " + result);
     return result;
 }
 
 bool containsNonASCII(const std::string& text) {
-    for (unsigned char c : text) {
-        if (c > 127) {
-            return true;
-        }
-    }
-    return false;
+    return tinakit::core::unicode::contains_non_ascii(text);
 }
 
 std::vector<TextSegment> segmentText(const std::string& text) {
+    // 使用core::unicode的分段功能
+    auto unicode_segments = tinakit::core::unicode::segment_text(text);
+
+    // 转换为PDF模块的TextSegment格式
     std::vector<TextSegment> segments;
-
-    if (text.empty()) {
-        return segments;
-    }
-
-    std::string current_segment;
-    bool current_is_unicode = false;
-    bool segment_started = false;
-
-    // 使用UTF-8迭代器遍历字符
-    auto it = text.begin();
-    while (it != text.end()) {
-        // 检查当前字符是否为ASCII
-        bool char_is_ascii = (*it >= 0 && *it <= 127);
-        bool char_is_unicode = !char_is_ascii;
-
-        if (!segment_started) {
-            // 开始新段
-            current_is_unicode = char_is_unicode;
-            segment_started = true;
-        } else if (current_is_unicode != char_is_unicode) {
-            // 字符类型改变，保存当前段并开始新段
-            if (!current_segment.empty()) {
-                segments.push_back({current_segment, current_is_unicode});
-                current_segment.clear();
-            }
-            current_is_unicode = char_is_unicode;
-        }
-
-        // 添加字符到当前段
-        if (char_is_ascii) {
-            current_segment += *it;
-            ++it;
-        } else {
-            // UTF-8多字节字符，需要完整读取
-            auto char_start = it;
-            try {
-                // 使用utfcpp来正确处理UTF-8字符边界
-                utf8::next(it, text.end());
-                current_segment.append(char_start, it);
-            } catch (const std::exception&) {
-                // 如果UTF-8解析失败，按单字节处理
-                current_segment += *it;
-                ++it;
-            }
-        }
-    }
-
-    // 添加最后一段
-    if (!current_segment.empty()) {
-        segments.push_back({current_segment, current_is_unicode});
+    for (const auto& seg : unicode_segments) {
+        TextSegment pdf_segment;
+        pdf_segment.text = seg.text;
+        pdf_segment.is_unicode = (seg.type != tinakit::core::unicode::TextSegmentType::ASCII);
+        segments.push_back(pdf_segment);
     }
 
     PDF_DEBUG("Text segmented into " + std::to_string(segments.size()) + " segments");

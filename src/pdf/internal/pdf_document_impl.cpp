@@ -84,9 +84,15 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
     }
     PDF_DEBUG("Current page found");
 
-    // 获取或注册字体
-    std::string font_resource = get_font_resource_id(font);
-    std::string font_subtype = writer_->getFontSubtype(font.family);
+    // 使用智能字体选择
+    std::string best_font = writer_->selectBestFont(text, font.family);
+    if (best_font != font.family) {
+        PDF_DEBUG("Font switched from '" + font.family + "' to '" + best_font + "' for better text rendering");
+    }
+
+    // 获取或注册最佳字体
+    std::string font_resource = get_font_resource_id_for_font_name(best_font);
+    std::string font_subtype = writer_->getFontSubtype(best_font);
     PDF_DEBUG("Font resource ID: " + font_resource);
     PDF_DEBUG("Font subtype: " + font_subtype);
 
@@ -98,7 +104,7 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
     page->showText(text);
     page->endText();
 
-    PDF_DEBUG("Text added successfully");
+    PDF_DEBUG("Text added successfully with font: " + best_font);
 }
 
 void pdf_document_impl::add_text_block(const std::string& text, const Rect& bounds,
@@ -302,11 +308,15 @@ std::vector<std::uint8_t> pdf_document_impl::save_to_buffer() {
 // ========================================
 
 std::string pdf_document_impl::get_font_resource_id(const Font& font) {
+    return get_font_resource_id_for_font_name(font.family);
+}
+
+std::string pdf_document_impl::get_font_resource_id_for_font_name(const std::string& font_name) {
     // 检查字体是否已注册
-    std::string resource_id = writer_->getFontResourceId(font.family);
+    std::string resource_id = writer_->getFontResourceId(font_name);
     if (resource_id.empty()) {
         // 注册新字体
-        resource_id = writer_->registerFont(font.family);
+        resource_id = writer_->registerFont(font_name);
     }
     return resource_id;
 }
