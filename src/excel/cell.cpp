@@ -337,7 +337,7 @@ Cell& Cell::font(const std::string& font_name, double size) {
     }
 
     // 修改字体属性
-    font.name = font_name;
+    font.family = font_name;  // 使用BaseFont的family字段
     font.size = size;
 
     // 添加字体到样式管理器

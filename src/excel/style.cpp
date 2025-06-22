@@ -122,7 +122,7 @@ Style::~Style() = default;
 
 Style& Style::font(const std::string& font_name, double size) {
     impl_->ensure_font();
-    impl_->font_->name = font_name;
+    impl_->font_->family = font_name;
     impl_->font_->size = size;
     return *this;
 }

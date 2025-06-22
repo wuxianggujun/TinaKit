@@ -285,7 +285,7 @@ ConditionalFormatBuilder& ConditionalFormatBuilder::font(const std::string& font
         if (!impl_->current_rule_->font) {
             impl_->current_rule_->font = Font();
         }
-        impl_->current_rule_->font->name = font_name;
+        impl_->current_rule_->font->family = font_name;
         impl_->current_rule_->font->size = size;
     }
     return *this;

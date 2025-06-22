@@ -165,7 +165,7 @@ void PdfPage::showText(const std::string& text) {
     if (!isUnicodeFont) {
         // 非Unicode字体，直接使用ASCII格式
         std::ostringstream oss;
-        oss << "(" << escapeText(text) << ") Tj\n";
+        oss << "(" << tinakit::core::unicode::escape_string(text) << ") Tj\n";
         addContent(oss.str());
         PDF_DEBUG("Using ASCII format for non-Unicode font");
         return;
@@ -177,7 +177,7 @@ void PdfPage::showText(const std::string& text) {
 
 void PdfPage::showTextLine(const std::string& text) {
     std::ostringstream oss;
-    oss << "(" << escapeText(text) << ") '\n";
+    oss << "(" << tinakit::core::unicode::escape_string(text) << ") '\n";
     addContent(oss.str());
 }
 
@@ -334,38 +334,7 @@ std::unique_ptr<StreamObject> PdfPage::createContentObject(int content_id) const
 // 内部方法
 // ========================================
 
-std::string PdfPage::escapeText(const std::string& text) const {
-    std::string result;
-    result.reserve(text.length() * 2);
-    
-    for (char c : text) {
-        switch (c) {
-            case '(':
-                result += "\\(";
-                break;
-            case ')':
-                result += "\\)";
-                break;
-            case '\\':
-                result += "\\\\";
-                break;
-            case '\r':
-                result += "\\r";
-                break;
-            case '\n':
-                result += "\\n";
-                break;
-            case '\t':
-                result += "\\t";
-                break;
-            default:
-                result += c;
-                break;
-        }
-    }
-    
-    return result;
-}
+// escapeText函数已移除，统一使用tinakit::core::unicode::escape_pdf_string()
 
 std::string PdfPage::formatFloat(double value, int precision) const {
     std::ostringstream oss;
@@ -428,7 +397,7 @@ void PdfPage::showASCIISegment(const std::string& text) {
     }
 
     std::ostringstream oss;
-    oss << "(" << tinakit::core::unicode::escape_pdf_string(text) << ") Tj\n";
+    oss << "(" << tinakit::core::unicode::escape_string(text) << ") Tj\n";
     addContent(oss.str());
 
     PDF_DEBUG("ASCII segment rendered: '" + text + "'");

@@ -13,76 +13,28 @@
 
 namespace tinakit::excel {
 
-// Position 实现
-Position Position::from_address(const std::string& address) {
-    std::regex pattern("^([A-Z]+)([0-9]+)$");
-    std::smatch match;
-    
-    if (!std::regex_match(address, match, pattern)) {
-        throw std::invalid_argument("Invalid cell address: " + address);
-    }
-    
-    std::string col_str = match[1];
-    std::string row_str = match[2];
-    
-    // 转换列名为列号
-    std::size_t col = 0;
-    for (char c : col_str) {
-        col = col * 26 + (c - 'A' + 1);
-    }
-    
-    // 转换行号
-    std::size_t row = std::stoull(row_str);
-    
-    return Position(row, col);
-}
-
-std::string Position::to_address() const {
-    return column_number_to_name(column) + std::to_string(row);
-}
+// Position现在是core::Coordinate的别名，实现已移到core模块
 
 
-// 工具函数实现
+// 工具函数实现（委托给core模块）
 std::string column_number_to_name(std::size_t column) {
-    if (column == 0) {
-        throw std::invalid_argument("Column number must be 1-based");
-    }
-    
-    std::string result;
-    while (column > 0) {
-        column--; // 转换为 0-based
-        result = static_cast<char>('A' + column % 26) + result;
-        column /= 26;
-    }
-    
-    return result;
+    return tinakit::core::column_number_to_name(column);
 }
 
 std::size_t column_name_to_number(const std::string& column_name) {
-    if (column_name.empty()) {
-        throw std::invalid_argument("Column name cannot be empty");
-    }
-    
-    std::size_t result = 0;
-    for (char c : column_name) {
-        if (!std::isalpha(c) || !std::isupper(c)) {
-            throw std::invalid_argument("Invalid column name: " + column_name);
-        }
-        result = result * 26 + (c - 'A' + 1);
-    }
-    
-    return result;
+    return tinakit::core::column_name_to_number(column_name);
 }
 
 // Font 实现
 bool Font::operator==(const Font& other) const {
-    return name == other.name &&
-           size == other.size &&
-           bold == other.bold &&
-           italic == other.italic &&
-           underline == other.underline &&
-           strike == other.strike &&
-           color == other.color;
+    // 首先比较基类部分
+    if (!tinakit::core::BaseFont::operator==(other)) {
+        return false;
+    }
+
+    // 然后比较Excel特有的属性
+    return strike == other.strike &&
+           charset == other.charset;
 }
 
 // Fill 实现

@@ -363,12 +363,7 @@ private:
     // 内部方法
     // ========================================
     
-    /**
-     * @brief 转义PDF文本字符串
-     * @param text 原始文本
-     * @return 转义后的文本
-     */
-    std::string escapeText(const std::string& text) const;
+    // escapeText函数已移除，请使用tinakit::core::unicode::escape_string()
 
     /**
      * @brief 智能分段显示文本

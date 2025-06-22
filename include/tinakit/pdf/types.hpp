@@ -43,21 +43,40 @@ struct Size {
 // ========================================
 
 /**
- * @brief 字体定义
+ * @brief PDF字体定义
+ *
+ * 继承自core::BaseFont，添加PDF特有的属性
  */
-struct Font {
-    std::string family = "Arial";
-    double size = 12.0;
-    bool bold = false;
-    bool italic = false;
-    bool underline = false;
-    Color color = Color::Black;
-    
+struct Font : public tinakit::core::BaseFont {
+    // PDF特有的字体属性可以在这里添加
+    // 例如：字体嵌入选项、编码方式等
+
+    /**
+     * @brief 默认构造函数
+     */
     Font() = default;
-    Font(const std::string& family_, double size_) 
-        : family(family_), size(size_) {}
+
+    /**
+     * @brief 从BaseFont构造
+     */
+    Font(const tinakit::core::BaseFont& base) : tinakit::core::BaseFont(base) {}
+
+    /**
+     * @brief 构造函数
+     * @param family_ 字体族名
+     * @param size_ 字体大小
+     */
+    Font(const std::string& family_, double size_)
+        : tinakit::core::BaseFont(family_, size_) {}
+
+    /**
+     * @brief 构造函数
+     * @param family_ 字体族名
+     * @param size_ 字体大小
+     * @param color_ 字体颜色
+     */
     Font(const std::string& family_, double size_, const Color& color_)
-        : family(family_), size(size_), color(color_) {}
+        : tinakit::core::BaseFont(family_, size_, color_) {}
 };
 
 // ========================================

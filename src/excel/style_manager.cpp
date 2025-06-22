@@ -298,10 +298,10 @@ std::string StyleManager::generate_xml() const {
         if (font.underline) xml << "      <u/>\n";
         if (font.strike) xml << "      <strike/>\n";
         xml << R"(      <sz val=")" << font.size << R"("/>)" << '\n';
-        if (font.color) {
-            xml << R"(      <color rgb=")" << font.color->to_excel_rgb() << R"("/>)" << '\n';
+        if (font.color != tinakit::Color::Black) {  // 只有非默认颜色才输出
+            xml << R"(      <color rgb=")" << font.color.to_excel_rgb() << R"("/>)" << '\n';
         }
-        xml << R"(      <name val=")" << font.name << R"("/>)" << '\n';
+        xml << R"(      <name val=")" << font.family << R"("/>)" << '\n';
         xml << "    </font>\n";
     }
     xml << "  </fonts>\n";
@@ -504,7 +504,7 @@ std::string StyleManager::generate_xml() const {
             if (dxf.font) {
                 xml << "      <font>\n";
                 // 1. 字体名称
-                xml << R"(        <name val=")" << dxf.font->name << R"("/>)" << '\n';
+                xml << R"(        <name val=")" << dxf.font->family << R"("/>)" << '\n';
                 // 2. scheme属性（Excel兼容性）
                 xml << R"(        <scheme val="none"/>)" << '\n';
                 // 3. 样式属性（使用val="1"格式）
@@ -515,9 +515,9 @@ std::string StyleManager::generate_xml() const {
                 // 4. 字体大小
                 xml << R"(        <sz val=")" << dxf.font->size << R"("/>)" << '\n';
                 // 5. 字体颜色
-                if (dxf.font->color) {
+                if (dxf.font->color != tinakit::Color::Black) {  // 只有非默认颜色才输出
                     // 使用ARGB格式，去掉#号
-                    std::string font_color_hex = dxf.font->color->to_hex();
+                    std::string font_color_hex = dxf.font->color.to_hex();
                     if (font_color_hex.length() == 7 && font_color_hex[0] == '#') {
                         font_color_hex = "FF" + font_color_hex.substr(1);
                     }
@@ -682,19 +682,17 @@ void StyleManager::load_from_xml(const std::string& xml_data) {
 
 std::size_t StyleManager::hash_font(const Font& font) const {
     std::size_t h = 0;
-    h ^= std::hash<std::string>{}(font.name);
+    h ^= std::hash<std::string>{}(font.family);
     h ^= std::hash<double>{}(font.size);
     h ^= std::hash<bool>{}(font.bold);
     h ^= std::hash<bool>{}(font.italic);
     h ^= std::hash<bool>{}(font.underline);
     h ^= std::hash<bool>{}(font.strike);
-    if (font.color) {
-        // 使用颜色的各个分量计算哈希
-        h ^= std::hash<std::uint8_t>{}(font.color->red()) << 24;
-        h ^= std::hash<std::uint8_t>{}(font.color->green()) << 16;
-        h ^= std::hash<std::uint8_t>{}(font.color->blue()) << 8;
-        h ^= std::hash<std::uint8_t>{}(font.color->alpha());
-    }
+    // 使用颜色的各个分量计算哈希
+    h ^= std::hash<std::uint8_t>{}(font.color.red()) << 24;
+    h ^= std::hash<std::uint8_t>{}(font.color.green()) << 16;
+    h ^= std::hash<std::uint8_t>{}(font.color.blue()) << 8;
+    h ^= std::hash<std::uint8_t>{}(font.color.alpha());
     return h;
 }
 
@@ -787,7 +785,7 @@ static void parse_font_element(core::XmlParser::iterator& it, Font& font) {
             } else if (name == "name") {
                 auto val = it.attribute("val");
                 if (val) {
-                    font.name = *val;
+                    font.family = *val;
                 }
             } else if (name == "b") {
                 font.bold = true;
@@ -801,10 +799,10 @@ static void parse_font_element(core::XmlParser::iterator& it, Font& font) {
                 auto rgb = it.attribute("rgb");
                 auto theme = it.attribute("theme");
                 if (rgb) {
-                    font.color = Color::from_hex(*rgb);
+                    font.color = tinakit::Color::from_hex(*rgb);
                 } else if (theme) {
                     // 简化处理主题颜色
-                    font.color = Color::Black;
+                    font.color = tinakit::Color::Black;
                 }
             }
         } else if (it.is_end_element() && it.name() == "font") {
@@ -834,15 +832,15 @@ static void parse_fill_element(core::XmlParser::iterator& it, Fill& fill) {
                 auto rgb = it.attribute("rgb");
                 auto theme = it.attribute("theme");
                 if (rgb) {
-                    fill.fg_color = Color::from_hex(*rgb);
+                    fill.fg_color = tinakit::Color::from_hex(*rgb);
                 } else if (theme) {
                     // 简化处理主题颜色
-                    fill.fg_color = Color::Black;
+                    fill.fg_color = tinakit::Color::Black;
                 }
             } else if (name == "bgColor") {
                 auto rgb = it.attribute("rgb");
                 if (rgb) {
-                    fill.bg_color = Color::from_hex(*rgb);
+                    fill.bg_color = tinakit::Color::from_hex(*rgb);
                 }
             }
         } else if (it.is_end_element() && it.name() == "fill") {

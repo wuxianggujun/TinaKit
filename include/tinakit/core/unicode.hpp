@@ -125,13 +125,23 @@ std::vector<TextSegment> segment_text(const std::string& text);
 // ========================================
 
 /**
- * @brief 转义PDF字符串中的特殊字符
+ * @brief 转义字符串中的特殊字符
  * @param text 原始文本
  * @return 转义后的文本
- * 
- * 转义PDF字符串中的特殊字符，如括号、反斜杠等
+ *
+ * 转义字符串中的特殊字符，如括号、反斜杠等。
+ * 主要用于PDF等格式的字符串处理。
  */
-std::string escape_pdf_string(const std::string& text);
+std::string escape_string(const std::string& text);
+
+/**
+ * @brief 转义PDF字符串中的特殊字符（已弃用，请使用escape_string）
+ * @deprecated 请使用escape_string代替
+ */
+[[deprecated("Use escape_string instead")]]
+inline std::string escape_pdf_string(const std::string& text) {
+    return escape_string(text);
+}
 
 /**
  * @brief 获取UTF-8字符串的字符数（不是字节数）

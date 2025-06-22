@@ -279,10 +279,10 @@ std::vector<TextSegment> segment_text(const std::string& text) {
 // 字符串处理
 // ========================================
 
-std::string escape_pdf_string(const std::string& text) {
+std::string escape_string(const std::string& text) {
     std::string result;
     result.reserve(text.length() * 2);
-    
+
     for (char c : text) {
         switch (c) {
             case '(':
@@ -308,7 +308,7 @@ std::string escape_pdf_string(const std::string& text) {
                 break;
         }
     }
-    
+
     return result;
 }
 

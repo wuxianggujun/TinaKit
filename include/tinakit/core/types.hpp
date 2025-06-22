@@ -379,6 +379,86 @@ struct range_address {
     }
 };
 
+// ========================================
+// 坐标转换工具函数
+// ========================================
+
+/**
+ * @brief 将列号转换为列名
+ * @param column 列号（1-based，1=A, 2=B, 等）
+ * @return 列名字符串（如 "A", "B", "AA"）
+ * @throws std::invalid_argument 如果列号为0
+ */
+std::string column_number_to_name(std::size_t column);
+
+/**
+ * @brief 将列名转换为列号
+ * @param column_name 列名字符串（如 "A", "B", "AA"）
+ * @return 列号（1-based）
+ * @throws std::invalid_argument 如果列名无效
+ */
+std::size_t column_name_to_number(const std::string& column_name);
+
+// ========================================
+// 基础字体类型
+// ========================================
+
+/**
+ * @brief 基础字体类型
+ *
+ * 定义所有模块共享的基础字体属性。
+ * 各模块可以继承或扩展此类型以添加特有功能。
+ */
+struct BaseFont {
+    std::string family = "Arial";       ///< 字体族名
+    double size = 12.0;                 ///< 字体大小（点数）
+    bool bold = false;                  ///< 是否粗体
+    bool italic = false;                ///< 是否斜体
+    bool underline = false;             ///< 是否下划线
+    Color color = Color::Black;         ///< 字体颜色
+
+    /**
+     * @brief 默认构造函数
+     */
+    BaseFont() = default;
+
+    /**
+     * @brief 构造函数
+     * @param family_ 字体族名
+     * @param size_ 字体大小
+     */
+    BaseFont(const std::string& family_, double size_)
+        : family(family_), size(size_) {}
+
+    /**
+     * @brief 构造函数
+     * @param family_ 字体族名
+     * @param size_ 字体大小
+     * @param color_ 字体颜色
+     */
+    BaseFont(const std::string& family_, double size_, const Color& color_)
+        : family(family_), size(size_), color(color_) {}
+
+    /**
+     * @brief 相等比较
+     */
+    bool operator==(const BaseFont& other) const noexcept {
+        return family == other.family &&
+               std::abs(size - other.size) < 1e-9 &&
+               bold == other.bold &&
+               italic == other.italic &&
+               underline == other.underline &&
+               color == other.color;
+    }
+
+    /**
+     * @brief 不等比较
+     */
+    bool operator!=(const BaseFont& other) const noexcept {
+        return !(*this == other);
+    }
+};
+
 } // namespace tinakit::core
 
 namespace tinakit {

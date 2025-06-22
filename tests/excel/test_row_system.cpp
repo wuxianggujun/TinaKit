@@ -478,8 +478,8 @@ TEST_CASE(RowSystem, InvalidColumnName) {
     auto row = sheet.row(1);
 
     // 测试无效列名会抛出异常
-    ASSERT_THROWS(row[""], std::invalid_argument);
-    ASSERT_THROWS(row["123"], std::invalid_argument);
+    ASSERT_THROWS(row[""], InvalidCellAddressException);
+    ASSERT_THROWS(row["123"], InvalidCellAddressException);
 }
 
 // ========================================

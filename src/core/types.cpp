@@ -10,6 +10,7 @@
 #include "tinakit/core/exceptions.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 
 namespace tinakit {
 
@@ -86,6 +87,18 @@ bool range_address::overlaps(const range_address& other) const {
            end.column >= other.start.column &&
            start.row <= other.end.row &&
            end.row >= other.start.row;
+}
+
+// ========================================
+// 坐标转换工具函数实现（委托给CoordinateUtils）
+// ========================================
+
+std::string column_number_to_name(std::size_t column) {
+    return internal::utils::CoordinateUtils::column_number_to_letters(column);
+}
+
+std::size_t column_name_to_number(const std::string& column_name) {
+    return internal::utils::CoordinateUtils::column_letters_to_number(column_name);
 }
 
 } // namespace tinakit::core

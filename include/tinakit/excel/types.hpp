@@ -8,6 +8,7 @@
 #pragma once
 
 #include "tinakit/core/color.hpp"
+#include "tinakit/core/types.hpp"
 #include <string>
 #include <cstdint>
 #include <stdexcept>
@@ -17,72 +18,13 @@
 namespace tinakit::excel {
 
 /**
- * @brief Position class
- * 
- * @note This class uses 1-based indexing to match Excel's addressing convention.
+ * @brief Position type alias for Excel coordinates
+ *
+ * @note Uses the unified core::Coordinate type with 1-based indexing
+ *       to match Excel's addressing convention.
  *       Row 1 is the first row, Column 1 is column A.
- *       Internal implementations should convert to 0-based indexing when necessary.
  */
-struct Position {
-    std::size_t row;     ///< Row number (1-based, starting from 1)
-    std::size_t column;  ///< Column number (1-based, 1=A, 2=B, etc.)
-
-    /**
-     * @brief Default constructor (creates invalid position)
-     */
-    Position() : row(0), column(0) {}
-
-    /**
-     * @brief Constructor
-     * @param r Row number (must be >= 1)
-     * @param c Column number (must be >= 1)
-     * @throws std::invalid_argument if r or c is 0
-     */
-    Position(std::size_t r, std::size_t c) : row(r), column(c) {
-        if (r == 0 || c == 0) {
-            throw std::invalid_argument("Position indices must be 1-based (row and column must be >= 1)");
-        }
-    }
-
-    /**
-     * @brief Check if position is valid
-     * @return True if both row and column are >= 1
-     */
-    bool is_valid() const {
-        return row >= 1 && column >= 1;
-    }
-
-    /**
-     * @brief Create position from address string
-     * @param address Address string (e.g., "A1")
-     * @return Position object
-     */
-    static Position from_address(const std::string& address);
-
-    /**
-     * @brief Convert to address string
-     * @return Address string
-     */
-    std::string to_address() const;
-
-    /**
-     * @brief Equality operator
-     * @param other Other position
-     * @return True if positions are equal
-     */
-    bool operator==(const Position& other) const {
-        return row == other.row && column == other.column;
-    }
-
-    /**
-     * @brief Inequality operator
-     * @param other Other position
-     * @return True if positions are not equal
-     */
-    bool operator!=(const Position& other) const {
-        return !(*this == other);
-    }
-};
+using Position = tinakit::core::Coordinate;
 
 /**
  * @brief Range class forward declaration
@@ -116,17 +58,59 @@ enum class BorderStyle {
 };
 
 /**
- * @brief 字体样式
+ * @brief Excel字体样式
+ *
+ * 继承自core::BaseFont，添加Excel特有的属性
  */
-struct Font {
-    std::string name = "Calibri";      ///< 字体名称
-    double size = 11.0;                ///< 字体大小
-    bool bold = false;                 ///< 是否粗体
-    bool italic = false;               ///< 是否斜体
-    bool underline = false;            ///< 是否下划线
+struct Font : public tinakit::core::BaseFont {
+    // Excel特有的字体属性
     bool strike = false;               ///< 是否删除线
-    std::optional<Color> color;        ///< 字体颜色
-    
+    std::string charset = "default";   ///< 字符集
+
+    /**
+     * @brief 默认构造函数（使用Excel默认字体）
+     */
+    Font() {
+        family = "Calibri";  // Excel默认字体
+        size = 11.0;         // Excel默认字体大小
+    }
+
+    /**
+     * @brief 从BaseFont构造
+     */
+    Font(const tinakit::core::BaseFont& base) : tinakit::core::BaseFont(base) {}
+
+    /**
+     * @brief 构造函数
+     * @param name_ 字体名称
+     * @param size_ 字体大小
+     */
+    Font(const std::string& name_, double size_)
+        : tinakit::core::BaseFont(name_, size_) {}
+
+    /**
+     * @brief 构造函数
+     * @param name_ 字体名称
+     * @param size_ 字体大小
+     * @param color_ 字体颜色
+     */
+    Font(const std::string& name_, double size_, const Color& color_)
+        : tinakit::core::BaseFont(name_, size_, color_) {}
+
+    /**
+     * @brief 获取字体名称（兼容性方法）
+     * @deprecated 请直接使用family成员
+     */
+    [[deprecated("Use family member directly")]]
+    const std::string& name() const { return family; }
+
+    /**
+     * @brief 设置字体名称（兼容性方法）
+     * @deprecated 请直接使用family成员
+     */
+    [[deprecated("Use family member directly")]]
+    void set_name(const std::string& name_) { family = name_; }
+
     bool operator==(const Font& other) const;
 };
 
