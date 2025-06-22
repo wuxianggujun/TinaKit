@@ -42,13 +42,35 @@ int main() {
         
         pdf.add_page();
 
-        // 最简单的测试 - 只添加一行文本
-        pdf::Font test_font;
-        test_font.family = "Helvetica";  // PDF内建字体
-        test_font.size = 12;
-        test_font.color = tinakit::Color::Black;
+        // 测试英文和中文
+        pdf::Font english_font;
+        english_font.family = "Helvetica";  // 英文使用标准字体
+        english_font.size = 12;
+        english_font.color = tinakit::Color::Black;
 
-        pdf.add_text("Hello World", {100, 700}, test_font);
+        // 测试多种中文字体
+        std::vector<std::string> chinese_fonts = {
+            "SimSun",           // 宋体
+            "NSimSun",          // 新宋体
+            "Microsoft YaHei",  // 微软雅黑（带空格）
+            "MicrosoftYaHei",   // 微软雅黑（无空格）
+            "SimHei",           // 黑体
+            "KaiTi"             // 楷体
+        };
+
+        pdf.add_text("Hello World", {100, 700}, english_font);
+
+        float y_pos = 680;
+        for (const auto& font_name : chinese_fonts) {
+            pdf::Font chinese_font;
+            chinese_font.family = font_name;
+            chinese_font.size = 12;
+            chinese_font.color = tinakit::Color::Black;
+
+            std::string test_text = font_name + ": 你好世界";
+            pdf.add_text(test_text, {100, y_pos}, chinese_font);
+            y_pos -= 25;
+        }
 
         // ========================================
         // 3. 保存PDF（跳过Excel部分）

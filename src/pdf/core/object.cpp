@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <chrono>
+#include <utf8.h>
 
 namespace tinakit::pdf::core {
 
@@ -181,6 +182,78 @@ void PagesObject::updateContent() {
 }
 
 // ========================================
+// CIDFontObject实现
+// ========================================
+
+CIDFontObject::CIDFontObject(int id, const std::string& base_font, const std::string& subtype)
+    : DictionaryObject(id), base_font_(base_font), subtype_(subtype) {
+    set("Type", "/Font");
+    set("Subtype", "/" + subtype);
+    set("BaseFont", "/" + base_font);
+
+    // 设置默认的CID系统信息
+    setCIDSystemInfo("Adobe", "Identity", 0);
+
+    // 设置默认宽度
+    setDefaultWidth(1000);
+
+    PDF_DEBUG("CIDFontObject created: ID=" + std::to_string(id) + ", BaseFont=/" + base_font + ", Subtype=/" + subtype);
+}
+
+void CIDFontObject::setCIDSystemInfo(const std::string& registry, const std::string& ordering, int supplement) {
+    std::ostringstream oss;
+    oss << "<< /Registry (" << registry << ") /Ordering (" << ordering << ") /Supplement " << supplement << " >>";
+    set("CIDSystemInfo", oss.str());
+    PDF_DEBUG("CIDSystemInfo set: " + oss.str());
+}
+
+void CIDFontObject::setFontDescriptor(int descriptor_id) {
+    setReference("FontDescriptor", descriptor_id);
+}
+
+void CIDFontObject::setDefaultWidth(int width) {
+    set("DW", std::to_string(width));
+}
+
+// ========================================
+// FontDescriptorObject实现
+// ========================================
+
+FontDescriptorObject::FontDescriptorObject(int id, const std::string& font_name)
+    : DictionaryObject(id), font_name_(font_name) {
+    set("Type", "/FontDescriptor");
+    set("FontName", "/" + font_name);
+
+    // 设置默认值
+    setFlags(32);  // Symbolic font
+    setFontBBox({-1000, -1000, 1000, 1000});  // 默认边界框
+    setFontMetrics(800, -200, 700, 80);  // 默认度量
+
+    PDF_DEBUG("FontDescriptorObject created: ID=" + std::to_string(id) + ", FontName=/" + font_name);
+}
+
+void FontDescriptorObject::setFlags(int flags) {
+    set("Flags", std::to_string(flags));
+}
+
+void FontDescriptorObject::setFontBBox(const std::vector<int>& bbox) {
+    if (bbox.size() == 4) {
+        std::vector<std::string> bbox_strs;
+        for (int val : bbox) {
+            bbox_strs.push_back(std::to_string(val));
+        }
+        set("FontBBox", makeArray(bbox_strs));
+    }
+}
+
+void FontDescriptorObject::setFontMetrics(int ascent, int descent, int cap_height, int stem_v) {
+    set("Ascent", std::to_string(ascent));
+    set("Descent", std::to_string(descent));
+    set("CapHeight", std::to_string(cap_height));
+    set("StemV", std::to_string(stem_v));
+}
+
+// ========================================
 // FontObject实现
 // ========================================
 
@@ -199,6 +272,18 @@ void FontObject::setEncoding(const std::string& encoding) {
 
 void FontObject::setFontDescriptor(int descriptor_id) {
     setReference("FontDescriptor", descriptor_id);
+}
+
+void FontObject::setDescendantFont(int descendant_font_id) {
+    std::vector<std::string> descendant_refs;
+    descendant_refs.push_back(makeReference(descendant_font_id));
+    set("DescendantFonts", makeArray(descendant_refs));
+    PDF_DEBUG("Set DescendantFonts: [" + makeReference(descendant_font_id) + "]");
+}
+
+void FontObject::setToUnicode(int tounicode_id) {
+    setReference("ToUnicode", tounicode_id);
+    PDF_DEBUG("Set ToUnicode: " + makeReference(tounicode_id));
 }
 
 // ========================================
@@ -321,7 +406,7 @@ std::string getCurrentPdfDate() {
 #else
     auto tm = *std::localtime(&time_t);
 #endif
-    
+
     std::ostringstream oss;
     oss << "D:"
         << std::setfill('0')
@@ -331,8 +416,53 @@ std::string getCurrentPdfDate() {
         << std::setw(2) << tm.tm_hour
         << std::setw(2) << tm.tm_min
         << std::setw(2) << tm.tm_sec;
-    
+
     return oss.str();
+}
+
+std::string convertToUTF16BE(const std::string& utf8_text) {
+    std::ostringstream oss;
+    oss << "<FEFF"; // UTF-16BE BOM
+
+    PDF_DEBUG("Converting UTF-8 text to UTF-16BE using utfcpp: '" + utf8_text + "'");
+
+    try {
+        // 使用utfcpp库进行准确的UTF-8到UTF-16转换
+        std::u16string utf16_string;
+        utf8::utf8to16(utf8_text.begin(), utf8_text.end(), std::back_inserter(utf16_string));
+
+        // 转换为UTF-16BE十六进制格式
+        for (char16_t c : utf16_string) {
+            oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(c);
+        }
+
+        PDF_DEBUG("UTF-8 to UTF-16 conversion successful, " + std::to_string(utf16_string.length()) + " characters");
+
+    } catch (const std::exception& e) {
+        PDF_ERROR("UTF-8 to UTF-16 conversion failed: " + std::string(e.what()));
+        // 回退到ASCII处理
+        for (char c : utf8_text) {
+            if (static_cast<unsigned char>(c) < 128) {
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(c);
+            } else {
+                oss << "003F"; // 问号字符作为替换
+            }
+        }
+    }
+
+    oss << ">";
+    std::string result = oss.str();
+    PDF_DEBUG("UTF-16BE result: " + result);
+    return result;
+}
+
+bool containsNonASCII(const std::string& text) {
+    for (unsigned char c : text) {
+        if (c > 127) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace tinakit::pdf::core

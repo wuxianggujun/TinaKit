@@ -111,11 +111,72 @@ std::string Writer::registerFont(const std::string& font_name,
 
     PDF_DEBUG("Font registered: " + font_name + " -> " + resource_id + " (obj " + std::to_string(font_obj_id) + ")");
 
-    auto font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type1");
+    // 检查是否需要Unicode支持（用于中文等）
+    bool needsUnicode = (font_name != "Helvetica" && font_name != "Times-Roman" &&
+                        font_name != "Courier" && font_name != "Symbol" && font_name != "ZapfDingbats");
 
-    // 如果是标准字体，设置编码
-    if (font_data.empty()) {
+    std::unique_ptr<FontObject> font_obj;
+
+    if (needsUnicode || !font_data.empty()) {
+        // 创建Type0字体（支持Unicode）
+        font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type0");
+        font_obj->setEncoding("Identity-H");  // Unicode编码
+
+        // 创建FontDescriptor对象
+        int font_desc_id = getNextObjectId();
+        auto font_desc_obj = std::make_unique<FontDescriptorObject>(font_desc_id, font_name);
+        addObject(std::move(font_desc_obj));
+
+        // 创建CIDFont对象
+        int cid_font_id = getNextObjectId();
+        auto cid_font_obj = std::make_unique<CIDFontObject>(cid_font_id, font_name, "CIDFontType0");
+        cid_font_obj->setCIDSystemInfo("Adobe", "Identity", 0);
+        cid_font_obj->setDefaultWidth(1000);
+        cid_font_obj->setFontDescriptor(font_desc_id);  // 设置FontDescriptor引用
+
+        // 将CIDFont添加到对象列表
+        addObject(std::move(cid_font_obj));
+
+        // 创建简化的ToUnicode CMap
+        int tounicode_id = getNextObjectId();
+        auto tounicode_obj = std::make_unique<StreamObject>(tounicode_id);
+
+        // 创建简化的Identity CMap
+        std::string cmap_content =
+            "/CIDInit /ProcSet findresource begin\n"
+            "12 dict begin\n"
+            "begincmap\n"
+            "/CIDSystemInfo\n"
+            "<< /Registry (Adobe)\n"
+            "/Ordering (UCS)\n"
+            "/Supplement 0\n"
+            ">> def\n"
+            "/CMapName /Adobe-Identity-UCS def\n"
+            "/CMapType 2 def\n"
+            "1 begincodespacerange\n"
+            "<0000> <FFFF>\n"
+            "endcodespacerange\n"
+            "1 beginbfrange\n"
+            "<0000> <FFFF> <0000>\n"
+            "endbfrange\n"
+            "endcmap\n"
+            "CMapName currentdict /CMap defineresource pop\n"
+            "end\n"
+            "end\n";
+
+        tounicode_obj->setStreamData(cmap_content);
+        addObject(std::move(tounicode_obj));
+
+        // 设置Type0字体的DescendantFonts和ToUnicode引用
+        font_obj->setDescendantFont(cid_font_id);
+        font_obj->setToUnicode(tounicode_id);
+
+        PDF_DEBUG("Created Type0 font with CIDFont (ID: " + std::to_string(cid_font_id) + ") and ToUnicode (ID: " + std::to_string(tounicode_id) + ") for Unicode support");
+    } else {
+        // 创建Type1字体（标准字体）
+        font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type1");
         font_obj->setEncoding("WinAnsiEncoding");
+        PDF_DEBUG("Created Type1 font with WinAnsiEncoding");
     }
 
     addObject(std::move(font_obj));

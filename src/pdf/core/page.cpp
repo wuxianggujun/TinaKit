@@ -156,7 +156,18 @@ void PdfPage::moveTextPosition(double dx, double dy) {
 void PdfPage::showText(const std::string& text) {
     PDF_DEBUG("PdfPage::showText: '" + text + "'");
     std::ostringstream oss;
-    oss << "(" << escapeText(text) << ") Tj\n";
+
+    // 检查是否包含非ASCII字符（中文等）
+    if (containsNonASCII(text)) {
+        // 使用UTF-16BE十六进制格式
+        oss << convertToUTF16BE(text) << " Tj\n";
+        PDF_DEBUG("Using UTF-16BE format for non-ASCII text");
+    } else {
+        // 使用传统的ASCII格式
+        oss << "(" << escapeText(text) << ") Tj\n";
+        PDF_DEBUG("Using ASCII format for text");
+    }
+
     addContent(oss.str());
     PDF_DEBUG("Content added: " + oss.str());
 }

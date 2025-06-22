@@ -21,6 +21,27 @@ endif()
 option(TINAKIT_BUILD_TESTS "Build TinaKit tests" ON)
 option(TINAKIT_BUILD_EXAMPLES "Build TinaKit examples" ON)
 
+# 检查并添加utfcpp库
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/utfcpp")
+    # 使用本地的utfcpp库
+    set(UTF8_TESTS OFF CACHE BOOL "Enable tests for utf8cpp" FORCE)
+    set(UTF8_INSTALL OFF CACHE BOOL "Enable installation for utf8cpp" FORCE)
+    set(UTF8_SAMPLES OFF CACHE BOOL "Enable samples for utf8cpp" FORCE)
+    add_subdirectory(third_party/utfcpp)
+    message(STATUS "Using local utfcpp library")
+else()
+    # 如果没有本地库，尝试使用FetchContent
+    include(FetchContent)
+    FetchContent_Declare(
+        utfcpp
+        GIT_REPOSITORY https://github.com/nemtrif/utfcpp.git
+        GIT_TAG        v4.0.5
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(utfcpp)
+    message(STATUS "Downloaded utfcpp library using FetchContent")
+endif()
+
 # 添加第三方库
 add_subdirectory(third_party/libstudxml)
 

@@ -219,6 +219,83 @@ private:
 };
 
 /**
+ * @class CIDFontObject
+ * @brief PDF CID字体对象（用于Unicode支持）
+ */
+class CIDFontObject : public DictionaryObject {
+public:
+    /**
+     * @brief 构造函数
+     * @param id 对象ID
+     * @param base_font 基础字体名称
+     * @param subtype CID字体子类型（CIDFontType0或CIDFontType2）
+     */
+    CIDFontObject(int id, const std::string& base_font, const std::string& subtype = "CIDFontType0");
+
+    /**
+     * @brief 设置CID系统信息
+     * @param registry 注册表
+     * @param ordering 排序
+     * @param supplement 补充
+     */
+    void setCIDSystemInfo(const std::string& registry, const std::string& ordering, int supplement);
+
+    /**
+     * @brief 设置字体描述符引用
+     * @param descriptor_id 字体描述符对象ID
+     */
+    void setFontDescriptor(int descriptor_id);
+
+    /**
+     * @brief 设置默认宽度
+     * @param width 默认字符宽度
+     */
+    void setDefaultWidth(int width);
+
+    std::string getTypeName() const override { return "CIDFont"; }
+
+private:
+    std::string base_font_;  ///< 基础字体名称
+    std::string subtype_;    ///< CID字体子类型
+};
+
+/**
+ * @class FontDescriptorObject
+ * @brief PDF字体描述符对象
+ */
+class FontDescriptorObject : public DictionaryObject {
+public:
+    /**
+     * @brief 构造函数
+     * @param id 对象ID
+     * @param font_name 字体名称
+     */
+    FontDescriptorObject(int id, const std::string& font_name);
+
+    /**
+     * @brief 设置字体标志
+     * @param flags 字体标志
+     */
+    void setFlags(int flags);
+
+    /**
+     * @brief 设置字体边界框
+     * @param bbox 边界框数组 [llx, lly, urx, ury]
+     */
+    void setFontBBox(const std::vector<int>& bbox);
+
+    /**
+     * @brief 设置字体度量
+     */
+    void setFontMetrics(int ascent, int descent, int cap_height, int stem_v);
+
+    std::string getTypeName() const override { return "FontDescriptor"; }
+
+private:
+    std::string font_name_;
+};
+
+/**
  * @class FontObject
  * @brief PDF字体对象
  */
@@ -238,7 +315,19 @@ public:
      * @param descriptor_id 字体描述符对象ID
      */
     void setFontDescriptor(int descriptor_id);
-    
+
+    /**
+     * @brief 设置后代字体引用（用于Type0字体）
+     * @param descendant_font_id CID字体对象ID
+     */
+    void setDescendantFont(int descendant_font_id);
+
+    /**
+     * @brief 设置ToUnicode CMap引用
+     * @param tounicode_id ToUnicode CMap对象ID
+     */
+    void setToUnicode(int tounicode_id);
+
     std::string getTypeName() const override { return "Font"; }
 
 private:
@@ -346,5 +435,19 @@ std::string makeArray(const std::vector<std::string>& values);
  * @return PDF日期字符串
  */
 std::string getCurrentPdfDate();
+
+/**
+ * @brief 将UTF-8字符串转换为UTF-16BE十六进制格式
+ * @param utf8_text UTF-8编码的文本
+ * @return UTF-16BE十六进制字符串，格式为<FEFF...>
+ */
+std::string convertToUTF16BE(const std::string& utf8_text);
+
+/**
+ * @brief 检查字符串是否包含非ASCII字符
+ * @param text 要检查的文本
+ * @return 如果包含非ASCII字符返回true
+ */
+bool containsNonASCII(const std::string& text);
 
 } // namespace tinakit::pdf::core
