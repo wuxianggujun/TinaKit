@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <chrono>
 #include "tinakit/tinakit.hpp"
 #include "tinakit/core/logger.hpp"
 
@@ -90,6 +91,9 @@ int main() {
 
         std::cout << "✍️ 添加测试文本..." << std::endl;
 
+        // 性能测试：记录开始时间
+        auto start_time = std::chrono::high_resolution_clock::now();
+
         // 基本中英文混合测试
         pdf.add_text("Hello 世界", {100, 700}, font);
         pdf.add_text("测试 Test", {100, 680}, font);
@@ -98,14 +102,29 @@ int main() {
         pdf.add_text("纯中文测试", {100, 620}, font);
         pdf.add_text("Pure English Test", {100, 600}, font);
 
+        // 重复文本测试（验证缓存效果）
+        pdf.add_text("Hello 世界", {100, 580}, font);  // 重复文本
+        pdf.add_text("测试 Test", {100, 560}, font);   // 重复文本
+
+        auto text_time = std::chrono::high_resolution_clock::now();
+        auto text_duration = std::chrono::duration_cast<std::chrono::milliseconds>(text_time - start_time);
+        std::cout << "⏱️ 文本添加耗时: " << text_duration.count() << "ms" << std::endl;
+
         // 保存文档
         const std::string output_filename = "mixed_text_demo.pdf";
         std::cout << "💾 保存文档: " << output_filename << std::endl;
 
+        auto save_start = std::chrono::high_resolution_clock::now();
         pdf.save(output_filename);
+        auto save_end = std::chrono::high_resolution_clock::now();
+        auto save_duration = std::chrono::duration_cast<std::chrono::milliseconds>(save_end - save_start);
+
+        auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(save_end - start_time);
 
         std::cout << "✅ 测试完成！" << std::endl;
         std::cout << "📁 输出文件: " << output_filename << std::endl;
+        std::cout << "⏱️ 保存耗时: " << save_duration.count() << "ms" << std::endl;
+        std::cout << "⏱️ 总耗时: " << total_duration.count() << "ms" << std::endl;
         std::cout << "\n🔍 请检查PDF文件中的中英文字符显示是否正确" << std::endl;
 
         return 0;

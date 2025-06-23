@@ -144,18 +144,56 @@ public:
      * @return 已加载返回true
      */
     bool isFontLoaded(const std::string& font_name) const;
-    
+
     /**
      * @brief 获取已加载的字体列表
      * @return 字体名称列表
      */
     std::vector<std::string> getLoadedFonts() const;
 
+    /**
+     * @brief 清理缓存
+     * @param font_name 字体名称，为空则清理所有缓存
+     */
+    void clearCache(const std::string& font_name = "") const;
+
+    /**
+     * @brief 获取缓存统计信息
+     * @return 缓存统计信息
+     */
+    std::string getCacheStatistics() const;
+
 private:
     struct FontData;
-    
+
+    // 缓存结构
+    struct GlyphWidthCacheKey {
+        std::string font_name;
+        uint32_t glyph_id;
+
+        bool operator<(const GlyphWidthCacheKey& other) const {
+            if (font_name != other.font_name) return font_name < other.font_name;
+            return glyph_id < other.glyph_id;
+        }
+    };
+
+    struct TextShapeCacheKey {
+        std::string font_name;
+        std::string text;
+
+        bool operator<(const TextShapeCacheKey& other) const {
+            if (font_name != other.font_name) return font_name < other.font_name;
+            return text < other.text;
+        }
+    };
+
     FT_Library ft_library_;                           ///< FreeType库实例
     std::map<std::string, std::unique_ptr<FontData>> fonts_;  ///< 已加载的字体
+
+    // 性能优化缓存
+    mutable std::map<GlyphWidthCacheKey, int> glyph_width_cache_;  ///< 字符宽度缓存
+    mutable std::map<TextShapeCacheKey, std::string> text_shape_cache_;  ///< 文本整形缓存
+    mutable std::map<std::string, std::map<uint32_t, int>> font_width_arrays_;  ///< 字体宽度数组缓存
     
     /**
      * @brief 初始化FreeType库

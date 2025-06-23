@@ -292,6 +292,16 @@ double FontManager::fontUnitsToPoints(int font_units, double font_size, int unit
 }
 
 int FontManager::getGlyphAdvanceInPdfUnits(FT_Face ft_face, unsigned int glyph_index) const {
+    // 获取字体名称用于缓存
+    std::string font_name = ft_face->family_name ? ft_face->family_name : "unknown";
+
+    // 检查缓存
+    GlyphWidthCacheKey cache_key{font_name, glyph_index};
+    auto cache_it = glyph_width_cache_.find(cache_key);
+    if (cache_it != glyph_width_cache_.end()) {
+        return cache_it->second;
+    }
+
     // 保存原始字体大小设置
     FT_Size_Metrics original_metrics = ft_face->size->metrics;
 
@@ -305,6 +315,8 @@ int FontManager::getGlyphAdvanceInPdfUnits(FT_Face ft_face, unsigned int glyph_i
     // 检查是否需要使用备用方法
     bool use_scaled_method = (advance1 <= 5.0 || error1 != 0);
 
+    int width = 1000;  // 默认宽度
+
     if (use_scaled_method) {
         // 方法2：设置字体大小后加载
         FT_Error size_error = FT_Set_Char_Size(ft_face, 0, ft_face->units_per_EM * 64, 72, 72);
@@ -315,27 +327,21 @@ int FontManager::getGlyphAdvanceInPdfUnits(FT_Face ft_face, unsigned int glyph_i
             double advance2 = static_cast<double>(ft_face->glyph->advance.x) / 64.0;
 
             // 转换为PDF的1000单位制
-            int width = static_cast<int>((advance2 * 1000.0) / ft_face->units_per_EM + 0.5);
-
-            // 恢复原始字体大小设置
-            if (original_metrics.x_ppem > 0) {
-                FT_Set_Char_Size(ft_face, 0, original_metrics.y_ppem * 64, 72, 72);
-            }
-
-            return width;
+            width = static_cast<int>((advance2 * 1000.0) / ft_face->units_per_EM + 0.5);
         }
 
         // 恢复原始字体大小设置
         if (original_metrics.x_ppem > 0) {
             FT_Set_Char_Size(ft_face, 0, original_metrics.y_ppem * 64, 72, 72);
         }
-
-        CORE_WARN("Failed to load glyph " + std::to_string(glyph_index) + " with both methods");
-        return 1000;  // 异常情况下的回退宽度
+    } else {
+        // 使用标准方法：转换为PDF的1000单位制
+        width = static_cast<int>((advance1 * 1000.0) / ft_face->units_per_EM + 0.5);
     }
 
-    // 使用标准方法：转换为PDF的1000单位制
-    int width = static_cast<int>((advance1 * 1000.0) / ft_face->units_per_EM + 0.5);
+    // 缓存结果
+    glyph_width_cache_[cache_key] = width;
+
     return width;
 }
 
@@ -355,6 +361,13 @@ std::vector<std::string> FontManager::getLoadedFonts() const {
 }
 
 std::string FontManager::textToGIDHex(const std::string& font_name, const std::string& text) const {
+    // 检查缓存
+    TextShapeCacheKey cache_key{font_name, text};
+    auto cache_it = text_shape_cache_.find(cache_key);
+    if (cache_it != text_shape_cache_.end()) {
+        return cache_it->second;
+    }
+
     FontData* font = getFontData(font_name);
     if (!font) {
         CORE_ERROR("Font not found: " + font_name);
@@ -407,8 +420,13 @@ std::string FontManager::textToGIDHex(const std::string& font_name, const std::s
 
     hb_buffer_destroy(buffer);
 
-    CORE_DEBUG("Text '" + text + "' converted to GID hex: " + oss.str());
-    return oss.str();
+    std::string result = oss.str();
+    CORE_DEBUG("Text '" + text + "' converted to GID hex: " + result);
+
+    // 缓存结果
+    text_shape_cache_[cache_key] = result;
+
+    return result;
 }
 
 int FontManager::checkFontCoverage(const std::string& font_name, const std::string& text) const {
@@ -565,6 +583,68 @@ std::string FontManager::generateToUnicodeCMap(const std::string& font_name,
     oss << "end\n";
 
     CORE_DEBUG("Generated ToUnicode CMap for " + font_name + " with " + std::to_string(gid_to_unicode.size()) + " GID->Unicode mappings");
+    return oss.str();
+}
+
+void FontManager::clearCache(const std::string& font_name) const {
+    if (font_name.empty()) {
+        // 清理所有缓存
+        glyph_width_cache_.clear();
+        text_shape_cache_.clear();
+        font_width_arrays_.clear();
+        CORE_DEBUG("All FontManager caches cleared");
+    } else {
+        // 清理指定字体的缓存
+        auto glyph_it = glyph_width_cache_.begin();
+        while (glyph_it != glyph_width_cache_.end()) {
+            if (glyph_it->first.font_name == font_name) {
+                glyph_it = glyph_width_cache_.erase(glyph_it);
+            } else {
+                ++glyph_it;
+            }
+        }
+
+        auto text_it = text_shape_cache_.begin();
+        while (text_it != text_shape_cache_.end()) {
+            if (text_it->first.font_name == font_name) {
+                text_it = text_shape_cache_.erase(text_it);
+            } else {
+                ++text_it;
+            }
+        }
+
+        font_width_arrays_.erase(font_name);
+
+        CORE_DEBUG("FontManager cache cleared for font: " + font_name);
+    }
+}
+
+std::string FontManager::getCacheStatistics() const {
+    std::ostringstream oss;
+    oss << "FontManager Cache Statistics:\n";
+    oss << "  Glyph Width Cache: " << glyph_width_cache_.size() << " entries\n";
+    oss << "  Text Shape Cache: " << text_shape_cache_.size() << " entries\n";
+    oss << "  Font Width Arrays: " << font_width_arrays_.size() << " fonts\n";
+
+    // 按字体统计
+    std::map<std::string, int> glyph_count_by_font;
+    std::map<std::string, int> text_count_by_font;
+
+    for (const auto& [key, value] : glyph_width_cache_) {
+        glyph_count_by_font[key.font_name]++;
+    }
+
+    for (const auto& [key, value] : text_shape_cache_) {
+        text_count_by_font[key.font_name]++;
+    }
+
+    oss << "  Per-font breakdown:\n";
+    for (const auto& [font_name, data] : fonts_) {
+        oss << "    " << font_name << ": "
+            << glyph_count_by_font[font_name] << " glyphs, "
+            << text_count_by_font[font_name] << " texts\n";
+    }
+
     return oss.str();
 }
 

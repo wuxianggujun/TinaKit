@@ -646,20 +646,25 @@ std::set<uint32_t> Writer::collectUsedCodepoints(const std::string& font_name) c
     for (const auto& page : pages_) {
         // 从页面的文本操作中提取字符
         // 这里我们需要访问页面中存储的文本内容
-        // 由于当前架构限制，我们暂时使用一个更全面的字符集
+        // 由于当前架构限制，我们暂时使用一个优化的字符集
     }
 
-    // 为了确保所有字符都有正确的宽度，我们生成一个更全面的字符集
-    // 包括常用的中英文字符
+    // 优化：使用更精简的字符集，减少性能开销
 
     // 添加ASCII字符
     for (uint32_t i = 0x20; i <= 0x7E; ++i) {
         codepoints.insert(i);
     }
 
-    // 添加常用中文字符（扩展范围）
-    // 基本汉字区块
-    for (uint32_t i = 0x4E00; i <= 0x9FFF; ++i) {
+    // 添加常用中文字符（精简范围）
+    // 只包含最常用的汉字范围，而不是全部CJK
+    for (uint32_t i = 0x4E00; i <= 0x4FFF; ++i) {  // 减少范围
+        codepoints.insert(i);
+    }
+    for (uint32_t i = 0x5000; i <= 0x51FF; ++i) {  // 常用汉字
+        codepoints.insert(i);
+    }
+    for (uint32_t i = 0x5200; i <= 0x53FF; ++i) {  // 常用汉字
         codepoints.insert(i);
     }
 
@@ -677,7 +682,7 @@ std::set<uint32_t> Writer::collectUsedCodepoints(const std::string& font_name) c
     codepoints.insert(0xFFE5);  // ￥
     codepoints.insert(0x0024);  // $
 
-    PDF_DEBUG("Generated comprehensive character set with " + std::to_string(codepoints.size()) + " characters for font: " + font_name);
+    PDF_DEBUG("Generated optimized character set with " + std::to_string(codepoints.size()) + " characters for font: " + font_name);
 
     return codepoints;
 }
