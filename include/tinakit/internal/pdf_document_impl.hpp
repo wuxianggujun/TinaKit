@@ -101,9 +101,24 @@ public:
     void add_excel_sheet(const excel::Worksheet& sheet, bool preserve_formatting);
 
     // ========================================
+    // 字体管理
+    // ========================================
+
+    /**
+     * @brief 注册字体（带字体数据）
+     * @param font_name 字体名称
+     * @param font_data 字体文件数据
+     * @param embed_font 是否嵌入字体（默认true）
+     * @return 字体资源ID
+     */
+    std::string register_font(const std::string& font_name,
+                             const std::vector<std::uint8_t>& font_data,
+                             bool embed_font = true);
+
+    // ========================================
     // 文件操作
     // ========================================
-    
+
     void save(const std::filesystem::path& file_path);
     std::vector<std::uint8_t> save_to_buffer();
 

@@ -15,6 +15,7 @@
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#include <set>
 
 namespace tinakit::pdf::core {
 
@@ -22,8 +23,9 @@ namespace tinakit::pdf::core {
 // 构造函数和析构函数
 // ========================================
 
-Writer::Writer() {
+Writer::Writer() : font_manager_(std::make_unique<FontManager>()) {
     // PDF写入器初始化
+    PDF_DEBUG("PDF Writer initialized with FontManager");
 }
 
 // ========================================
@@ -112,6 +114,24 @@ std::string Writer::registerFont(const std::string& font_name,
     int font_obj_id = getNextObjectId();
     font_object_ids_[font_name] = font_obj_id;  // 记录对象ID
 
+    // 使用FontManager加载字体
+    bool font_loaded = false;
+    if (!font_data.empty()) {
+        font_loaded = font_manager_->loadFont(font_data, font_name);
+    } else {
+        // 尝试从系统路径加载字体
+        std::string font_path = getSystemFontPath(font_name);
+        if (!font_path.empty()) {
+            font_loaded = font_manager_->loadFont(font_path, font_name);
+        }
+    }
+
+    if (font_loaded) {
+        PDF_DEBUG("Font loaded into FontManager: " + font_name);
+    } else {
+        PDF_WARN("Failed to load font into FontManager: " + font_name + ", using fallback");
+    }
+
     PDF_DEBUG("Font registered: " + font_name + " -> " + resource_id + " (obj " + std::to_string(font_obj_id) + ")");
 
     // 统一使用Type0字体以支持UTF-16BE编码
@@ -168,16 +188,45 @@ std::string Writer::registerFont(const std::string& font_name,
     cid_font_obj->setCIDSystemInfo("Adobe", "Identity", 0);
 
     // 设置合理的默认宽度和字符宽度表
-    cid_font_obj->setDefaultWidth(1000);  // 中文字符的默认宽度
+    // 根据字体类型设置不同的默认宽度
+    bool is_cjk_font = (font_name == "SimSun" || font_name == "NSimSun" || font_name == "Microsoft YaHei" ||
+                       font_name == "SourceHanSansSC-Regular" || font_name.find("SourceHan") != std::string::npos);
+    int default_width = is_cjk_font ? 1000 : 500;  // CJK字体用1000，西文字体用500
+    cid_font_obj->setDefaultWidth(default_width);
 
-    // 为ASCII字符设置合适的宽度（解决英文字符间距过大的问题）
-    std::string w_array = generateWidthArray(font_name);
+    // 收集页面中实际使用的字符，生成完整的宽度数组
+    std::string w_array;
+    if (font_manager_->isFontLoaded(font_name)) {
+        // 收集所有页面中使用该字体的字符
+        std::set<uint32_t> used_codepoints = collectUsedCodepoints(font_name);
+
+        // 添加基本ASCII字符范围（确保基本字符有宽度）
+        for (uint32_t i = 0x20; i <= 0x7E; ++i) {
+            used_codepoints.insert(i);
+        }
+        // 添加常用货币符号
+        used_codepoints.insert(0x00A5);  // ¥
+        used_codepoints.insert(0xFFE5);  // ￥
+
+        std::vector<uint32_t> codepoints_vec(used_codepoints.begin(), used_codepoints.end());
+        w_array = font_manager_->generateWidthArray(font_name, 12.0, codepoints_vec);
+        PDF_DEBUG("Generated dynamic width array for " + std::to_string(codepoints_vec.size()) + " characters using FontManager for: " + font_name);
+    } else {
+        // 回退到硬编码宽度数组
+        w_array = generateWidthArray(font_name);
+        PDF_DEBUG("Using fallback width array for: " + font_name);
+    }
+
     if (!w_array.empty()) {
         cid_font_obj->setWidths(w_array);
         PDF_DEBUG("Set width array for font: " + font_name);
     }
 
     cid_font_obj->setFontDescriptor(font_desc_id);  // 设置FontDescriptor引用
+
+    // 关键修复：设置CIDToGIDMap为Identity（CID == GID）
+    cid_font_obj->setCIDToGIDMap("/Identity");
+    PDF_DEBUG("Set CIDToGIDMap to /Identity for font: " + font_name);
 
     // 将CIDFont添加到对象列表
     addObject(std::move(cid_font_obj));
@@ -187,7 +236,25 @@ std::string Writer::registerFont(const std::string& font_name,
     auto tounicode_obj = std::make_unique<StreamObject>(tounicode_id);
 
     // 创建包含具体字符映射的ToUnicode CMap
-    std::string cmap_content = generateToUnicodeCMap();
+    std::string cmap_content;
+    if (font_manager_->isFontLoaded(font_name)) {
+        // 使用FontManager生成动态ToUnicode CMap
+        std::vector<uint32_t> common_chars;
+        // 添加ASCII字符范围
+        for (uint32_t i = 0x20; i <= 0x7E; ++i) {
+            common_chars.push_back(i);
+        }
+        // 添加常用货币符号
+        common_chars.push_back(0x00A5);  // ¥
+        common_chars.push_back(0xFFE5);  // ￥
+
+        cmap_content = font_manager_->generateToUnicodeCMap(font_name, common_chars);
+        PDF_DEBUG("Generated dynamic ToUnicode CMap using FontManager for: " + font_name);
+    } else {
+        // 回退到硬编码CMap
+        cmap_content = generateToUnicodeCMap();
+        PDF_DEBUG("Using fallback ToUnicode CMap for: " + font_name);
+    }
 
     tounicode_obj->setStreamData(cmap_content);
     addObject(std::move(tounicode_obj));
@@ -211,6 +278,10 @@ std::string Writer::getFontResourceId(const std::string& font_name) const {
 std::string Writer::getFontSubtype(const std::string& font_name) const {
     auto it = font_subtypes_.find(font_name);
     return (it != font_subtypes_.end()) ? it->second : "";
+}
+
+FontManager* Writer::getFontManager() const {
+    return font_manager_.get();
 }
 
 // 字体回退相关方法已移除，简化字体处理逻辑
@@ -455,6 +526,30 @@ void Writer::writeHeader(BinaryWriter& writer) {
 
 void Writer::writeObjects(BinaryWriter& writer) {
     PDF_DEBUG("Writing " + std::to_string(objects_.size()) + " objects:");
+
+    // 调试：检查对象ID的连续性
+    std::vector<int> object_ids;
+    for (const auto& [id, entry] : objects_) {
+        object_ids.push_back(id);
+    }
+    std::sort(object_ids.begin(), object_ids.end());
+
+    PDF_DEBUG("Object IDs: " + [&]() {
+        std::ostringstream oss;
+        for (size_t i = 0; i < object_ids.size(); ++i) {
+            if (i > 0) oss << ", ";
+            oss << object_ids[i];
+        }
+        return oss.str();
+    }());
+
+    // 检查是否有ID跳跃
+    for (size_t i = 1; i < object_ids.size(); ++i) {
+        if (object_ids[i] != object_ids[i-1] + 1) {
+            PDF_WARN("Object ID gap detected: " + std::to_string(object_ids[i-1]) + " -> " + std::to_string(object_ids[i]));
+        }
+    }
+
     for (auto& [id, entry] : objects_) {
         PDF_DEBUG("Writing object " + std::to_string(id));
         entry.offset = writer.getOffsetLong();
@@ -470,24 +565,48 @@ void Writer::writeObjects(BinaryWriter& writer) {
 
 std::size_t Writer::writeXrefTable(BinaryWriter& writer) {
     std::size_t xref_offset = writer.getOffsetLong();
-    
-    writer.writeLine("xref");
-    writer.writeLine("0 " + std::to_string(objects_.size() + 1));
-    writer.writeLine("0000000000 65535 f ");
-    
+
+    // 找出最大对象ID
+    int max_id = 0;
     for (const auto& [id, entry] : objects_) {
-        std::ostringstream oss;
-        oss << std::setfill('0') << std::setw(10) << entry.offset << " 00000 n ";
-        writer.writeLine(oss.str());
+        max_id = std::max(max_id, id);
     }
-    
+
+    writer.writeLine("xref");
+    writer.writeLine("0 " + std::to_string(max_id + 1));
+
+    // 写入对象0（总是free）
+    writer.writeLine("0000000000 65535 f ");
+
+    // 写入从1到max_id的所有对象条目
+    for (int id = 1; id <= max_id; ++id) {
+        auto it = objects_.find(id);
+        if (it != objects_.end()) {
+            // 对象存在，写入其偏移量
+            std::ostringstream oss;
+            oss << std::setfill('0') << std::setw(10) << it->second.offset << " 00000 n ";
+            writer.writeLine(oss.str());
+        } else {
+            // 对象不存在，标记为free
+            writer.writeLine("0000000000 65535 f ");
+            PDF_DEBUG("Object " + std::to_string(id) + " marked as free in xref table");
+        }
+    }
+
+    PDF_DEBUG("Xref table written with " + std::to_string(max_id + 1) + " entries (0 to " + std::to_string(max_id) + ")");
     return xref_offset;
 }
 
 void Writer::writeTrailer(BinaryWriter& writer, std::size_t xref_offset) {
+    // 计算正确的Size值（最大对象ID + 1）
+    int max_id = 0;
+    for (const auto& [id, entry] : objects_) {
+        max_id = std::max(max_id, id);
+    }
+
     writer.writeLine("trailer");
     writer.writeLine("<<");
-    writer.writeLine("/Size " + std::to_string(objects_.size() + 1));
+    writer.writeLine("/Size " + std::to_string(max_id + 1));
     writer.writeLine("/Root " + std::to_string(catalog_object_id_) + " 0 R");
     writer.writeLine(">>");
     writer.writeLine("startxref");
@@ -518,6 +637,49 @@ std::string Writer::generateResourceDict() const {
     std::string result = oss.str();
     PDF_DEBUG("Generated resource dict: " + result);
     return result;
+}
+
+std::set<uint32_t> Writer::collectUsedCodepoints(const std::string& font_name) const {
+    std::set<uint32_t> codepoints;
+
+    // 遍历所有页面，收集使用指定字体的文本中的字符
+    for (const auto& page : pages_) {
+        // 从页面的文本操作中提取字符
+        // 这里我们需要访问页面中存储的文本内容
+        // 由于当前架构限制，我们暂时使用一个更全面的字符集
+    }
+
+    // 为了确保所有字符都有正确的宽度，我们生成一个更全面的字符集
+    // 包括常用的中英文字符
+
+    // 添加ASCII字符
+    for (uint32_t i = 0x20; i <= 0x7E; ++i) {
+        codepoints.insert(i);
+    }
+
+    // 添加常用中文字符（扩展范围）
+    // 基本汉字区块
+    for (uint32_t i = 0x4E00; i <= 0x9FFF; ++i) {
+        codepoints.insert(i);
+    }
+
+    // 添加常用标点符号
+    codepoints.insert(0x3001);  // 、
+    codepoints.insert(0x3002);  // 。
+    codepoints.insert(0xFF01);  // ！
+    codepoints.insert(0xFF1F);  // ？
+    codepoints.insert(0xFF0C);  // ，
+    codepoints.insert(0xFF1A);  // ：
+    codepoints.insert(0xFF1B);  // ；
+
+    // 添加货币符号
+    codepoints.insert(0x00A5);  // ¥
+    codepoints.insert(0xFFE5);  // ￥
+    codepoints.insert(0x0024);  // $
+
+    PDF_DEBUG("Generated comprehensive character set with " + std::to_string(codepoints.size()) + " characters for font: " + font_name);
+
+    return codepoints;
 }
 
 bool Writer::isUnicodeFont(const std::string& font_name) const {

@@ -77,6 +77,21 @@ endif()
 
 add_subdirectory(third_party/minizip-ng)
 
+# 添加字体渲染库 (FreeType + HarfBuzz)
+# 配置选项
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)  # 使用静态库
+set(DISABLE_ZLIB OFF CACHE BOOL "Disable zlib support" FORCE)
+set(DISABLE_PNG ON CACHE BOOL "Disable PNG support" FORCE)  # 暂时禁用PNG支持
+set(DISABLE_BROTLI ON CACHE BOOL "Disable Brotli support" FORCE)  # 暂时禁用Brotli支持
+
+# 禁用HarfBuzz的一些可选功能以简化构建
+set(HB_HAVE_GRAPHITE2 OFF CACHE BOOL "Enable Graphite2 complementary shaper" FORCE)
+set(HB_HAVE_GLIB OFF CACHE BOOL "Enable glib unicode functions" FORCE)
+set(HB_HAVE_ICU OFF CACHE BOOL "Enable icu unicode functions" FORCE)
+set(HB_HAVE_GOBJECT OFF CACHE BOOL "Enable GObject Bindings" FORCE)
+
+add_subdirectory(third_party/harfbuzz-ft)
+
 # 添加源代码目录
 add_subdirectory(src)
 

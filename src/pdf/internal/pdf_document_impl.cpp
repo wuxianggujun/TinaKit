@@ -102,7 +102,17 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
     page->setFont(font_resource, font.size, font_subtype);
     page->setTextPosition(position.x, pdf_y);
     page->setTextColor(font.color.red() / 255.0, font.color.green() / 255.0, font.color.blue() / 255.0);
-    page->showText(text);
+
+    // 尝试使用GID编码，如果失败则回退到UTF-16BE
+    auto* font_manager = writer_->getFontManager();
+    if (font_manager && font_manager->isFontLoaded(font.family)) {
+        page->showTextWithGID(text, font.family, font_manager);
+        PDF_DEBUG("Used GID encoding for text: " + text);
+    } else {
+        page->showText(text);
+        PDF_DEBUG("Used UTF-16BE encoding for text: " + text);
+    }
+
     page->endText();
 
     PDF_DEBUG("Text added successfully with font: " + font.family);
@@ -277,6 +287,17 @@ void pdf_document_impl::add_excel_range(const excel::Range& range,
 
 void pdf_document_impl::add_excel_sheet(const excel::Worksheet& sheet, bool preserve_formatting) {
     // TODO: 实现Excel工作表集成
+}
+
+// ========================================
+// 字体管理
+// ========================================
+
+std::string pdf_document_impl::register_font(const std::string& font_name,
+                                            const std::vector<std::uint8_t>& font_data,
+                                            bool embed_font) {
+    PDF_DEBUG("Registering font with data: " + font_name + " (" + std::to_string(font_data.size()) + " bytes)");
+    return writer_->registerFont(font_name, font_data, embed_font);
 }
 
 // ========================================

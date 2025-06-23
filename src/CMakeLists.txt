@@ -20,6 +20,7 @@ target_sources(tinakit PRIVATE
         pdf/core/object.cpp
         pdf/core/page.cpp
         pdf/core/writer.cpp
+        pdf/core/font_manager.cpp
         pdf/utils/compression.cpp
         pdf/internal/pdf_document_impl.cpp
         
@@ -46,4 +47,15 @@ target_include_directories(tinakit PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR}/third_party/zlib-ng)
 
-target_link_libraries(tinakit PUBLIC libstudxml MINIZIP::minizip zlibstatic utf8cpp)
+# 添加FreeType和HarfBuzz的包含目录
+target_include_directories(tinakit PRIVATE
+        ${CMAKE_SOURCE_DIR}/third_party/harfbuzz-ft/freetype/include
+        ${CMAKE_SOURCE_DIR}/third_party/harfbuzz-ft/harfbuzz/src)
+
+target_link_libraries(tinakit PUBLIC
+        libstudxml
+        MINIZIP::minizip
+        zlibstatic
+        utf8cpp
+        freetype
+        harfbuzz)

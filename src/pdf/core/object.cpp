@@ -240,6 +240,11 @@ void CIDFontObject::setWidths(const std::string& widths_array) {
     PDF_DEBUG("Set widths array: " + widths_array);
 }
 
+void CIDFontObject::setCIDToGIDMap(const std::string& mapping) {
+    set("CIDToGIDMap", mapping);
+    PDF_DEBUG("Set CIDToGIDMap: " + mapping);
+}
+
 // ========================================
 // FontFileObject实现
 // ========================================

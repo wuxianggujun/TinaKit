@@ -206,6 +206,14 @@ public:
      * @param text 文本内容
      */
     void showText(const std::string& text);
+
+    /**
+     * @brief 显示文本（使用字体管理器进行GID转换）
+     * @param text 文本内容
+     * @param font_name 字体名称
+     * @param font_manager 字体管理器
+     */
+    void showTextWithGID(const std::string& text, const std::string& font_name, class FontManager* font_manager);
     
     /**
      * @brief 显示文本并移动到下一行

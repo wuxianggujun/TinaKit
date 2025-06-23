@@ -171,6 +171,30 @@ void PdfPage::showText(const std::string& text) {
     PDF_DEBUG("Text rendered using UTF-16BE encoding: '" + text + "' -> " + hex_string);
 }
 
+void PdfPage::showTextWithGID(const std::string& text, const std::string& font_name, FontManager* font_manager) {
+    PDF_DEBUG("PdfPage::showTextWithGID: '" + text + "' using font: " + font_name);
+
+    if (!font_manager || !font_manager->isFontLoaded(font_name)) {
+        PDF_WARN("FontManager not available or font not loaded, falling back to UTF-16BE");
+        showText(text);
+        return;
+    }
+
+    // 使用FontManager将文本转换为GID十六进制字符串
+    std::string gid_hex_string = font_manager->textToGIDHex(font_name, text);
+
+    if (gid_hex_string.empty()) {
+        PDF_WARN("Failed to convert text to GID, falling back to UTF-16BE");
+        showText(text);
+        return;
+    }
+
+    // 直接使用GID十六进制字符串
+    addContent(gid_hex_string + " Tj\n");
+
+    PDF_DEBUG("Text rendered using GID encoding");
+}
+
 void PdfPage::showTextLine(const std::string& text) {
     std::ostringstream oss;
     oss << "(" << tinakit::core::unicode::escape_string(text) << ") '\n";
@@ -349,42 +373,10 @@ std::string PdfPage::formatFloat(double value, int precision) const {
 }
 
 void PdfPage::ensureFontsRegistered(Writer& writer) {
-    // 简单实现：扫描内容流中的字体引用并确保注册
-    // 这是一个临时解决方案，更好的方法是在添加文本时记录使用的字体
+    // 不再自动注册预定义字体，只确保实际使用的字体已注册
+    // 字体应该在使用前通过 Document::register_font 显式注册
 
-    // 从内容流中提取字体引用（简单的正则匹配）
-    std::set<std::string> used_fonts;
-
-    for (const auto& line : content_stream_) {
-        // 查找 /F1, /F2 等字体引用
-        size_t pos = line.find("/F");
-        if (pos != std::string::npos) {
-            size_t end_pos = line.find(" ", pos);
-            if (end_pos != std::string::npos) {
-                std::string font_ref = line.substr(pos + 1, end_pos - pos - 1);
-                used_fonts.insert(font_ref);
-            }
-        }
-    }
-
-    // 对于找到的字体引用，确保对应的字体已注册
-    // 这里我们使用一个简单的映射
-    std::map<std::string, std::string> font_ref_to_name = {
-        {"F1", "SimSun"},
-        {"F2", "Helvetica"},
-        {"F3", "Times-Roman"}
-    };
-
-    for (const auto& font_ref : used_fonts) {
-        auto it = font_ref_to_name.find(font_ref);
-        if (it != font_ref_to_name.end()) {
-            std::string resource_id = writer.getFontResourceId(it->second);
-            if (resource_id.empty()) {
-                writer.registerFont(it->second);
-                PDF_DEBUG("Registered font for page: " + it->second);
-            }
-        }
-    }
+    PDF_DEBUG("Page font registration check completed - using only explicitly registered fonts");
 }
 
 // 智能分段相关方法已移除，统一使用UTF-16BE编码

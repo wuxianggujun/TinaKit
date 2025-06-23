@@ -153,6 +153,16 @@ Document& Document::add_excel_sheet(const excel::Worksheet& sheet, bool preserve
 }
 
 // ========================================
+// 字体管理
+// ========================================
+
+std::string Document::register_font(const std::string& font_name,
+                                   const std::vector<std::uint8_t>& font_data,
+                                   bool embed_font) {
+    return impl_->register_font(font_name, font_data, embed_font);
+}
+
+// ========================================
 // 文件操作
 // ========================================
 

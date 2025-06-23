@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "binary_writer.hpp"
+#include "tinakit/pdf/core/binary_writer.hpp"
 #include <string>
 #include <vector>
 #include <map>
@@ -267,6 +267,12 @@ public:
      * @param widths_array PDF格式的宽度数组字符串
      */
     void setWidths(const std::string& widths_array);
+
+    /**
+     * @brief 设置CID到GID的映射
+     * @param mapping 映射方式，通常为"/Identity"
+     */
+    void setCIDToGIDMap(const std::string& mapping);
 
     std::string getTypeName() const override { return "CIDFont"; }
 

@@ -8,11 +8,13 @@
 #pragma once
 
 #include "binary_writer.hpp"
+#include "font_manager.hpp"
 #include <memory>
 #include <vector>
 #include <map>
 #include <string>
 #include <functional>
+#include <set>
 
 namespace tinakit::pdf::core {
 
@@ -141,6 +143,12 @@ public:
      * @return 字体子类型（Type0或Type1），如果不存在返回空字符串
      */
     std::string getFontSubtype(const std::string& font_name) const;
+
+    /**
+     * @brief 获取字体管理器
+     * @return 字体管理器指针
+     */
+    FontManager* getFontManager() const;
 
     // 字体回退相关方法已移除，简化字体处理
     
@@ -276,6 +284,9 @@ private:
     
     // 状态
     bool debug_mode_ = false;                   ///< 调试模式
+
+    // 字体管理
+    std::unique_ptr<FontManager> font_manager_; ///< 字体管理器
     
     // ========================================
     // 内部方法
@@ -327,6 +338,13 @@ private:
      * @return 资源字典字符串
      */
     std::string generateResourceDict() const;
+
+    /**
+     * @brief 收集页面中使用指定字体的所有字符码点
+     * @param font_name 字体名称
+     * @return 使用的字符码点集合
+     */
+    std::set<uint32_t> collectUsedCodepoints(const std::string& font_name) const;
 
     /**
      * @brief 判断字体是否支持Unicode

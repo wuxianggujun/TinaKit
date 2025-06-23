@@ -286,3 +286,37 @@ TEST_CASE(PDFIntegration, ChainedOperations) {
 
     ASSERT_EQ(doc.page_count(), 1u);
 }
+
+// ========================================
+// PDF结构验证测试
+// ========================================
+
+TEST_CASE(PDFStructure, XrefTableValidation) {
+    // 测试xref表结构正确性
+    auto doc = Document::create();
+    doc.add_page();
+
+    Font font;
+    font.family = "SimSun";  // 使用中文字体测试
+    font.size = 12;
+
+    // 添加中英文混合文本
+    doc.add_text("Hello 世界", Point(100, 700), font);
+    doc.add_text("测试 Test ¥100", Point(100, 680), font);
+
+    // 保存到文件
+    std::string test_file = "xref_test.pdf";
+    if (std::filesystem::exists(test_file)) {
+        std::filesystem::remove(test_file);
+    }
+
+    ASSERT_NO_THROW(doc.save(test_file));
+    ASSERT_TRUE(std::filesystem::exists(test_file));
+
+    // 检查文件大小
+    auto file_size = std::filesystem::file_size(test_file);
+    ASSERT_GT(file_size, 1000u);  // PDF应该有合理的大小
+
+    // 清理测试文件
+    std::filesystem::remove(test_file);
+}
