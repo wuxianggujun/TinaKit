@@ -40,9 +40,7 @@ void pdf_document_impl::set_custom_page_size(double width, double height) {
     page_height_ = height;
 }
 
-void pdf_document_impl::set_margins(const PageMargins& margins) {
-    margins_ = margins;
-}
+
 
 void pdf_document_impl::set_document_info(const DocumentInfo& info) {
     doc_info_ = info;
@@ -120,11 +118,14 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
 
 void pdf_document_impl::add_text_block(const std::string& text, const Rect& bounds,
                                       const Font& font, TextAlignment alignment) {
+    // 避免未使用参数警告
+    (void)alignment;
+
     auto page = current_page();
     if (!page) {
         return;
     }
-    
+
     // 获取或注册字体
     std::string font_resource = get_font_resource_id(font);
     std::string font_subtype = writer_->getFontSubtype(font.family);
@@ -139,155 +140,11 @@ void pdf_document_impl::add_text_block(const std::string& text, const Rect& boun
     page->endText();
 }
 
-void pdf_document_impl::add_table(const Table& table, const Point& position) {
-    // TODO: 实现表格渲染
-}
 
-// ========================================
-// 图像功能
-// ========================================
 
-void pdf_document_impl::add_image(const std::string& image_path, const Point& position,
-                                 double width, double height) {
-    PDF_DEBUG("add_image called: path='" + image_path + "', pos=(" +
-              std::to_string(position.x) + "," + std::to_string(position.y) + ")");
 
-    auto page = current_page();
-    if (!page) {
-        PDF_ERROR("No current page!");
-        return;
-    }
 
-    // 注册图像并获取资源ID
-    std::string image_resource = writer_->registerImage(image_path);
-    if (image_resource.empty()) {
-        PDF_ERROR("Failed to register image: " + image_path);
-        return;
-    }
 
-    // 如果未指定尺寸，使用原始尺寸
-    // TODO: 从图像数据获取原始尺寸
-    if (width <= 0) width = 100;  // 默认宽度
-    if (height <= 0) height = 100; // 默认高度
-
-    // 添加图像到页面
-    page->addImage(image_resource, position.x, position.y, width, height);
-
-    PDF_DEBUG("Image added successfully: " + image_resource);
-}
-
-void pdf_document_impl::add_image(const tinakit::core::Image& image, const Point& position,
-                                 double width, double height) {
-    PDF_DEBUG("add_image called with core::Image, pos=(" +
-              std::to_string(position.x) + "," + std::to_string(position.y) + ")");
-
-    auto page = current_page();
-    if (!page) {
-        PDF_ERROR("No current page!");
-        return;
-    }
-
-    if (!image.isLoaded()) {
-        PDF_ERROR("Image is not loaded!");
-        return;
-    }
-
-    // 获取图像数据
-    auto image_data = image.getDataCopy();
-    int img_width = image.getWidth();
-    int img_height = image.getHeight();
-    int channels = image.getChannels();
-
-    // 确定图像格式
-    std::string format = "PNG"; // 默认格式，实际应该从图像数据推断
-
-    // 注册图像并获取资源ID
-    std::string image_resource = writer_->registerImage(image_data, img_width, img_height, format);
-    if (image_resource.empty()) {
-        PDF_ERROR("Failed to register image from core::Image");
-        return;
-    }
-
-    // 如果未指定尺寸，使用原始尺寸或按比例缩放
-    if (width <= 0 && height <= 0) {
-        width = img_width;
-        height = img_height;
-    } else if (width <= 0) {
-        width = height * img_width / img_height;
-    } else if (height <= 0) {
-        height = width * img_height / img_width;
-    }
-
-    // 添加图像到页面
-    page->addImage(image_resource, position.x, position.y, width, height);
-
-    PDF_DEBUG("Image added successfully from core::Image: " + image_resource);
-}
-
-void pdf_document_impl::add_image(const std::vector<std::uint8_t>& image_data,
-                                 int width, int height, int channels,
-                                 const Point& position,
-                                 double display_width, double display_height) {
-    PDF_DEBUG("add_image called with raw data: " + std::to_string(width) + "x" +
-              std::to_string(height) + ", " + std::to_string(channels) + " channels");
-
-    auto page = current_page();
-    if (!page) {
-        PDF_ERROR("No current page!");
-        return;
-    }
-
-    if (image_data.empty() || width <= 0 || height <= 0 || channels <= 0) {
-        PDF_ERROR("Invalid image data parameters");
-        return;
-    }
-
-    // 确定图像格式
-    std::string format = "PNG"; // 默认格式
-
-    // 注册图像并获取资源ID
-    std::string image_resource = writer_->registerImage(image_data, width, height, format);
-    if (image_resource.empty()) {
-        PDF_ERROR("Failed to register image from raw data");
-        return;
-    }
-
-    // 如果未指定显示尺寸，使用原始尺寸
-    if (display_width <= 0 && display_height <= 0) {
-        display_width = width;
-        display_height = height;
-    } else if (display_width <= 0) {
-        display_width = display_height * width / height;
-    } else if (display_height <= 0) {
-        display_height = display_width * height / width;
-    }
-
-    // 添加图像到页面
-    page->addImage(image_resource, position.x, position.y, display_width, display_height);
-
-    PDF_DEBUG("Image added successfully from raw data: " + image_resource);
-}
-
-// ========================================
-// Excel集成
-// ========================================
-
-void pdf_document_impl::add_excel_table(const excel::Worksheet& sheet,
-                                       const std::string& range_address,
-                                       const Point& position,
-                                       bool preserve_formatting) {
-    // TODO: 实现Excel表格集成
-}
-
-void pdf_document_impl::add_excel_range(const excel::Range& range,
-                                       const Point& position,
-                                       bool preserve_formatting) {
-    // TODO: 实现Excel范围集成
-}
-
-void pdf_document_impl::add_excel_sheet(const excel::Worksheet& sheet, bool preserve_formatting) {
-    // TODO: 实现Excel工作表集成
-}
 
 // ========================================
 // 字体管理
@@ -298,11 +155,11 @@ std::string pdf_document_impl::register_font(const std::string& font_name,
                                             bool embed_font) {
     PDF_DEBUG("Registering font with data: " + font_name + " (" + std::to_string(font_data.size()) + " bytes)");
 
-    // 启用智能字体优化（不依赖外部工具）
-    bool enable_optimization = (font_data.size() > 1024 * 1024);  // 大于1MB的字体启用优化
+    // 启用新的字体子集化架构
+    bool enable_subsetting = (font_data.size() > 1024 * 1024);  // 大于1MB的字体启用子集化
 
-    if (enable_optimization) {
-        PDF_DEBUG("Enabling font optimization for large font: " + font_name);
+    if (enable_subsetting) {
+        PDF_DEBUG("Enabling font subsetting with new architecture for: " + font_name);
         return writer_->registerFontWithSubsetting(font_name, font_data, true, embed_font);
     } else {
         PDF_DEBUG("Using standard font registration: " + font_name);

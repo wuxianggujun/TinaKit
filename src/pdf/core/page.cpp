@@ -177,6 +177,11 @@ void PdfPage::showTextWithGID(const std::string& text, const std::string& font_n
     // 记录文本使用情况（用于字体子集化）
     text_usage_.push_back({text, font_name});
 
+    // 通知Writer记录字符使用情况
+    if (writer_) {
+        writer_->recordTextUsage(font_name, text);
+    }
+
     if (!font_manager || !font_manager->isFontLoaded(font_name)) {
         PDF_WARN("FontManager not available or font not loaded, falling back to UTF-16BE");
         showText(text);

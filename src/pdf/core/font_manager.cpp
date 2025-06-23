@@ -556,7 +556,7 @@ std::string FontManager::generateToUnicodeCMap(const std::string& font_name,
     oss << "/CMapName /Adobe-Identity-UCS def\n";
     oss << "/CMapType 2 def\n";
     oss << "1 begincodespacerange\n";
-    oss << "<0000> <FFFFFF>\n";  // 扩展到3字节以支持更大的GID
+    oss << "<0000> <FFFF>\n";  // 使用标准的2字节GID范围
     oss << "endcodespacerange\n";
 
     // 收集有效的GID->Unicode映射
@@ -573,7 +573,14 @@ std::string FontManager::generateToUnicodeCMap(const std::string& font_name,
 
     for (const auto& [gid, unicode] : gid_to_unicode) {
         oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << gid << "> ";
-        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << unicode << ">\n";
+
+        // 对于Unicode字符，使用适当的宽度
+        if (unicode <= 0xFFFF) {
+            oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << unicode << ">\n";
+        } else {
+            // 对于超过0xFFFF的字符（如中文），使用6位宽度
+            oss << "<" << std::setfill('0') << std::setw(6) << std::hex << std::uppercase << unicode << ">\n";
+        }
     }
 
     oss << "endbfchar\n";

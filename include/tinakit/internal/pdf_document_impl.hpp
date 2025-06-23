@@ -52,7 +52,7 @@ public:
     
     void set_page_size(PageSize size, PageOrientation orientation);
     void set_custom_page_size(double width, double height);
-    void set_margins(const PageMargins& margins);
+
     void set_document_info(const DocumentInfo& info);
 
     // ========================================
@@ -70,35 +70,13 @@ public:
     void add_text(const std::string& text, const Point& position, const Font& font);
     void add_text_block(const std::string& text, const Rect& bounds,
                        const Font& font, TextAlignment alignment);
-    void add_table(const Table& table, const Point& position);
 
-    // ========================================
-    // 图像功能
-    // ========================================
 
-    void add_image(const std::string& image_path, const Point& position,
-                   double width, double height);
-    void add_image(const tinakit::core::Image& image, const Point& position,
-                   double width, double height);
-    void add_image(const std::vector<std::uint8_t>& image_data,
-                   int width, int height, int channels,
-                   const Point& position,
-                   double display_width, double display_height);
 
-    // ========================================
-    // Excel集成
-    // ========================================
-    
-    void add_excel_table(const excel::Worksheet& sheet,
-                         const std::string& range_address,
-                         const Point& position,
-                         bool preserve_formatting);
 
-    void add_excel_range(const excel::Range& range,
-                         const Point& position,
-                         bool preserve_formatting);
-    
-    void add_excel_sheet(const excel::Worksheet& sheet, bool preserve_formatting);
+
+
+
 
     // ========================================
     // 字体管理

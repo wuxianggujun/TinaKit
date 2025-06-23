@@ -9,8 +9,7 @@
 
 #include "binary_writer.hpp"
 #include "font_manager.hpp"
-#include "font_subsetter.hpp"
-#include "freetype_subsetter.hpp"
+#include "font_subset_manager.hpp"
 #include <memory>
 #include <vector>
 #include <map>
@@ -229,27 +228,14 @@ public:
      */
     void writeTo(BinaryWriter& writer);
 
-    // ========================================
-    // 调试和验证
-    // ========================================
-    
+
+
     /**
-     * @brief 验证PDF结构
-     * @return 验证结果，空字符串表示无错误
+     * @brief 记录文本使用情况（用于字体子集化）
+     * @param font_name 字体名称
+     * @param text 使用的文本
      */
-    std::string validate() const;
-    
-    /**
-     * @brief 获取统计信息
-     * @return 统计信息字符串
-     */
-    std::string getStatistics() const;
-    
-    /**
-     * @brief 启用/禁用调试模式
-     * @param enable 是否启用
-     */
-    void setDebugMode(bool enable);
+    void recordTextUsage(const std::string& font_name, const std::string& text);
 
 private:
     // ========================================
@@ -302,10 +288,7 @@ private:
 
     // 字体管理
     std::unique_ptr<FontManager> font_manager_; ///< 字体管理器
-    std::unique_ptr<FontSubsetter> font_subsetter_; ///< 字体子集化工具
-    std::unique_ptr<FreeTypeSubsetter> freetype_subsetter_; ///< FreeType字体子集化工具
-    std::map<std::string, bool> font_subsetting_enabled_; ///< 字体子集化启用状态
-    std::map<std::string, std::vector<std::uint8_t>> original_font_data_; ///< 原始字体数据（用于子集化）
+    std::unique_ptr<FontSubsetManager> subset_manager_; ///< 字体子集化管理器
     
     // ========================================
     // 内部方法
@@ -365,12 +348,7 @@ private:
      */
     std::set<uint32_t> collectUsedCodepoints(const std::string& font_name) const;
 
-    /**
-     * @brief 收集文档中所有使用的字符码点
-     * @param font_name 字体名称，为空则收集所有字体的字符
-     * @return 使用的字符码点集合
-     */
-    std::set<uint32_t> collectAllUsedCodepoints(const std::string& font_name = "") const;
+
 
 
 
@@ -408,19 +386,17 @@ private:
     void performFontSubsetting();
 
     /**
-     * @brief 为指定字体创建子集
-     * @param font_name 字体名称
-     * @param used_codepoints 使用的字符码点
-     * @return 成功返回true
+     * @brief 从字体子集化结果创建PDF字体对象
+     * @param result 字体子集化结果
      */
-    bool createFontSubset(const std::string& font_name, const std::set<uint32_t>& used_codepoints);
+    void createFontObjectsFromSubset(const FontSubsetResult& result);
 
     /**
-     * @brief 更新现有字体的数据
+     * @brief 创建基本的字体对象（临时使用，后续会被子集化结果替换）
      * @param font_name 字体名称
-     * @param font_data 新的字体数据
+     * @param font_data 字体数据
      */
-    void updateFontWithData(const std::string& font_name, const std::vector<std::uint8_t>& font_data);
+    void createBasicFontObjects(const std::string& font_name, const std::vector<std::uint8_t>& font_data);
 };
 
 } // namespace tinakit::pdf::core

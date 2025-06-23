@@ -364,6 +364,12 @@ public:
      */
     std::set<uint32_t> collectUsedCodepoints(const std::string& font_name = "") const;
 
+    /**
+     * @brief 设置Writer引用（用于字符使用记录）
+     * @param writer Writer对象指针
+     */
+    void setWriter(class Writer* writer) { writer_ = writer; }
+
 private:
     // ========================================
     // 成员变量
@@ -387,6 +393,7 @@ private:
         std::string font_name;
     };
     mutable std::vector<TextUsage> text_usage_;      ///< 页面中使用的文本记录
+    class Writer* writer_ = nullptr;                 ///< Writer引用（用于字符使用记录）
     
     // ========================================
     // 内部方法

@@ -274,6 +274,12 @@ public:
      */
     void setCIDToGIDMap(const std::string& mapping);
 
+    /**
+     * @brief 获取基础字体名称
+     * @return 基础字体名称
+     */
+    const std::string& getBaseFont() const { return base_font_; }
+
     std::string getTypeName() const override { return "CIDFont"; }
 
 private:

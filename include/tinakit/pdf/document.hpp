@@ -67,13 +67,7 @@ public:
      */
     static Document create();
     
-    /**
-     * @brief 从现有PDF文件加载（如果支持）
-     * @param file_path PDF文件路径
-     * @return PDF文档实例
-     * @note 当前版本主要支持创建，读取功能在后续版本实现
-     */
-    static Document load(const std::filesystem::path& file_path);
+
     
     /**
      * @brief 析构函数
@@ -106,11 +100,7 @@ public:
      */
     Document& set_custom_page_size(double width, double height);
     
-    /**
-     * @brief 设置页面边距
-     * @param margins 边距设置
-     */
-    Document& set_margins(const PageMargins& margins);
+
     
     /**
      * @brief 设置文档元数据
@@ -155,89 +145,13 @@ public:
     Document& add_text_block(const std::string& text, const Rect& bounds,
                             const Font& font = {}, TextAlignment alignment = TextAlignment::Left);
     
-    /**
-     * @brief 添加表格
-     * @param table 表格数据
-     * @param position 表格位置
-     */
-    Document& add_table(const Table& table, const Point& position);
 
-    // ========================================
-    // 图像功能
-    // ========================================
 
-    /**
-     * @brief 从文件添加图像
-     * @param image_path 图像文件路径
-     * @param position 图像位置（左下角）
-     * @param width 图像宽度（0表示使用原始宽度）
-     * @param height 图像高度（0表示使用原始高度或按比例缩放）
-     * @return 文档引用（支持链式调用）
-     *
-     * 支持的格式：JPEG, PNG, BMP, TGA, PSD, GIF, HDR, PIC, PNM
-     */
-    Document& add_image(const std::string& image_path, const Point& position,
-                       double width = 0, double height = 0);
 
-    /**
-     * @brief 从core::Image对象添加图像
-     * @param image 图像对象
-     * @param position 图像位置（左下角）
-     * @param width 图像宽度（0表示使用原始宽度）
-     * @param height 图像高度（0表示使用原始高度或按比例缩放）
-     * @return 文档引用（支持链式调用）
-     */
-    Document& add_image(const tinakit::core::Image& image, const Point& position,
-                       double width = 0, double height = 0);
 
-    /**
-     * @brief 从原始数据添加图像
-     * @param image_data 图像数据
-     * @param width 图像宽度（像素）
-     * @param height 图像高度（像素）
-     * @param channels 颜色通道数（1=灰度，3=RGB，4=RGBA）
-     * @param position 图像位置（左下角）
-     * @param display_width 显示宽度（0表示使用原始宽度）
-     * @param display_height 显示高度（0表示使用原始高度或按比例缩放）
-     * @return 文档引用（支持链式调用）
-     */
-    Document& add_image(const std::vector<std::uint8_t>& image_data,
-                       int width, int height, int channels,
-                       const Point& position,
-                       double display_width = 0, double display_height = 0);
 
-    // ========================================
-    // Excel集成功能
-    // ========================================
-    
-    /**
-     * @brief 从Excel工作表添加表格
-     * @param sheet Excel工作表
-     * @param range_address 范围地址（如"A1:E10"）
-     * @param position 表格位置
-     * @param preserve_formatting 是否保留Excel格式
-     */
-    Document& add_excel_table(const excel::Worksheet& sheet,
-                             const std::string& range_address,
-                             const Point& position,
-                             bool preserve_formatting = true);
-    
-    /**
-     * @brief 从Excel Range添加表格
-     * @param range Excel范围
-     * @param position 表格位置
-     * @param preserve_formatting 是否保留Excel格式
-     */
-    Document& add_excel_range(const excel::Range& range,
-                             const Point& position,
-                             bool preserve_formatting = true);
-    
-    /**
-     * @brief 添加Excel工作表的完整内容
-     * @param sheet Excel工作表
-     * @param preserve_formatting 是否保留格式
-     */
-    Document& add_excel_sheet(const excel::Worksheet& sheet, bool preserve_formatting = true);
+
+
 
     // ========================================
     // 字体管理
