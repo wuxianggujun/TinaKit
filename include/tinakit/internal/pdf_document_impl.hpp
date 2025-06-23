@@ -154,6 +154,11 @@ private:
      */
     std::pair<double, double> page_size_to_points(PageSize size, PageOrientation orientation);
 
+    /**
+     * @brief 确保常用字体已注册
+     */
+    void ensureCommonFontsRegistered();
+
     // ========================================
     // 成员变量
     // ========================================

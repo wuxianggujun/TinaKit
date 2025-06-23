@@ -111,7 +111,9 @@ if(TINAKIT_BUILD_PDF_EXAMPLES)
     message(STATUS "  Building PDF examples...")
     add_tinakit_example(basic_pdf_example pdf/basic_pdf_example.cpp)
     add_tinakit_example(font_options_demo pdf/font_options_demo.cpp)
+    add_tinakit_example(mixed_text_demo pdf/mixed_text_demo.cpp)
     add_tinakit_example(image_demo pdf/image_demo.cpp)
+    add_tinakit_example(simple_test pdf/simple_test.cpp)
 endif()
 
 # ========================================

@@ -6,6 +6,7 @@
  */
 
 #include "tinakit/pdf/core/object.hpp"
+#include "tinakit/pdf/core/serializer.hpp"
 #include "tinakit/core/logger.hpp"
 #include <sstream>
 #include <iomanip>
@@ -42,6 +43,13 @@ void PdfObject::writeTo(BinaryWriter& writer) const {
     writer.writeObjectStart(id_, generation_);
     writer.write(content);
     writer.writeObjectEnd();
+}
+
+void PdfObject::serialize(PdfSerializer& serializer) const {
+    // 默认实现：使用旧的getContent()方法
+    serializer.beginObject(id_, generation_);
+    serializer.raw(getContent());
+    serializer.endObject();
 }
 
 // ========================================
@@ -225,6 +233,11 @@ void CIDFontObject::setFontDescriptor(int descriptor_id) {
 
 void CIDFontObject::setDefaultWidth(int width) {
     set("DW", std::to_string(width));
+}
+
+void CIDFontObject::setWidths(const std::string& widths_array) {
+    set("W", widths_array);
+    PDF_DEBUG("Set widths array: " + widths_array);
 }
 
 // ========================================

@@ -17,7 +17,7 @@ using namespace tinakit;
 int main() {
     try {
         // 初始化日志系统
-        core::Logger::initialize();
+        tinakit::core::initializeDefaultLogging(tinakit::core::LogLevel::DEBUG);
         
         std::cout << "🌏 TinaKit PDF 中英混合文本处理演示" << std::endl;
         std::cout << "=====================================" << std::endl;
@@ -27,7 +27,7 @@ int main() {
         // ========================================
         std::cout << "📄 创建PDF文档..." << std::endl;
         
-        pdf::Document pdf;
+        auto pdf = pdf::Document::create();
         pdf.add_page();
         
         // ========================================

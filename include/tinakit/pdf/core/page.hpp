@@ -342,6 +342,12 @@ public:
      */
     std::unique_ptr<StreamObject> createContentObject(int content_id) const;
 
+    /**
+     * @brief 确保页面使用的字体已注册
+     * @param writer PDF写入器
+     */
+    void ensureFontsRegistered(class Writer& writer);
+
 private:
     // ========================================
     // 成员变量
@@ -365,32 +371,7 @@ private:
     
     // escapeText函数已移除，请使用tinakit::core::unicode::escape_string()
 
-    /**
-     * @brief 智能分段显示文本
-     * @param text 要显示的文本
-     *
-     * 将中英文混合文本智能分段，为不同类型的文本选择合适的编码方式
-     */
-    void showTextWithSmartSegmentation(const std::string& text);
-
-    /**
-     * @brief 判断字符是否为CJK字符
-     * @param codepoint Unicode码点
-     * @return 是CJK字符返回true，否则返回false
-     */
-    bool isCJKCharacter(uint32_t codepoint) const;
-
-    /**
-     * @brief 显示ASCII文本段
-     * @param text ASCII文本
-     */
-    void showASCIISegment(const std::string& text);
-
-    /**
-     * @brief 显示Unicode文本段
-     * @param text Unicode文本
-     */
-    void showUnicodeSegment(const std::string& text);
+    // 智能分段相关方法已移除，统一使用UTF-16BE编码
     
     /**
      * @brief 格式化浮点数

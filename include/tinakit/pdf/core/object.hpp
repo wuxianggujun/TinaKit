@@ -7,13 +7,17 @@
 
 #pragma once
 
-#include "tinakit/pdf/binary_writer.hpp"
+#include "binary_writer.hpp"
 #include <string>
 #include <vector>
 #include <map>
 #include <memory>
+#include <cstdint>
 
 namespace tinakit::pdf::core {
+
+// 前向声明
+class PdfSerializer;
 
 /**
  * @class PdfObject
@@ -48,11 +52,17 @@ public:
     int getGeneration() const { return generation_; }
     
     /**
-     * @brief 写入对象到PDF
+     * @brief 写入对象到PDF（旧接口，将被废弃）
      * @param writer 写入器
      */
     virtual void writeTo(BinaryWriter& writer) const;
-    
+
+    /**
+     * @brief 序列化对象到PDF序列化器（新接口）
+     * @param serializer PDF序列化器
+     */
+    virtual void serialize(PdfSerializer& serializer) const;
+
     /**
      * @brief 获取对象内容
      * @return 对象内容字符串
@@ -251,6 +261,12 @@ public:
      * @param width 默认字符宽度
      */
     void setDefaultWidth(int width);
+
+    /**
+     * @brief 设置字符宽度数组
+     * @param widths_array PDF格式的宽度数组字符串
+     */
+    void setWidths(const std::string& widths_array);
 
     std::string getTypeName() const override { return "CIDFont"; }
 

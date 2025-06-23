@@ -87,6 +87,7 @@ public:
     static const Color Yellow;
     static const Color Cyan;
     static const Color Magenta;
+    static const Color Gray;
     static const Color LightGray;
     static const Color DarkGray;
     static const Color LightBlue;

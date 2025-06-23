@@ -5,7 +5,7 @@
  * @date 2025-6-22
  */
 
-#include "tinakit/pdf/binary_writer.hpp"
+#include "../../../include/tinakit/pdf/core/binary_writer.hpp"
 #include <stdexcept>
 #include <iomanip>
 #include <sstream>

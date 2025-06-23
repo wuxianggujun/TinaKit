@@ -7,10 +7,13 @@
 
 #include "tinakit/pdf/core/page.hpp"
 #include "tinakit/pdf/core/object.hpp"
+#include "tinakit/pdf/core/writer.hpp"
 #include "tinakit/core/logger.hpp"
 #include "tinakit/core/unicode.hpp"
 #include <sstream>
 #include <iomanip>
+#include <set>
+#include <map>
 #include <cmath>
 
 namespace tinakit::pdf::core {
@@ -145,9 +148,11 @@ void PdfPage::setFont(const std::string& font_resource, double size, const std::
 }
 
 void PdfPage::setTextPosition(double x, double y) {
+    // 使用Tm命令进行绝对定位，而不是Td的相对移动
     std::ostringstream oss;
-    oss << formatFloat(x) << " " << formatFloat(y) << " Td\n";
+    oss << "1 0 0 1 " << formatFloat(x) << " " << formatFloat(y) << " Tm\n";
     addContent(oss.str());
+    PDF_DEBUG("Text position set to absolute: (" + std::to_string(x) + "," + std::to_string(y) + ")");
 }
 
 void PdfPage::moveTextPosition(double dx, double dy) {
@@ -159,20 +164,11 @@ void PdfPage::moveTextPosition(double dx, double dy) {
 void PdfPage::showText(const std::string& text) {
     PDF_DEBUG("PdfPage::showText: '" + text + "'");
 
-    // 检查当前字体类型
-    bool isUnicodeFont = (current_font_subtype_ == "Type0");
+    // 统一使用UTF-16BE编码，不再分段处理
+    std::string hex_string = tinakit::core::unicode::utf8_to_utf16be_hex(text);
+    addContent(hex_string + " Tj\n");
 
-    if (!isUnicodeFont) {
-        // 非Unicode字体，直接使用ASCII格式
-        std::ostringstream oss;
-        oss << "(" << tinakit::core::unicode::escape_string(text) << ") Tj\n";
-        addContent(oss.str());
-        PDF_DEBUG("Using ASCII format for non-Unicode font");
-        return;
-    }
-
-    // Unicode字体：使用智能分段处理
-    showTextWithSmartSegmentation(text);
+    PDF_DEBUG("Text rendered using UTF-16BE encoding: '" + text + "' -> " + hex_string);
 }
 
 void PdfPage::showTextLine(const std::string& text) {
@@ -340,7 +336,7 @@ std::string PdfPage::formatFloat(double value, int precision) const {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(precision) << value;
     std::string result = oss.str();
-    
+
     // 移除尾随的零和小数点
     if (result.find('.') != std::string::npos) {
         result.erase(result.find_last_not_of('0') + 1);
@@ -348,70 +344,49 @@ std::string PdfPage::formatFloat(double value, int precision) const {
             result.pop_back();
         }
     }
-    
+
     return result;
 }
 
-void PdfPage::showTextWithSmartSegmentation(const std::string& text) {
-    PDF_DEBUG("Smart segmentation for text: '" + text + "'");
+void PdfPage::ensureFontsRegistered(Writer& writer) {
+    // 简单实现：扫描内容流中的字体引用并确保注册
+    // 这是一个临时解决方案，更好的方法是在添加文本时记录使用的字体
 
-    if (text.empty()) {
-        return;
-    }
+    // 从内容流中提取字体引用（简单的正则匹配）
+    std::set<std::string> used_fonts;
 
-    // 使用core::unicode进行智能分段
-    auto segments = tinakit::core::unicode::segment_text(text);
-
-    if (segments.empty()) {
-        PDF_DEBUG("No segments found, treating as ASCII");
-        showASCIISegment(text);
-        return;
-    }
-
-    // 逐段渲染
-    for (const auto& segment : segments) {
-        switch (segment.type) {
-            case tinakit::core::unicode::TextSegmentType::ASCII:
-                showASCIISegment(segment.text);
-                PDF_DEBUG("Rendered ASCII segment: '" + segment.text + "'");
-                break;
-
-            case tinakit::core::unicode::TextSegmentType::CJK:
-            case tinakit::core::unicode::TextSegmentType::OTHER:
-                showUnicodeSegment(segment.text);
-                PDF_DEBUG("Rendered Unicode segment: '" + segment.text + "'");
-                break;
+    for (const auto& line : content_stream_) {
+        // 查找 /F1, /F2 等字体引用
+        size_t pos = line.find("/F");
+        if (pos != std::string::npos) {
+            size_t end_pos = line.find(" ", pos);
+            if (end_pos != std::string::npos) {
+                std::string font_ref = line.substr(pos + 1, end_pos - pos - 1);
+                used_fonts.insert(font_ref);
+            }
         }
     }
 
-    PDF_DEBUG("Smart segmentation completed with " + std::to_string(segments.size()) + " segments");
-}
+    // 对于找到的字体引用，确保对应的字体已注册
+    // 这里我们使用一个简单的映射
+    std::map<std::string, std::string> font_ref_to_name = {
+        {"F1", "SimSun"},
+        {"F2", "Helvetica"},
+        {"F3", "Times-Roman"}
+    };
 
-bool PdfPage::isCJKCharacter(uint32_t codepoint) const {
-    return tinakit::core::unicode::is_cjk_character(codepoint);
-}
-
-void PdfPage::showASCIISegment(const std::string& text) {
-    if (text.empty()) {
-        return;
+    for (const auto& font_ref : used_fonts) {
+        auto it = font_ref_to_name.find(font_ref);
+        if (it != font_ref_to_name.end()) {
+            std::string resource_id = writer.getFontResourceId(it->second);
+            if (resource_id.empty()) {
+                writer.registerFont(it->second);
+                PDF_DEBUG("Registered font for page: " + it->second);
+            }
+        }
     }
-
-    std::ostringstream oss;
-    oss << "(" << tinakit::core::unicode::escape_string(text) << ") Tj\n";
-    addContent(oss.str());
-
-    PDF_DEBUG("ASCII segment rendered: '" + text + "'");
 }
 
-void PdfPage::showUnicodeSegment(const std::string& text) {
-    if (text.empty()) {
-        return;
-    }
-
-    std::string hex_string = tinakit::core::unicode::utf8_to_utf16be_hex(text);
-    addContent(hex_string + " Tj\n");
-
-    PDF_DEBUG("Unicode segment rendered: '" + text + "'");
-}
+// 智能分段相关方法已移除，统一使用UTF-16BE编码
 
 } // namespace tinakit::pdf::core

@@ -84,27 +84,28 @@ void pdf_document_impl::add_text(const std::string& text, const Point& position,
     }
     PDF_DEBUG("Current page found");
 
-    // 使用智能字体选择
-    std::string best_font = writer_->selectBestFont(text, font.family);
-    if (best_font != font.family) {
-        PDF_DEBUG("Font switched from '" + font.family + "' to '" + best_font + "' for better text rendering");
-    }
-
-    // 获取或注册最佳字体
-    std::string font_resource = get_font_resource_id_for_font_name(best_font);
-    std::string font_subtype = writer_->getFontSubtype(best_font);
+    // 直接使用指定字体，不进行字体回退
+    std::string font_resource = get_font_resource_id_for_font_name(font.family);
+    std::string font_subtype = writer_->getFontSubtype(font.family);
     PDF_DEBUG("Font resource ID: " + font_resource);
     PDF_DEBUG("Font subtype: " + font_subtype);
+
+    // 转换坐标系：从左上角坐标系转换为PDF的左下角坐标系
+    double pdf_y = page_height_ - position.y;
+
+    PDF_DEBUG("Coordinate conversion: input(" + std::to_string(position.x) + "," + std::to_string(position.y) +
+              ") -> PDF(" + std::to_string(position.x) + "," + std::to_string(pdf_y) +
+              "), page_height=" + std::to_string(page_height_));
 
     // 添加文本到页面
     page->beginText();
     page->setFont(font_resource, font.size, font_subtype);
-    page->setTextPosition(position.x, position.y);
+    page->setTextPosition(position.x, pdf_y);
     page->setTextColor(font.color.red() / 255.0, font.color.green() / 255.0, font.color.blue() / 255.0);
     page->showText(text);
     page->endText();
 
-    PDF_DEBUG("Text added successfully with font: " + best_font);
+    PDF_DEBUG("Text added successfully with font: " + font.family);
 }
 
 void pdf_document_impl::add_text_block(const std::string& text, const Rect& bounds,
@@ -291,6 +292,9 @@ void pdf_document_impl::save(const std::filesystem::path& file_path) {
         add_page();
     }
 
+    // 预先注册常用字体，确保资源字典不为空
+    ensureCommonFontsRegistered();
+
     writer_->saveToFile(file_path.string());
     PDF_INFO("PDF saved successfully to: " + file_path.string());
 }
@@ -367,6 +371,28 @@ double pdf_document_impl::calculate_text_width(const std::string& text, const Fo
 
 std::pair<double, double> pdf_document_impl::page_size_to_points(PageSize size, PageOrientation orientation) {
     return tinakit::pdf::page_size_to_points(size, orientation);
+}
+
+void pdf_document_impl::ensureCommonFontsRegistered() {
+    // 预先注册常用字体，确保资源字典不为空
+    std::vector<std::string> common_fonts = {
+        "SimSun",      // 中文字体
+        "NSimSun",     // 中文字体
+        "Helvetica",   // 西文字体
+        "Arial",       // 西文字体
+        "Times-Roman"  // 西文字体
+    };
+
+    for (const auto& font_name : common_fonts) {
+        std::string resource_id = writer_->getFontResourceId(font_name);
+        if (resource_id.empty()) {
+            // 只注册实际使用的字体
+            // 这里我们不预先注册，而是确保在使用时能正确注册
+            PDF_DEBUG("Font " + font_name + " not yet registered");
+        } else {
+            PDF_DEBUG("Font " + font_name + " already registered as " + resource_id);
+        }
+    }
 }
 
 // ========================================

@@ -8,7 +8,7 @@
 #include "tinakit/pdf/core/writer.hpp"
 #include "tinakit/pdf/core/object.hpp"
 #include "tinakit/pdf/core/page.hpp"
-#include "tinakit/pdf/binary_writer.hpp"
+#include "../../../include/tinakit/pdf/core/binary_writer.hpp"
 #include "tinakit/core/logger.hpp"
 #include "tinakit/core/unicode.hpp"
 #include <fstream>
@@ -23,8 +23,7 @@ namespace tinakit::pdf::core {
 // ========================================
 
 Writer::Writer() {
-    // 设置默认的字体回退机制
-    setupDefaultFontFallbacks();
+    // PDF写入器初始化
 }
 
 // ========================================
@@ -115,114 +114,106 @@ std::string Writer::registerFont(const std::string& font_name,
 
     PDF_DEBUG("Font registered: " + font_name + " -> " + resource_id + " (obj " + std::to_string(font_obj_id) + ")");
 
-    // 检查是否需要Unicode支持（用于中文等）
-    bool needsUnicode = (font_name != "Helvetica" && font_name != "Times-Roman" &&
-                        font_name != "Courier" && font_name != "Symbol" && font_name != "ZapfDingbats");
-
+    // 统一使用Type0字体以支持UTF-16BE编码
     std::unique_ptr<FontObject> font_obj;
+    // 统一创建Type0字体（支持UTF-16BE编码）
+    font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type0");
+    font_obj->setEncoding("Identity-H");  // Unicode编码
 
-    if (needsUnicode || !font_data.empty()) {
-        // 创建Type0字体（支持Unicode）
-        font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type0");
-        font_obj->setEncoding("Identity-H");  // Unicode编码
+    // 记录字体子类型
+    font_subtypes_[font_name] = "Type0";
 
-        // 记录字体子类型
-        font_subtypes_[font_name] = "Type0";
+    // 创建FontDescriptor对象
+    int font_desc_id = getNextObjectId();
+    auto font_desc_obj = std::make_unique<FontDescriptorObject>(font_desc_id, font_name);
 
-        // 创建FontDescriptor对象
-        int font_desc_id = getNextObjectId();
-        auto font_desc_obj = std::make_unique<FontDescriptorObject>(font_desc_id, font_name);
+    // 字体嵌入处理
+    if (embed_font) {
+        if (!font_data.empty()) {
+            // 使用提供的字体数据
+            int font_file_id = getNextObjectId();
+            auto font_file_obj = std::make_unique<FontFileObject>(font_file_id, font_data, "FontFile2");
+            addObject(std::move(font_file_obj));
 
-        // 字体嵌入处理
-        if (embed_font) {
-            if (!font_data.empty()) {
-                // 使用提供的字体数据
-                int font_file_id = getNextObjectId();
-                auto font_file_obj = std::make_unique<FontFileObject>(font_file_id, font_data, "FontFile2");
-                addObject(std::move(font_file_obj));
-
-                font_desc_obj->setFontFile(font_file_id, "FontFile2");
-                PDF_DEBUG("Font embedded: " + font_name + " (FontFile ID: " + std::to_string(font_file_id) + ")");
-            } else {
-                // 尝试自动加载系统字体
-                std::string font_path = getSystemFontPath(font_name);
-                if (!font_path.empty()) {
-                    std::vector<uint8_t> auto_font_data = loadFontFile(font_path);
-                    if (!auto_font_data.empty()) {
-                        int font_file_id = getNextObjectId();
-                        auto font_file_obj = std::make_unique<FontFileObject>(font_file_id, auto_font_data, "FontFile2");
-                        addObject(std::move(font_file_obj));
-
-                        font_desc_obj->setFontFile(font_file_id, "FontFile2");
-                        PDF_DEBUG("System font auto-embedded: " + font_name + " from " + font_path);
-                    } else {
-                        PDF_DEBUG("Font embedding failed, using reference-only: " + font_name);
-                    }
-                } else {
-                    PDF_DEBUG("System font not found, using reference-only: " + font_name);
-                }
-            }
+            font_desc_obj->setFontFile(font_file_id, "FontFile2");
+            PDF_DEBUG("Font embedded: " + font_name + " (FontFile ID: " + std::to_string(font_file_id) + ")");
         } else {
-            PDF_DEBUG("Font embedding disabled, using reference-only: " + font_name);
+            // 尝试自动加载系统字体
+            std::string font_path = getSystemFontPath(font_name);
+            if (!font_path.empty()) {
+                std::vector<uint8_t> auto_font_data = loadFontFile(font_path);
+                if (!auto_font_data.empty()) {
+                    int font_file_id = getNextObjectId();
+                    auto font_file_obj = std::make_unique<FontFileObject>(font_file_id, auto_font_data, "FontFile2");
+                    addObject(std::move(font_file_obj));
+
+                    font_desc_obj->setFontFile(font_file_id, "FontFile2");
+                    PDF_DEBUG("System font auto-embedded: " + font_name + " from " + font_path);
+                } else {
+                    PDF_DEBUG("Font embedding failed, using reference-only: " + font_name);
+                }
+            } else {
+                PDF_DEBUG("System font not found, using reference-only: " + font_name);
+            }
         }
-
-        addObject(std::move(font_desc_obj));
-
-        // 创建CIDFont对象
-        int cid_font_id = getNextObjectId();
-        auto cid_font_obj = std::make_unique<CIDFontObject>(cid_font_id, font_name, "CIDFontType0");
-        cid_font_obj->setCIDSystemInfo("Adobe", "Identity", 0);
-        cid_font_obj->setDefaultWidth(1000);
-        cid_font_obj->setFontDescriptor(font_desc_id);  // 设置FontDescriptor引用
-
-        // 将CIDFont添加到对象列表
-        addObject(std::move(cid_font_obj));
-
-        // 创建简化的ToUnicode CMap
-        int tounicode_id = getNextObjectId();
-        auto tounicode_obj = std::make_unique<StreamObject>(tounicode_id);
-
-        // 创建简化的Identity CMap
-        std::string cmap_content =
-            "/CIDInit /ProcSet findresource begin\n"
-            "12 dict begin\n"
-            "begincmap\n"
-            "/CIDSystemInfo\n"
-            "<< /Registry (Adobe)\n"
-            "/Ordering (UCS)\n"
-            "/Supplement 0\n"
-            ">> def\n"
-            "/CMapName /Adobe-Identity-UCS def\n"
-            "/CMapType 2 def\n"
-            "1 begincodespacerange\n"
-            "<0000> <FFFF>\n"
-            "endcodespacerange\n"
-            "1 beginbfrange\n"
-            "<0000> <FFFF> <0000>\n"
-            "endbfrange\n"
-            "endcmap\n"
-            "CMapName currentdict /CMap defineresource pop\n"
-            "end\n"
-            "end\n";
-
-        tounicode_obj->setStreamData(cmap_content);
-        addObject(std::move(tounicode_obj));
-
-        // 设置Type0字体的DescendantFonts和ToUnicode引用
-        font_obj->setDescendantFont(cid_font_id);
-        font_obj->setToUnicode(tounicode_id);
-
-        PDF_DEBUG("Created Type0 font with CIDFont (ID: " + std::to_string(cid_font_id) + ") and ToUnicode (ID: " + std::to_string(tounicode_id) + ") for Unicode support");
     } else {
-        // 创建Type1字体（标准字体）
-        font_obj = std::make_unique<FontObject>(font_obj_id, font_name, "Type1");
-        font_obj->setEncoding("WinAnsiEncoding");
-
-        // 记录字体子类型
-        font_subtypes_[font_name] = "Type1";
-
-        PDF_DEBUG("Created Type1 font with WinAnsiEncoding");
+        PDF_DEBUG("Font embedding disabled, using reference-only: " + font_name);
     }
+
+    addObject(std::move(font_desc_obj));
+
+    // 创建CIDFont对象 - 使用CIDFontType2用于TrueType字体
+    int cid_font_id = getNextObjectId();
+    auto cid_font_obj = std::make_unique<CIDFontObject>(cid_font_id, font_name, "CIDFontType2");
+    cid_font_obj->setCIDSystemInfo("Adobe", "Identity", 0);
+
+    // 设置合理的默认宽度和字符宽度表
+    cid_font_obj->setDefaultWidth(1000);  // 中文字符的默认宽度
+
+    // 为ASCII字符设置合适的宽度（解决英文字符间距过大的问题）
+    std::string w_array = generateWidthArray(font_name);
+    if (!w_array.empty()) {
+        cid_font_obj->setWidths(w_array);
+        PDF_DEBUG("Set width array for font: " + font_name);
+    }
+
+    cid_font_obj->setFontDescriptor(font_desc_id);  // 设置FontDescriptor引用
+
+    // 将CIDFont添加到对象列表
+    addObject(std::move(cid_font_obj));
+
+    // 创建简化的ToUnicode CMap
+    int tounicode_id = getNextObjectId();
+    auto tounicode_obj = std::make_unique<StreamObject>(tounicode_id);
+
+    // 创建正确的Identity ToUnicode CMap
+    std::string cmap_content =
+        "/CIDInit /ProcSet findresource begin\n"
+        "12 dict begin\n"
+        "begincmap\n"
+        "/CIDSystemInfo\n"
+        "<< /Registry (Adobe)\n"
+        "   /Ordering (UCS)\n"
+        "   /Supplement 0\n"
+        ">> def\n"
+        "/CMapName /Adobe-Identity-UCS def\n"
+        "/CMapType 2 def\n"
+        "1 begincodespacerange\n"
+        "<0000> <FFFF>\n"
+        "endcodespacerange\n"
+        "endcmap\n"
+        "CMapName currentdict /CMap defineresource pop\n"
+        "end\n"
+        "end\n";
+
+    tounicode_obj->setStreamData(cmap_content);
+    addObject(std::move(tounicode_obj));
+
+    // 设置Type0字体的DescendantFonts和ToUnicode引用
+    font_obj->setDescendantFont(cid_font_id);
+    font_obj->setToUnicode(tounicode_id);
+
+    PDF_DEBUG("Created Type0 font with CIDFont (ID: " + std::to_string(cid_font_id) + ") and ToUnicode (ID: " + std::to_string(tounicode_id) + ") for UTF-16BE support");
 
     addObject(std::move(font_obj));
 
@@ -239,57 +230,7 @@ std::string Writer::getFontSubtype(const std::string& font_name) const {
     return (it != font_subtypes_.end()) ? it->second : "";
 }
 
-void Writer::registerFontFallback(const std::string& primary_font, const std::string& fallback_font) {
-    font_fallbacks_[primary_font] = fallback_font;
-    PDF_DEBUG("Font fallback registered: " + primary_font + " -> " + fallback_font);
-
-    // 确保回退字体也被注册
-    if (font_resources_.find(fallback_font) == font_resources_.end()) {
-        registerFont(fallback_font);
-        PDF_DEBUG("Fallback font auto-registered: " + fallback_font);
-    }
-}
-
-std::string Writer::getFallbackFont(const std::string& font_name) const {
-    auto it = font_fallbacks_.find(font_name);
-    return (it != font_fallbacks_.end()) ? it->second : "";
-}
-
-std::string Writer::selectBestFont(const std::string& text, const std::string& preferred_font) const {
-    if (text.empty()) {
-        return preferred_font;
-    }
-
-    // 检查文本是否包含CJK字符
-    bool has_cjk = false;
-    bool has_ascii = false;
-
-    has_ascii = !tinakit::core::unicode::contains_non_ascii(text);
-    has_cjk = tinakit::core::unicode::contains_cjk(text);
-
-    // 根据文本内容选择最佳字体
-    if (has_cjk) {
-        // 包含CJK字符，优先使用支持Unicode的字体
-        if (isUnicodeFont(preferred_font)) {
-            return preferred_font;
-        } else {
-            // 首选字体不支持Unicode，查找回退字体
-            std::string fallback = getFallbackFont(preferred_font);
-            if (!fallback.empty() && isUnicodeFont(fallback)) {
-                PDF_DEBUG("Using fallback font for CJK text: " + fallback);
-                return fallback;
-            } else {
-                // 没有合适的回退字体，使用默认的CJK字体
-                return "SimSun";  // 或其他默认CJK字体
-            }
-        }
-    } else if (has_ascii) {
-        // 纯ASCII文本，可以使用任何字体
-        return preferred_font;
-    }
-
-    return preferred_font;
-}
+// 字体回退相关方法已移除，简化字体处理逻辑
 
 std::string Writer::registerImage(const std::string& image_path) {
     // 加载图像文件
@@ -397,7 +338,15 @@ void Writer::writeTo(BinaryWriter& writer) {
     // 清空并重新分配页面对象ID
     page_object_ids_.clear();
 
-    // 2. 为每个页面创建对象
+    // 2. 预先扫描所有页面内容，确保字体已注册
+    PDF_DEBUG("Pre-scanning pages to register fonts...");
+    for (size_t i = 0; i < pages_.size(); ++i) {
+        auto& page = pages_[i];
+        page->ensureFontsRegistered(*this);  // 确保页面使用的字体已注册
+    }
+    PDF_DEBUG("Font pre-registration completed. Total fonts: " + std::to_string(font_resources_.size()));
+
+    // 3. 为每个页面创建对象（现在字体已经注册，资源字典将包含正确的字体引用）
     for (size_t i = 0; i < pages_.size(); ++i) {
         auto& page = pages_[i];
         int content_id = getNextObjectId();
@@ -598,21 +547,44 @@ bool Writer::isCJKCharacter(uint32_t codepoint) const {
     return tinakit::core::unicode::is_cjk_character(codepoint);
 }
 
-void Writer::setupDefaultFontFallbacks() {
-    // 为常用的西文字体设置中文回退字体
-    registerFontFallback("Helvetica", "SimSun");
-    registerFontFallback("Times-Roman", "SimSun");
-    registerFontFallback("Courier", "SimSun");
-    registerFontFallback("Arial", "SimSun");
-    registerFontFallback("Times New Roman", "SimSun");
+std::string Writer::generateWidthArray(const std::string& font_name) const {
+    // 为ASCII字符生成宽度数组，解决英文字符间距过大的问题
+    // 注意：只返回数组体，不包含/W关键字
+    std::ostringstream oss;
+    oss << "[ ";
 
-    // 为中文字体设置英文回退字体（虽然通常不需要，但为了完整性）
-    registerFontFallback("SimSun", "Helvetica");
-    registerFontFallback("NSimSun", "Helvetica");
-    registerFontFallback("Microsoft YaHei", "Helvetica");
-    registerFontFallback("微软雅黑", "Helvetica");
+    // ASCII字符范围 (0x0020-0x007E)，设置合适的宽度
+    // 使用正确的PDF语法：单个CID用[width]，连续区段用 cFirst cLast width
 
-    PDF_DEBUG("Default font fallbacks configured");
+    // 空格字符 (0x0020) - 单个CID必须用方括号
+    oss << "32 [250] ";
+
+    // 标点符号和数字 (0x0021-0x002F) - 连续区段不用方括号
+    oss << "33 47 300 ";  // !"#$%&'()*+,-./
+
+    // 数字 (0x0030-0x0039) - 连续区段
+    oss << "48 57 500 ";  // 0123456789
+
+    // 更多标点 (0x003A-0x0040) - 连续区段
+    oss << "58 64 300 ";  // :;<=>?@
+
+    // 大写字母 (0x0041-0x005A) - 连续区段
+    bool is_cjk_font = (font_name == "SimSun" || font_name == "NSimSun");
+    oss << "65 90 " << (is_cjk_font ? 600 : 550) << " ";  // A-Z
+
+    // 更多标点 (0x005B-0x0060) - 连续区段
+    oss << "91 96 300 ";  // [\]^_`
+
+    // 小写字母 (0x0061-0x007A) - 连续区段
+    oss << "97 122 " << (is_cjk_font ? 500 : 450) << " ";  // a-z
+
+    // 最后的标点 (0x007B-0x007E) - 连续区段
+    oss << "123 126 300 ";  // {|}~
+
+    oss << "]";
+
+    PDF_DEBUG("Generated width array for " + font_name + ": " + oss.str());
+    return oss.str();
 }
 
 } // namespace tinakit::pdf::core

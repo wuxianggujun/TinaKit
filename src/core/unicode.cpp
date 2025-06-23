@@ -80,16 +80,16 @@ std::string utf16_to_utf8(const std::u16string& utf16_str) {
 
 std::string utf8_to_utf16be_hex(const std::string& utf8_str) {
     if (utf8_str.empty()) {
-        return "<FEFF>";
+        return "<>";
     }
 
     std::ostringstream oss;
-    oss << "<FEFF";
+    oss << "<";
 
     try {
         std::u16string utf16_str = utf8_to_utf16(utf8_str);
         for (char16_t ch : utf16_str) {
-            oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) 
+            oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4)
                 << static_cast<std::uint16_t>(ch);
         }
     } catch (const std::exception& e) {
@@ -97,7 +97,7 @@ std::string utf8_to_utf16be_hex(const std::string& utf8_str) {
         // 回退处理：逐字节转换
         for (unsigned char c : utf8_str) {
             if (c < 128) {
-                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) 
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4)
                     << static_cast<std::uint16_t>(c);
             } else {
                 oss << "003F"; // 问号字符作为替换
