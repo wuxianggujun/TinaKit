@@ -79,6 +79,10 @@ int main() {
         const std::string font_name = "SourceHanSansSC-Regular";
         std::string font_resource_id = pdf.register_font(font_name, font_data, true);
         std::cout << "✅ 字体注册成功，资源ID: " << font_resource_id << std::endl;
+        std::cout << "📊 原始字体大小: " << (font_data.size() / 1024.0 / 1024.0) << " MB" << std::endl;
+
+        // 显示字体子集化信息
+        std::cout << "ℹ️ 字体子集化功能需要pyftsubset工具，当前使用完整字体" << std::endl;
 
         // 添加页面
         pdf.add_page();

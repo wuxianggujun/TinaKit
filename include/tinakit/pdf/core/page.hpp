@@ -12,6 +12,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <set>
 
 namespace tinakit::pdf::core {
 
@@ -356,6 +357,13 @@ public:
      */
     void ensureFontsRegistered(class Writer& writer);
 
+    /**
+     * @brief 收集页面中使用的Unicode字符
+     * @param font_name 字体名称，为空则收集所有字体的字符
+     * @return Unicode码点集合
+     */
+    std::set<uint32_t> collectUsedCodepoints(const std::string& font_name = "") const;
+
 private:
     // ========================================
     // 成员变量
@@ -372,6 +380,13 @@ private:
     bool in_text_object_ = false;       ///< 是否在文本对象中
     std::string current_font_subtype_;  ///< 当前字体子类型
     int graphics_state_level_ = 0;      ///< 图形状态嵌套级别
+
+    // 字体子集化支持
+    struct TextUsage {
+        std::string text;
+        std::string font_name;
+    };
+    mutable std::vector<TextUsage> text_usage_;      ///< 页面中使用的文本记录
     
     // ========================================
     // 内部方法

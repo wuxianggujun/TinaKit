@@ -9,6 +9,8 @@
 
 #include "binary_writer.hpp"
 #include "font_manager.hpp"
+#include "font_subsetter.hpp"
+#include "freetype_subsetter.hpp"
 #include <memory>
 #include <vector>
 #include <map>
@@ -129,7 +131,20 @@ public:
     std::string registerFont(const std::string& font_name,
                            const std::vector<std::uint8_t>& font_data = {},
                            bool embed_font = true);
-    
+
+    /**
+     * @brief 注册字体并启用子集化
+     * @param font_name 字体名称
+     * @param font_data 字体数据
+     * @param enable_subsetting 是否启用字体子集化
+     * @param embed_font 是否嵌入字体
+     * @return 字体资源ID
+     */
+    std::string registerFontWithSubsetting(const std::string& font_name,
+                                          const std::vector<std::uint8_t>& font_data,
+                                          bool enable_subsetting = true,
+                                          bool embed_font = true);
+
     /**
      * @brief 获取字体资源ID
      * @param font_name 字体名称
@@ -287,6 +302,10 @@ private:
 
     // 字体管理
     std::unique_ptr<FontManager> font_manager_; ///< 字体管理器
+    std::unique_ptr<FontSubsetter> font_subsetter_; ///< 字体子集化工具
+    std::unique_ptr<FreeTypeSubsetter> freetype_subsetter_; ///< FreeType字体子集化工具
+    std::map<std::string, bool> font_subsetting_enabled_; ///< 字体子集化启用状态
+    std::map<std::string, std::vector<std::uint8_t>> original_font_data_; ///< 原始字体数据（用于子集化）
     
     // ========================================
     // 内部方法
@@ -347,6 +366,15 @@ private:
     std::set<uint32_t> collectUsedCodepoints(const std::string& font_name) const;
 
     /**
+     * @brief 收集文档中所有使用的字符码点
+     * @param font_name 字体名称，为空则收集所有字体的字符
+     * @return 使用的字符码点集合
+     */
+    std::set<uint32_t> collectAllUsedCodepoints(const std::string& font_name = "") const;
+
+
+
+    /**
      * @brief 判断字体是否支持Unicode
      * @param font_name 字体名称
      * @return 支持Unicode返回true，否则返回false
@@ -372,6 +400,27 @@ private:
      * @return CMap内容字符串
      */
     std::string generateToUnicodeCMap() const;
+
+    /**
+     * @brief 执行字体子集化
+     * 在所有文本添加完成后调用，生成字体子集并更新字体对象
+     */
+    void performFontSubsetting();
+
+    /**
+     * @brief 为指定字体创建子集
+     * @param font_name 字体名称
+     * @param used_codepoints 使用的字符码点
+     * @return 成功返回true
+     */
+    bool createFontSubset(const std::string& font_name, const std::set<uint32_t>& used_codepoints);
+
+    /**
+     * @brief 更新现有字体的数据
+     * @param font_name 字体名称
+     * @param font_data 新的字体数据
+     */
+    void updateFontWithData(const std::string& font_name, const std::vector<std::uint8_t>& font_data);
 };
 
 } // namespace tinakit::pdf::core

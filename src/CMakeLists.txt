@@ -21,6 +21,8 @@ target_sources(tinakit PRIVATE
         pdf/core/page.cpp
         pdf/core/writer.cpp
         pdf/core/font_manager.cpp
+        pdf/core/font_subsetter.cpp
+        pdf/core/freetype_subsetter.cpp
         pdf/utils/compression.cpp
         pdf/internal/pdf_document_impl.cpp
         

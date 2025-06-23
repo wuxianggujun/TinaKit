@@ -297,7 +297,17 @@ std::string pdf_document_impl::register_font(const std::string& font_name,
                                             const std::vector<std::uint8_t>& font_data,
                                             bool embed_font) {
     PDF_DEBUG("Registering font with data: " + font_name + " (" + std::to_string(font_data.size()) + " bytes)");
-    return writer_->registerFont(font_name, font_data, embed_font);
+
+    // 启用智能字体优化（不依赖外部工具）
+    bool enable_optimization = (font_data.size() > 1024 * 1024);  // 大于1MB的字体启用优化
+
+    if (enable_optimization) {
+        PDF_DEBUG("Enabling font optimization for large font: " + font_name);
+        return writer_->registerFontWithSubsetting(font_name, font_data, true, embed_font);
+    } else {
+        PDF_DEBUG("Using standard font registration: " + font_name);
+        return writer_->registerFont(font_name, font_data, embed_font);
+    }
 }
 
 // ========================================

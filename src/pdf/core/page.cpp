@@ -174,6 +174,9 @@ void PdfPage::showText(const std::string& text) {
 void PdfPage::showTextWithGID(const std::string& text, const std::string& font_name, FontManager* font_manager) {
     PDF_DEBUG("PdfPage::showTextWithGID: '" + text + "' using font: " + font_name);
 
+    // 记录文本使用情况（用于字体子集化）
+    text_usage_.push_back({text, font_name});
+
     if (!font_manager || !font_manager->isFontLoaded(font_name)) {
         PDF_WARN("FontManager not available or font not loaded, falling back to UTF-16BE");
         showText(text);
@@ -377,6 +380,66 @@ void PdfPage::ensureFontsRegistered(Writer& writer) {
     // 字体应该在使用前通过 Document::register_font 显式注册
 
     PDF_DEBUG("Page font registration check completed - using only explicitly registered fonts");
+}
+
+std::set<uint32_t> PdfPage::collectUsedCodepoints(const std::string& font_name) const {
+    std::set<uint32_t> codepoints;
+
+    for (const auto& usage : text_usage_) {
+        // 如果指定了字体名称，只收集该字体的字符
+        if (!font_name.empty() && usage.font_name != font_name) {
+            continue;
+        }
+
+        // 将UTF-8文本转换为Unicode码点
+        const std::string& text = usage.text;
+        for (size_t i = 0; i < text.length(); ) {
+            uint32_t codepoint = 0;
+            size_t bytes = 1;
+
+            unsigned char c = static_cast<unsigned char>(text[i]);
+
+            if (c < 0x80) {
+                // ASCII字符
+                codepoint = c;
+                bytes = 1;
+            } else if ((c & 0xE0) == 0xC0) {
+                // 2字节UTF-8
+                if (i + 1 < text.length()) {
+                    codepoint = ((c & 0x1F) << 6) | (text[i + 1] & 0x3F);
+                    bytes = 2;
+                }
+            } else if ((c & 0xF0) == 0xE0) {
+                // 3字节UTF-8
+                if (i + 2 < text.length()) {
+                    codepoint = ((c & 0x0F) << 12) |
+                               ((text[i + 1] & 0x3F) << 6) |
+                               (text[i + 2] & 0x3F);
+                    bytes = 3;
+                }
+            } else if ((c & 0xF8) == 0xF0) {
+                // 4字节UTF-8
+                if (i + 3 < text.length()) {
+                    codepoint = ((c & 0x07) << 18) |
+                               ((text[i + 1] & 0x3F) << 12) |
+                               ((text[i + 2] & 0x3F) << 6) |
+                               (text[i + 3] & 0x3F);
+                    bytes = 4;
+                }
+            }
+
+            if (codepoint > 0) {
+                codepoints.insert(codepoint);
+            }
+
+            i += bytes;
+        }
+    }
+
+    PDF_DEBUG("Collected " + std::to_string(codepoints.size()) + " unique codepoints from page" +
+              (font_name.empty() ? "" : " for font: " + font_name));
+
+    return codepoints;
 }
 
 // 智能分段相关方法已移除，统一使用UTF-16BE编码
