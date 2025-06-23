@@ -1,6 +1,7 @@
 #include "tinakit/pdf/core/font_manager.hpp"
 #include "tinakit/core/logger.hpp"
 #include "tinakit/core/unicode.hpp"
+#include <utf8.h>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -374,57 +375,57 @@ std::string FontManager::textToGIDHex(const std::string& font_name, const std::s
         return "";
     }
 
-    // 使用HarfBuzz进行正确的文本整形
-    hb_buffer_t* buffer = hb_buffer_create();
-    hb_buffer_add_utf8(buffer, text.c_str(), -1, 0, -1);
-
-    // 简化调试信息
-    unsigned int pre_shape_count;
-    hb_glyph_info_t* pre_shape_info = hb_buffer_get_glyph_infos(buffer, &pre_shape_count);
-    CORE_DEBUG("Processing text: '" + text + "', char count: " + std::to_string(pre_shape_count));
-
-    // 自动检测文本属性
-    hb_buffer_guess_segment_properties(buffer);
-
-    // 关键修复：进行文本整形，将Unicode转换为GID
-    hb_shape(font->hb_font, buffer, nullptr, 0);
-
-    // 获取整形后的结果
-    unsigned int glyph_count;
-    hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buffer, &glyph_count);
-
+    // 修复：输出真正的GID，而不是Unicode CID
+    // 这样可以与/CIDToGIDMap /Identity正确配合工作
     std::ostringstream oss;
     oss << "<";
 
-    int missing_count = 0;
-
-    // 现在glyph_info[i].codepoint是真正的GID
-    for (unsigned int i = 0; i < glyph_count; i++) {
-        uint32_t gid = glyph_info[i].codepoint;  // 这就是GID
-
-        // 检查是否是.notdef字形（GID 0）
-        if (gid == 0) {
-            missing_count++;
-            CORE_WARN("Missing glyph detected at position " + std::to_string(i) + " in text: '" + text + "'");
+    try {
+        // 将UTF-8文本转换为Unicode码点序列
+        std::vector<uint32_t> codepoints;
+        auto it = text.begin();
+        while (it != text.end()) {
+            uint32_t cp = utf8::next(it, text.end());
+            codepoints.push_back(cp);
         }
 
-        // 连续写入GID，PDF阅读器会按2字节切分并查找/W数组中的宽度
-        oss << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << gid;
-    }
+        // 将每个Unicode码点转换为对应的GID
+        for (uint32_t codepoint : codepoints) {
+            FT_UInt gid = FT_Get_Char_Index(font->ft_face, codepoint);
+            if (gid == 0) {
+                CORE_WARN("Character U+" + std::to_string(codepoint) + " not found in font " + font_name);
+                gid = 0;  // 使用.notdef
+            }
 
-    if (missing_count > 0) {
-        CORE_WARN("Font '" + font_name + "' is missing " + std::to_string(missing_count) + " glyphs for text: '" + text + "'");
+            // 确保GID在2字节范围内
+            if (gid > 0xFFFF) {
+                CORE_WARN("GID " + std::to_string(gid) + " exceeds 2-byte limit, using .notdef");
+                gid = 0;
+            }
+
+            oss << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << gid;
+        }
+    } catch (const std::exception& e) {
+        CORE_ERROR("Failed to convert text to GID: " + std::string(e.what()));
+        oss.str("");
+        oss << "<";
+        // 回退：对于ASCII字符，GID通常等于码点
+        for (unsigned char c : text) {
+            if (c < 128) {
+                oss << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << static_cast<int>(c);
+            } else {
+                oss << "0000";  // .notdef
+            }
+        }
     }
 
     oss << ">";
-
-    hb_buffer_destroy(buffer);
-
     std::string result = oss.str();
-    CORE_DEBUG("Text '" + text + "' converted to GID hex: " + result);
 
     // 缓存结果
     text_shape_cache_[cache_key] = result;
+
+    CORE_DEBUG("Text '" + text + "' converted to GID hex: " + result);
 
     return result;
 }
@@ -479,49 +480,17 @@ std::string FontManager::generateWidthArray(const std::string& font_name, double
     std::vector<uint32_t> sorted_codepoints = codepoints;
     std::sort(sorted_codepoints.begin(), sorted_codepoints.end());
 
-    // 使用HarfBuzz来获取GID，确保与内容流一致
+    // 修复：生成GID->宽度映射，与内容流的GID编码保持一致
     std::map<uint32_t, int> gid_to_width;  // GID -> width mapping
 
     for (uint32_t codepoint : sorted_codepoints) {
-        // 创建单字符文本进行shape
-        std::string single_char;
-        if (codepoint < 0x80) {
-            single_char = static_cast<char>(codepoint);
-        } else if (codepoint < 0x800) {
-            single_char += static_cast<char>(0xC0 | (codepoint >> 6));
-            single_char += static_cast<char>(0x80 | (codepoint & 0x3F));
-        } else if (codepoint < 0x10000) {
-            single_char += static_cast<char>(0xE0 | (codepoint >> 12));
-            single_char += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-            single_char += static_cast<char>(0x80 | (codepoint & 0x3F));
-        } else {
-            single_char += static_cast<char>(0xF0 | (codepoint >> 18));
-            single_char += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-            single_char += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-            single_char += static_cast<char>(0x80 | (codepoint & 0x3F));
+        // 获取字符对应的GID
+        FT_UInt glyph_index = FT_Get_Char_Index(font->ft_face, codepoint);
+        if (glyph_index != 0 && glyph_index <= 0xFFFF) {  // 确保GID在2字节范围内
+            // 获取字形在PDF单位制下的宽度
+            int width = getGlyphAdvanceInPdfUnits(font->ft_face, glyph_index);
+            gid_to_width[glyph_index] = width;
         }
-
-        // 使用HarfBuzz shape获取GID
-        hb_buffer_t* buffer = hb_buffer_create();
-        hb_buffer_add_utf8(buffer, single_char.c_str(), -1, 0, -1);
-        hb_buffer_guess_segment_properties(buffer);
-        hb_shape(font->hb_font, buffer, nullptr, 0);
-
-        unsigned int glyph_count;
-        hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buffer, &glyph_count);
-
-        if (glyph_count > 0) {
-            uint32_t glyph_index = glyph_info[0].codepoint;  // HarfBuzz返回的GID
-            if (glyph_index != 0) {
-                // 获取字形在PDF单位制下的宽度
-                int width = getGlyphAdvanceInPdfUnits(font->ft_face, glyph_index);
-                gid_to_width[glyph_index] = width;
-
-                // 移除详细的字符级调试信息
-            }
-        }
-
-        hb_buffer_destroy(buffer);
     }
 
     // 按GID排序输出宽度数组
@@ -556,14 +525,14 @@ std::string FontManager::generateToUnicodeCMap(const std::string& font_name,
     oss << "/CMapName /Adobe-Identity-UCS def\n";
     oss << "/CMapType 2 def\n";
     oss << "1 begincodespacerange\n";
-    oss << "<0000> <FFFF>\n";  // 使用标准的2字节GID范围
+    oss << "<0000> <FFFF>\n";  // UTF-16BE的基本多文种平面
     oss << "endcodespacerange\n";
 
-    // 收集有效的GID->Unicode映射
+    // 修复：生成GID->Unicode映射（因为现在内容流写入的是GID）
     std::vector<std::pair<FT_UInt, uint32_t>> gid_to_unicode;
     for (uint32_t codepoint : codepoints) {
         FT_UInt glyph_index = FT_Get_Char_Index(font->ft_face, codepoint);
-        if (glyph_index != 0) {
+        if (glyph_index != 0 && glyph_index <= 0xFFFF) {  // 确保GID在2字节范围内
             gid_to_unicode.emplace_back(glyph_index, codepoint);
         }
     }
@@ -653,6 +622,11 @@ std::string FontManager::getCacheStatistics() const {
     }
 
     return oss.str();
+}
+
+FT_Face FontManager::getFontFace(const std::string& font_name) const {
+    FontData* font = getFontData(font_name);
+    return font ? font->ft_face : nullptr;
 }
 
 } // namespace tinakit::pdf::core

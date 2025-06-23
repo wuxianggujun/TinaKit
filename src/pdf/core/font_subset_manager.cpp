@@ -326,13 +326,13 @@ std::set<uint16_t> FontSubsetManager::codepointsToGlyphs(FT_Face face, const std
 }
 
 std::vector<std::uint8_t> FontSubsetManager::rebuildFontTables(FT_Face face, const std::set<uint16_t>& used_glyphs) {
-    // 这是一个简化的字体表重建实现
-    // 在真实的生产环境中，需要完整地重建所有必要的字体表
+    // 修复：保留原始字体结构，确保GID映射正确
+    // 这样可以避免子集化后CID->GID映射错误导致的方块字问题
 
-    PDF_DEBUG("Rebuilding font tables for " + std::to_string(used_glyphs.size()) + " glyphs");
+    PDF_DEBUG("Preserving font structure for " + std::to_string(used_glyphs.size()) + " glyphs");
 
-    // 对于现在，我们返回一个简化的字体
-    // 这里应该实现完整的TTF/OTF表重建逻辑
+    // 保留完整字体数据，不重建表结构
+    // 这确保了GID顺序保持不变，与/CIDToGIDMap /Identity兼容
 
     // 获取原始字体数据
     FT_ULong font_size = 0;
@@ -349,25 +349,19 @@ std::vector<std::uint8_t> FontSubsetManager::rebuildFontTables(FT_Face face, con
         return {};
     }
 
-    // 简化实现：移除一些可选的表来减少文件大小
-    // 这里应该实现真正的字形子集化
+    // 修复：保留原始字体数据，不进行真正的子集化
+    // 这样可以确保GID顺序保持不变，避免CID->GID映射错误
 
-    // 计算减少的大小（基于使用的字形比例）
     double usage_ratio = static_cast<double>(used_glyphs.size()) / face->num_glyphs;
-    size_t target_size = static_cast<size_t>(original_data.size() * (0.3 + usage_ratio * 0.7));
 
-    if (target_size < original_data.size() && target_size > 50000) {  // 至少保留50KB
-        std::vector<std::uint8_t> subset_data(original_data.begin(),
-                                             original_data.begin() + target_size);
+    PDF_DEBUG("Preserving original font with intact GID mapping: " +
+              std::to_string(original_data.size()) + " bytes");
+    PDF_DEBUG("Used glyphs: " + std::to_string(used_glyphs.size()) +
+              " out of " + std::to_string(face->num_glyphs) +
+              " total glyphs (usage ratio: " + std::to_string(usage_ratio * 100) + "%)");
 
-        PDF_DEBUG("Font tables rebuilt: " + std::to_string(subset_data.size()) +
-                  " bytes (usage ratio: " + std::to_string(usage_ratio * 100) + "%)");
-
-        return subset_data;
-    } else {
-        PDF_DEBUG("Cannot safely reduce font size, returning original");
-        return original_data;
-    }
+    // 返回完整的原始字体，保持GID映射正确
+    return original_data;
 }
 
 std::vector<std::uint8_t> FontSubsetManager::createBasicSubset(const std::vector<std::uint8_t>& font_data,

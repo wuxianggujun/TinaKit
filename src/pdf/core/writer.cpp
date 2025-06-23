@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <random>
 #include <iomanip>
 #include <set>
 #include <filesystem>
@@ -189,9 +190,20 @@ namespace tinakit::pdf::core {
 
         addObject(std::move(font_desc_obj));
 
+        // 重新启用子集化，现在使用CID模式，与子集化兼容
+        bool enable_subsetting = (!font_data.empty() && font_data.size() > 1024 * 1024);
+
+        // 生成子集字体名称（如果是子集化字体）
+        std::string subset_font_name = font_name;
+        if (enable_subsetting) {
+            std::string tag = generateFontSubsetTag();
+            subset_font_name = tag + "+" + font_name;
+            PDF_DEBUG("Generated subset font name: " + subset_font_name);
+        }
+
         // 创建CIDFont对象 - 使用CIDFontType2用于TrueType字体
         int cid_font_id = getNextObjectId();
-        auto cid_font_obj = std::make_unique<CIDFontObject>(cid_font_id, font_name, "CIDFontType2");
+        auto cid_font_obj = std::make_unique<CIDFontObject>(cid_font_id, subset_font_name, "CIDFontType2");
         cid_font_obj->setCIDSystemInfo("Adobe", "Identity", 0);
 
         // 设置合理的默认宽度和字符宽度表
@@ -220,9 +232,8 @@ namespace tinakit::pdf::core {
             PDF_DEBUG("Generated dynamic width array for " + std::to_string(codepoints_vec.size()) +
                       " characters using FontManager for: " + font_name);
         } else {
-            // 回退到硬编码宽度数组
-            w_array = generateWidthArray(font_name);
-            PDF_DEBUG("Using fallback width array for: " + font_name);
+            // 不使用硬编码宽度，让PDF阅读器使用字体默认宽度
+            PDF_DEBUG("Font not loaded in FontManager, using default widths for: " + font_name);
         }
 
         if (!w_array.empty()) {
@@ -232,9 +243,13 @@ namespace tinakit::pdf::core {
 
         cid_font_obj->setFontDescriptor(font_desc_id);  // 设置FontDescriptor引用
 
-        // 关键修复：设置CIDToGIDMap为Identity（CID == GID）
+        // 恢复Identity映射（因为现在内容流输出的是真正的GID）
+        // GID可以通过Identity直接映射到字形
         cid_font_obj->setCIDToGIDMap("/Identity");
-        PDF_DEBUG("Set CIDToGIDMap to /Identity for font: " + font_name);
+        PDF_DEBUG("Set CIDToGIDMap to /Identity for font: " + subset_font_name);
+
+        // 不设置CIDToGIDMap，让PDF阅读器使用字体内置的cmap表
+        // 这样CID（UTF-16BE Unicode）会通过字体cmap正确映射到GID
 
         // 将CIDFont添加到对象列表
         addObject(std::move(cid_font_obj));
@@ -638,58 +653,26 @@ namespace tinakit::pdf::core {
         return tinakit::core::unicode::is_cjk_character(codepoint);
     }
 
-    std::string Writer::generateWidthArray(const std::string &font_name) const {
-        // 为ASCII字符生成宽度数组，解决英文字符间距过大的问题
-        // 注意：只返回数组体，不包含/W关键字
-        std::ostringstream oss;
-        oss << "[ ";
+    // 删除硬编码宽度数组方法，使用FontManager的真实字体宽度
 
-        // ASCII字符范围 (0x0020-0x007E)，设置合适的宽度
-        // 使用正确的PDF语法：单个CID用[width]，连续区段用 cFirst cLast width
+    std::string Writer::generateFontSubsetTag() const {
+        // 生成6位随机大写字母标签
+        static const char letters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        static std::uniform_int_distribution<> dis(0, 25);
 
-        // 空格字符 (0x0020) - 单个CID必须用方括号
-        oss << "32 [250] ";
+        std::string tag;
+        tag.reserve(6);
+        for (int i = 0; i < 6; ++i) {
+            tag += letters[dis(gen)];
+        }
 
-        // 标点符号 (0x0021-0x0023) - 连续区段不用方括号
-        oss << "33 35 350 ";  // !"#
-
-        // 美元符号 '$' (ASCII 36) - 单独设置避免与数字紧贴
-        oss << "36 [525] ";
-
-        // 其他标点符号 (0x0025-0x002F) - 连续区段
-        oss << "37 47 350 ";  // %&'()*+,-./ (增加宽度以改善间距)
-
-        // 数字 (0x0030-0x0039) - 连续区段
-        oss << "48 57 550 ";  // 0123456789 (增加宽度以改善间距)
-
-        // 更多标点 (0x003A-0x0040) - 连续区段
-        oss << "58 64 350 ";  // :;<=>?@ (增加宽度以改善间距)
-
-        // 大写字母 (0x0041-0x005A) - 连续区段
-        bool is_cjk_font = (font_name == "SimSun" || font_name == "NSimSun");
-        oss << "65 90 " << (is_cjk_font ? 600 : 550) << " ";  // A-Z
-
-        // 更多标点 (0x005B-0x0060) - 连续区段
-        oss << "91 96 350 ";  // [\]^_` (增加宽度以改善间距)
-
-        // 小写字母 (0x0061-0x007A) - 连续区段
-        oss << "97 122 " << (is_cjk_font ? 550 : 500) << " ";  // a-z (增加宽度以改善间距)
-
-        // 最后的标点 (0x007B-0x007E) - 连续区段
-        oss << "123 126 350 ";  // {|}~ (增加宽度以改善间距)
-
-        // 货币符号 - 单独设置避免间距问题
-        // ASCII ¥ (U+00A5, CID = 165)
-        oss << "165 [525] ";
-
-        // 全角 ￥ (U+FFE5, CID = 65509) - SimSun常用
-        oss << "65509 [525] ";
-
-        oss << "]";
-
-        PDF_DEBUG("Generated width array for " + font_name + ": " + oss.str());
-        return oss.str();
+        return tag;
     }
+
+    // 删除generateCIDToGIDMap方法，不再需要显式映射表
+    // PDF阅读器会使用字体内置的cmap表进行CID→GID映射
 
     std::string Writer::generateToUnicodeCMap() const {
         std::ostringstream oss;

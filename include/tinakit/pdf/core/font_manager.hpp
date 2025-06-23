@@ -107,7 +107,8 @@ public:
      * @brief 将文本转换为GID十六进制字符串
      * @param font_name 字体名称
      * @param text UTF-8文本
-     * @return GID十六进制字符串（如"<0041><0042>"）
+     * @return GID十六进制字符串（如"<0041004200430044>"）
+     * @note 输出真正的字形索引(GID)，配合/CIDToGIDMap /Identity使用
      */
     std::string textToGIDHex(const std::string& font_name, const std::string& text) const;
 
@@ -162,6 +163,13 @@ public:
      * @return 缓存统计信息
      */
     std::string getCacheStatistics() const;
+
+    /**
+     * @brief 获取字体的FreeType面（用于CID→GID映射）
+     * @param font_name 字体名称
+     * @return FreeType字体面，未找到返回nullptr
+     */
+    FT_Face getFontFace(const std::string& font_name) const;
 
 private:
     struct FontData;

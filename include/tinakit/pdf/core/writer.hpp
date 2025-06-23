@@ -293,6 +293,12 @@ private:
     // ========================================
     // 内部方法
     // ========================================
+
+    /**
+     * @brief 生成字体子集标签（6位随机大写字母）
+     * @return 6位标签字符串（如"ABCDEF"）
+     */
+    std::string generateFontSubsetTag() const;
     
     /**
      * @brief 创建目录对象
@@ -366,12 +372,7 @@ private:
      */
     bool isCJKCharacter(uint32_t codepoint) const;
 
-    /**
-     * @brief 生成字符宽度数组
-     * @param font_name 字体名称
-     * @return PDF格式的宽度数组字符串
-     */
-    std::string generateWidthArray(const std::string& font_name) const;
+    // 删除generateCIDToGIDMap方法，使用字体内置cmap表
 
     /**
      * @brief 生成ToUnicode CMap
