@@ -348,6 +348,12 @@ private:
      * @return PDF格式的宽度数组字符串
      */
     std::string generateWidthArray(const std::string& font_name) const;
+
+    /**
+     * @brief 生成ToUnicode CMap
+     * @return CMap内容字符串
+     */
+    std::string generateToUnicodeCMap() const;
 };
 
 } // namespace tinakit::pdf::core

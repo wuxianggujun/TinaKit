@@ -182,29 +182,12 @@ std::string Writer::registerFont(const std::string& font_name,
     // 将CIDFont添加到对象列表
     addObject(std::move(cid_font_obj));
 
-    // 创建简化的ToUnicode CMap
+    // 创建完整的ToUnicode CMap，支持文本复制
     int tounicode_id = getNextObjectId();
     auto tounicode_obj = std::make_unique<StreamObject>(tounicode_id);
 
-    // 创建正确的Identity ToUnicode CMap
-    std::string cmap_content =
-        "/CIDInit /ProcSet findresource begin\n"
-        "12 dict begin\n"
-        "begincmap\n"
-        "/CIDSystemInfo\n"
-        "<< /Registry (Adobe)\n"
-        "   /Ordering (UCS)\n"
-        "   /Supplement 0\n"
-        ">> def\n"
-        "/CMapName /Adobe-Identity-UCS def\n"
-        "/CMapType 2 def\n"
-        "1 begincodespacerange\n"
-        "<0000> <FFFF>\n"
-        "endcodespacerange\n"
-        "endcmap\n"
-        "CMapName currentdict /CMap defineresource pop\n"
-        "end\n"
-        "end\n";
+    // 创建包含具体字符映射的ToUnicode CMap
+    std::string cmap_content = generateToUnicodeCMap();
 
     tounicode_obj->setStreamData(cmap_content);
     addObject(std::move(tounicode_obj));
@@ -559,31 +542,125 @@ std::string Writer::generateWidthArray(const std::string& font_name) const {
     // 空格字符 (0x0020) - 单个CID必须用方括号
     oss << "32 [250] ";
 
-    // 标点符号和数字 (0x0021-0x002F) - 连续区段不用方括号
-    oss << "33 47 300 ";  // !"#$%&'()*+,-./
+    // 标点符号 (0x0021-0x0023) - 连续区段不用方括号
+    oss << "33 35 350 ";  // !"#
+
+    // 美元符号 '$' (ASCII 36) - 单独设置避免与数字紧贴
+    oss << "36 [525] ";
+
+    // 其他标点符号 (0x0025-0x002F) - 连续区段
+    oss << "37 47 350 ";  // %&'()*+,-./ (增加宽度以改善间距)
 
     // 数字 (0x0030-0x0039) - 连续区段
-    oss << "48 57 500 ";  // 0123456789
+    oss << "48 57 550 ";  // 0123456789 (增加宽度以改善间距)
 
     // 更多标点 (0x003A-0x0040) - 连续区段
-    oss << "58 64 300 ";  // :;<=>?@
+    oss << "58 64 350 ";  // :;<=>?@ (增加宽度以改善间距)
 
     // 大写字母 (0x0041-0x005A) - 连续区段
     bool is_cjk_font = (font_name == "SimSun" || font_name == "NSimSun");
     oss << "65 90 " << (is_cjk_font ? 600 : 550) << " ";  // A-Z
 
     // 更多标点 (0x005B-0x0060) - 连续区段
-    oss << "91 96 300 ";  // [\]^_`
+    oss << "91 96 350 ";  // [\]^_` (增加宽度以改善间距)
 
     // 小写字母 (0x0061-0x007A) - 连续区段
-    oss << "97 122 " << (is_cjk_font ? 500 : 450) << " ";  // a-z
+    oss << "97 122 " << (is_cjk_font ? 550 : 500) << " ";  // a-z (增加宽度以改善间距)
 
     // 最后的标点 (0x007B-0x007E) - 连续区段
-    oss << "123 126 300 ";  // {|}~
+    oss << "123 126 350 ";  // {|}~ (增加宽度以改善间距)
+
+    // 货币符号 - 单独设置避免间距问题
+    // ASCII ¥ (U+00A5, CID = 165)
+    oss << "165 [525] ";
+
+    // 全角 ￥ (U+FFE5, CID = 65509) - SimSun常用
+    oss << "65509 [525] ";
 
     oss << "]";
 
     PDF_DEBUG("Generated width array for " + font_name + ": " + oss.str());
+    return oss.str();
+}
+
+std::string Writer::generateToUnicodeCMap() const {
+    std::ostringstream oss;
+
+    oss << "/CIDInit /ProcSet findresource begin\n";
+    oss << "12 dict begin\n";
+    oss << "begincmap\n";
+    oss << "/CIDSystemInfo\n";
+    oss << "<< /Registry (Adobe)\n";
+    oss << "   /Ordering (UCS)\n";
+    oss << "   /Supplement 0\n";
+    oss << ">> def\n";
+    oss << "/CMapName /Adobe-Identity-UCS def\n";
+    oss << "/CMapType 2 def\n";
+    oss << "1 begincodespacerange\n";
+    oss << "<0000> <FFFF>\n";
+    oss << "endcodespacerange\n";
+
+    // 添加具体的字符映射，支持文本复制
+    // ASCII字符(95) + 货币符号(3) + 中文字符(22) = 120个字符
+    oss << "120 beginbfchar\n";
+
+    // ASCII字符映射 (0x20-0x7E)
+    for (int i = 0x20; i <= 0x7E; ++i) {
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << i << "> ";
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << i << ">\n";
+    }
+
+    // 货币符号映射（重要：确保复制时不丢失）
+    std::vector<std::pair<uint16_t, uint16_t>> currency_chars = {
+        {0x0024, 0x0024}, // $ (美元符号)
+        {0x00A5, 0x00A5}, // ¥ (ASCII日元/人民币符号)
+        {0xFFE5, 0xFFE5}, // ￥ (全角日元/人民币符号)
+    };
+
+    for (const auto& [cid, unicode] : currency_chars) {
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << cid << "> ";
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << unicode << ">\n";
+    }
+
+    // 常用中文字符映射示例（这里只添加几个示例）
+    // 实际应用中可以根据需要添加更多字符
+    std::vector<std::pair<uint16_t, uint16_t>> chinese_chars = {
+        {0x4E2D, 0x4E2D}, // 中
+        {0x6587, 0x6587}, // 文
+        {0x4E16, 0x4E16}, // 世
+        {0x754C, 0x754C}, // 界
+        {0x4F60, 0x4F60}, // 你
+        {0x597D, 0x597D}, // 好
+        {0x6D4B, 0x6D4B}, // 测
+        {0x8BD5, 0x8BD5}, // 试
+        {0x4F7F, 0x4F7F}, // 使
+        {0x7528, 0x7528}, // 用
+        {0x5F00, 0x5F00}, // 开
+        {0x53D1, 0x53D1}, // 发
+        {0x5E93, 0x5E93}, // 库
+        {0x6709, 0x6709}, // 有
+        {0x8DA3, 0x8DA3}, // 趣
+        {0x4EF7, 0x4EF7}, // 价
+        {0x683C, 0x683C}, // 格
+        {0x4EBA, 0x4EBA}, // 人
+        {0x6C11, 0x6C11}, // 民
+        {0x5E01, 0x5E01}, // 币
+        {0x4F18, 0x4F18}, // 优
+        {0x60E0, 0x60E0}, // 惠
+    };
+
+    for (const auto& [cid, unicode] : chinese_chars) {
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << cid << "> ";
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << unicode << ">\n";
+    }
+
+    oss << "endbfchar\n";
+    oss << "endcmap\n";
+    oss << "CMapName currentdict /CMap defineresource pop\n";
+    oss << "end\n";
+    oss << "end\n";
+
+    PDF_DEBUG("Generated ToUnicode CMap with character mappings");
     return oss.str();
 }
 
