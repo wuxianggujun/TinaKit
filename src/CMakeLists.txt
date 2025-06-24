@@ -15,6 +15,7 @@ target_sources(tinakit PRIVATE
         
         pdf/document.cpp
         pdf/types.cpp
+        pdf/config/font_config.cpp
         pdf/core/binary_writer.cpp
         pdf/core/serializer.cpp
         pdf/core/object.cpp

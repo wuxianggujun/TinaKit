@@ -18,6 +18,7 @@
 #include "tinakit/pdf/types.hpp"
 #include "tinakit/pdf/core/writer.hpp"
 #include "tinakit/pdf/core/page.hpp"
+#include "tinakit/pdf/config/font_config.hpp"
 
 namespace tinakit::core {
     class Image;
@@ -54,6 +55,14 @@ public:
     void set_custom_page_size(double width, double height);
 
     void set_document_info(const DocumentInfo& info);
+
+    // ========================================
+    // 字体配置
+    // ========================================
+
+    void set_font_config(const config::FontConfig& config);
+    void add_individual_font_config(const config::IndividualFontConfig& font_config);
+    const config::FontConfig& get_font_config() const;
 
     // ========================================
     // 页面管理
@@ -152,6 +161,21 @@ private:
      */
     void ensureCommonFontsRegistered();
 
+    /**
+     * @brief 判断是否为系统字体
+     */
+    bool isSystemFont(const std::string& font_name) const;
+
+    /**
+     * @brief 加载字体文件数据
+     */
+    std::vector<std::uint8_t> loadFontData(const std::string& font_name) const;
+
+    /**
+     * @brief 获取字体回退
+     */
+    std::string getFallbackFont(const std::string& font_name) const;
+
     // ========================================
     // 成员变量
     // ========================================
@@ -161,7 +185,11 @@ private:
     double page_height_ = 842.0;    ///< 页面高度（点）A4默认
     PageMargins margins_;           ///< 页面边距
     DocumentInfo doc_info_;         ///< 文档信息
-    
+
+    // 字体配置
+    config::FontConfig font_config_;                                    ///< 全局字体配置
+    std::vector<config::IndividualFontConfig> individual_font_configs_; ///< 单个字体配置
+
     // 核心写入器 - 统一管理PDF对象和结构
     std::unique_ptr<core::Writer> writer_;  ///< PDF核心写入器
 

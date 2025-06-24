@@ -87,20 +87,52 @@ std::string utf8_to_utf16be_hex(const std::string& utf8_str) {
     oss << "<";
 
     try {
-        std::u16string utf16_str = utf8_to_utf16(utf8_str);
-        for (char16_t ch : utf16_str) {
-            oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4)
-                << static_cast<std::uint16_t>(ch);
+        // 使用utf8库直接转换为Unicode码点，然后转为UTF-16BE
+        auto it = utf8_str.begin();
+        while (it != utf8_str.end()) {
+            uint32_t codepoint = utf8::next(it, utf8_str.end());
+
+            // 将Unicode码点转换为UTF-16BE
+            if (codepoint <= 0xFFFF) {
+                // BMP字符，直接输出
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << codepoint;
+            } else {
+                // 超出BMP的字符，需要代理对
+                codepoint -= 0x10000;
+                uint16_t high = 0xD800 + (codepoint >> 10);
+                uint16_t low = 0xDC00 + (codepoint & 0x3FF);
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << high;
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << low;
+            }
         }
     } catch (const std::exception& e) {
         CORE_ERROR("UTF-8 to UTF-16BE hex conversion failed: " + std::string(e.what()));
-        // 回退处理：逐字节转换
-        for (unsigned char c : utf8_str) {
-            if (c < 128) {
-                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4)
-                    << static_cast<std::uint16_t>(c);
+        // 清空并重新开始
+        oss.str("");
+        oss << "<";
+
+        // 更安全的回退处理：逐字节分析UTF-8
+        for (size_t i = 0; i < utf8_str.length(); ) {
+            unsigned char c = utf8_str[i];
+
+            if (c < 0x80) {
+                // ASCII字符
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << static_cast<uint16_t>(c);
+                i++;
+            } else if ((c & 0xE0) == 0xC0 && i + 1 < utf8_str.length()) {
+                // 2字节UTF-8
+                uint16_t codepoint = ((c & 0x1F) << 6) | (utf8_str[i + 1] & 0x3F);
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << codepoint;
+                i += 2;
+            } else if ((c & 0xF0) == 0xE0 && i + 2 < utf8_str.length()) {
+                // 3字节UTF-8
+                uint16_t codepoint = ((c & 0x0F) << 12) | ((utf8_str[i + 1] & 0x3F) << 6) | (utf8_str[i + 2] & 0x3F);
+                oss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << codepoint;
+                i += 3;
             } else {
-                oss << "003F"; // 问号字符作为替换
+                // 无效字符，使用替换字符
+                oss << "003F"; // 问号
+                i++;
             }
         }
     }

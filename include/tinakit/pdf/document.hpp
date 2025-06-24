@@ -13,6 +13,7 @@
 #include <filesystem>
 #include "tinakit/pdf/types.hpp"
 #include "tinakit/pdf/style.hpp"
+#include "tinakit/pdf/config/font_config.hpp"
 #include "tinakit/excel/workbook.hpp"
 
 // 前向声明
@@ -107,6 +108,23 @@ public:
      * @param info 文档信息
      */
     Document& set_document_info(const DocumentInfo& info);
+
+    /**
+     * @brief 设置字体配置
+     * @param config 字体配置
+     */
+    Document& set_font_config(const config::FontConfig& config);
+
+    /**
+     * @brief 添加单个字体的特殊配置
+     * @param font_config 单个字体配置
+     */
+    Document& add_individual_font_config(const config::IndividualFontConfig& font_config);
+
+    /**
+     * @brief 获取当前字体配置
+     */
+    const config::FontConfig& get_font_config() const;
 
     // ========================================
     // 页面管理

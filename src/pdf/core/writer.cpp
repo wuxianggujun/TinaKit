@@ -11,6 +11,7 @@
 #include "tinakit/pdf/core/binary_writer.hpp"
 #include "tinakit/core/logger.hpp"
 #include "tinakit/core/unicode.hpp"
+#include <utf8.h>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -261,18 +262,20 @@ namespace tinakit::pdf::core {
         // 创建包含具体字符映射的ToUnicode CMap
         std::string cmap_content;
         if (font_manager_->isFontLoaded(font_name)) {
-            // 使用FontManager生成动态ToUnicode CMap
-            std::vector<uint32_t> common_chars;
-            // 添加ASCII字符范围
+            // 收集实际使用的字符
+            std::set<uint32_t> used_codepoints = collectUsedCodepoints(font_name);
+
+            // 添加基本ASCII字符范围
             for (uint32_t i = 0x20; i <= 0x7E; ++i) {
-                common_chars.push_back(i);
+                used_codepoints.insert(i);
             }
             // 添加常用货币符号
-            common_chars.push_back(0x00A5);  // ¥
-            common_chars.push_back(0xFFE5);  // ￥
+            used_codepoints.insert(0x00A5);  // ¥
+            used_codepoints.insert(0xFFE5);  // ￥
 
-            cmap_content = font_manager_->generateToUnicodeCMap(font_name, common_chars);
-            PDF_DEBUG("Generated dynamic ToUnicode CMap using FontManager for: " + font_name);
+            std::vector<uint32_t> codepoints_vec(used_codepoints.begin(), used_codepoints.end());
+            cmap_content = font_manager_->generateToUnicodeCMap(font_name, codepoints_vec);
+            PDF_DEBUG("Generated dynamic ToUnicode CMap with " + std::to_string(codepoints_vec.size()) + " actual characters for: " + font_name);
         } else {
             // 回退到硬编码CMap
             cmap_content = generateToUnicodeCMap();

@@ -132,6 +132,13 @@ public:
      */
     void clear();
 
+    /**
+     * @brief 获取字体使用的字符集合
+     * @param font_name 字体名称
+     * @return 使用的字符集合
+     */
+    std::set<std::string> getUsedCharacters(const std::string& font_name) const;
+
 private:
     /**
      * @brief 将UTF-8文本转换为Unicode码点

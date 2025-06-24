@@ -62,6 +62,20 @@ Document& Document::set_document_info(const DocumentInfo& info) {
     return *this;
 }
 
+Document& Document::set_font_config(const config::FontConfig& config) {
+    impl_->set_font_config(config);
+    return *this;
+}
+
+Document& Document::add_individual_font_config(const config::IndividualFontConfig& font_config) {
+    impl_->add_individual_font_config(font_config);
+    return *this;
+}
+
+const config::FontConfig& Document::get_font_config() const {
+    return impl_->get_font_config();
+}
+
 // ========================================
 // 页面管理
 // ========================================

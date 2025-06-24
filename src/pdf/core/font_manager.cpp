@@ -480,22 +480,37 @@ std::string FontManager::generateWidthArray(const std::string& font_name, double
     std::vector<uint32_t> sorted_codepoints = codepoints;
     std::sort(sorted_codepoints.begin(), sorted_codepoints.end());
 
-    // 修复：生成GID->宽度映射，与内容流的GID编码保持一致
-    std::map<uint32_t, int> gid_to_width;  // GID -> width mapping
+    // 修复：生成UTF-16BE码点->宽度映射，与内容流的UTF-16BE编码保持一致
+    std::map<uint32_t, int> utf16_to_width;  // UTF-16BE码点 -> width mapping
 
     for (uint32_t codepoint : sorted_codepoints) {
         // 获取字符对应的GID
         FT_UInt glyph_index = FT_Get_Char_Index(font->ft_face, codepoint);
-        if (glyph_index != 0 && glyph_index <= 0xFFFF) {  // 确保GID在2字节范围内
-            // 获取字形在PDF单位制下的宽度
+        if (glyph_index != 0) {
+            // 直接使用字体库中的真实字符宽度，不做任何调整
             int width = getGlyphAdvanceInPdfUnits(font->ft_face, glyph_index);
-            gid_to_width[glyph_index] = width;
+
+            // 对于UTF-16BE编码，使用Unicode码点作为索引
+            if (codepoint <= 0xFFFF) {
+                utf16_to_width[codepoint] = width;
+            } else {
+                // 对于超出BMP的字符，需要代理对
+                uint32_t adjusted = codepoint - 0x10000;
+                uint16_t high = 0xD800 + (adjusted >> 10);
+                uint16_t low = 0xDC00 + (adjusted & 0x3FF);
+                utf16_to_width[high] = width;
+                utf16_to_width[low] = width;
+            }
+
+            // 调试：输出字符宽度信息
+            CORE_DEBUG("Character U+" + std::to_string(codepoint) + " (GID " + std::to_string(glyph_index) +
+                      ") width: " + std::to_string(width) + " PDF units");
         }
     }
 
-    // 按GID排序输出宽度数组
-    for (const auto& [gid, width] : gid_to_width) {
-        oss << gid << " [" << width << "] ";
+    // 按UTF-16BE码点排序输出宽度数组
+    for (const auto& [utf16_code, width] : utf16_to_width) {
+        oss << utf16_code << " [" << width << "] ";
     }
 
     oss << "]";
@@ -528,28 +543,28 @@ std::string FontManager::generateToUnicodeCMap(const std::string& font_name,
     oss << "<0000> <FFFF>\n";  // UTF-16BE的基本多文种平面
     oss << "endcodespacerange\n";
 
-    // 修复：生成GID->Unicode映射（因为现在内容流写入的是GID）
-    std::vector<std::pair<FT_UInt, uint32_t>> gid_to_unicode;
+    // 修复：生成UTF-16BE码点到Unicode的映射（因为现在内容流使用UTF-16BE编码）
+    std::vector<std::pair<uint32_t, uint32_t>> utf16_to_unicode;
     for (uint32_t codepoint : codepoints) {
-        FT_UInt glyph_index = FT_Get_Char_Index(font->ft_face, codepoint);
-        if (glyph_index != 0 && glyph_index <= 0xFFFF) {  // 确保GID在2字节范围内
-            gid_to_unicode.emplace_back(glyph_index, codepoint);
+        // 对于UTF-16BE编码，码点直接映射到自身
+        if (codepoint <= 0xFFFF) {
+            utf16_to_unicode.emplace_back(codepoint, codepoint);
+        } else {
+            // 对于超出BMP的字符，需要代理对
+            uint32_t adjusted = codepoint - 0x10000;
+            uint16_t high = 0xD800 + (adjusted >> 10);
+            uint16_t low = 0xDC00 + (adjusted & 0x3FF);
+            utf16_to_unicode.emplace_back(high, codepoint);
+            utf16_to_unicode.emplace_back(low, codepoint);
         }
     }
 
-    // 添加字符映射：GID -> Unicode
-    oss << gid_to_unicode.size() << " beginbfchar\n";
+    // 添加字符映射：UTF-16BE码点 -> Unicode
+    oss << utf16_to_unicode.size() << " beginbfchar\n";
 
-    for (const auto& [gid, unicode] : gid_to_unicode) {
-        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << gid << "> ";
-
-        // 对于Unicode字符，使用适当的宽度
-        if (unicode <= 0xFFFF) {
-            oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << unicode << ">\n";
-        } else {
-            // 对于超过0xFFFF的字符（如中文），使用6位宽度
-            oss << "<" << std::setfill('0') << std::setw(6) << std::hex << std::uppercase << unicode << ">\n";
-        }
+    for (const auto& [utf16_code, unicode] : utf16_to_unicode) {
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << utf16_code << "> ";
+        oss << "<" << std::setfill('0') << std::setw(4) << std::hex << std::uppercase << unicode << ">\n";
     }
 
     oss << "endbfchar\n";
@@ -558,7 +573,7 @@ std::string FontManager::generateToUnicodeCMap(const std::string& font_name,
     oss << "end\n";
     oss << "end\n";
 
-    CORE_DEBUG("Generated ToUnicode CMap for " + font_name + " with " + std::to_string(gid_to_unicode.size()) + " GID->Unicode mappings");
+    CORE_DEBUG("Generated ToUnicode CMap for " + font_name + " with " + std::to_string(utf16_to_unicode.size()) + " UTF-16BE->Unicode mappings");
     return oss.str();
 }
 

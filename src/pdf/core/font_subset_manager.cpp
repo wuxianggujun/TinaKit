@@ -450,4 +450,41 @@ std::vector<std::uint8_t> FontSubsetManager::createBasicSubset(const std::vector
     return font_data;  // 简单返回原始数据
 }
 
+std::set<std::string> FontSubsetManager::getUsedCharacters(const std::string& font_name) const {
+    std::set<std::string> characters;
+
+    auto it = font_usages_.find(font_name);
+    if (it != font_usages_.end()) {
+        const auto& usage = it->second;
+
+        // 从使用的码点重构字符
+        for (uint32_t codepoint : usage.used_codepoints) {
+            // 将Unicode码点转换为UTF-8字符串
+            std::string utf8_char;
+            if (codepoint <= 0x7F) {
+                // ASCII字符
+                utf8_char = static_cast<char>(codepoint);
+            } else if (codepoint <= 0x7FF) {
+                // 2字节UTF-8
+                utf8_char += static_cast<char>(0xC0 | (codepoint >> 6));
+                utf8_char += static_cast<char>(0x80 | (codepoint & 0x3F));
+            } else if (codepoint <= 0xFFFF) {
+                // 3字节UTF-8
+                utf8_char += static_cast<char>(0xE0 | (codepoint >> 12));
+                utf8_char += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                utf8_char += static_cast<char>(0x80 | (codepoint & 0x3F));
+            } else {
+                // 4字节UTF-8
+                utf8_char += static_cast<char>(0xF0 | (codepoint >> 18));
+                utf8_char += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+                utf8_char += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                utf8_char += static_cast<char>(0x80 | (codepoint & 0x3F));
+            }
+            characters.insert(utf8_char);
+        }
+    }
+
+    return characters;
+}
+
 } // namespace tinakit::pdf::core

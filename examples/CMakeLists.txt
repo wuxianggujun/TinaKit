@@ -114,6 +114,9 @@ if(TINAKIT_BUILD_PDF_EXAMPLES)
     add_tinakit_example(mixed_text_demo pdf/mixed_text_demo.cpp)
     add_tinakit_example(image_demo pdf/image_demo.cpp)
     add_tinakit_example(simple_test pdf/simple_test.cpp)
+    add_tinakit_example(font_config_demo pdf/font_config_demo.cpp)
+    add_tinakit_example(font_debug_test pdf/font_debug_test.cpp)
+    add_tinakit_example(quick_fix_test pdf/quick_fix_test.cpp)
 endif()
 
 # ========================================
