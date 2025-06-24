@@ -174,6 +174,15 @@ private:
     std::vector<std::uint8_t> rebuildFontTables(FT_Face face, const std::set<uint16_t>& used_glyphs);
 
     /**
+     * @brief 使用HarfBuzz创建字体子集
+     * @param font_data 原始字体数据
+     * @param used_glyphs 使用的字形ID集合
+     * @return 子集化后的字体数据
+     */
+    std::vector<std::uint8_t> createHarfBuzzSubset(const std::vector<std::uint8_t>& font_data,
+                                                   const std::set<uint16_t>& used_glyphs);
+
+    /**
      * @brief 将Unicode码点转换为字形ID
      * @param face FreeType字体面
      * @param codepoints Unicode码点集合

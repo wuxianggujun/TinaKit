@@ -12,6 +12,8 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
+#include <hb.h>
+#include <hb-subset.h>
 
 namespace tinakit::pdf::core {
 
@@ -237,7 +239,7 @@ FontSubsetResult FontSubsetManager::performSingleSubsetting(const FontUsage& usa
               std::to_string(usage.used_codepoints.size()) + " codepoints");
 
     // 实现真正的字体子集化
-    if (ft_initialized_ && usage.used_codepoints.size() < 5000) {  // 只有在使用字符较少时才进行子集化
+    if (ft_initialized_ && usage.used_codepoints.size() < 20000) {  // 放宽阈值，允许更多字体进行子集化
         result.subset_data = createFreeTypeSubset(usage.font_data, usage.used_codepoints);
         result.subset_size = result.subset_data.size();
 
@@ -326,13 +328,7 @@ std::set<uint16_t> FontSubsetManager::codepointsToGlyphs(FT_Face face, const std
 }
 
 std::vector<std::uint8_t> FontSubsetManager::rebuildFontTables(FT_Face face, const std::set<uint16_t>& used_glyphs) {
-    // 修复：保留原始字体结构，确保GID映射正确
-    // 这样可以避免子集化后CID->GID映射错误导致的方块字问题
-
-    PDF_DEBUG("Preserving font structure for " + std::to_string(used_glyphs.size()) + " glyphs");
-
-    // 保留完整字体数据，不重建表结构
-    // 这确保了GID顺序保持不变，与/CIDToGIDMap /Identity兼容
+    PDF_DEBUG("Creating true font subset with " + std::to_string(used_glyphs.size()) + " glyphs");
 
     // 获取原始字体数据
     FT_ULong font_size = 0;
@@ -349,24 +345,107 @@ std::vector<std::uint8_t> FontSubsetManager::rebuildFontTables(FT_Face face, con
         return {};
     }
 
-    // 修复：保留原始字体数据，不进行真正的子集化
-    // 这样可以确保GID顺序保持不变，避免CID->GID映射错误
+    // 使用HarfBuzz进行真正的字体子集化
+    std::vector<std::uint8_t> subset_data = createHarfBuzzSubset(original_data, used_glyphs);
 
-    double usage_ratio = static_cast<double>(used_glyphs.size()) / face->num_glyphs;
+    if (subset_data.empty() || subset_data.size() >= original_data.size()) {
+        PDF_WARN("HarfBuzz subsetting failed or not beneficial, using original font");
+        return original_data;
+    }
 
-    PDF_DEBUG("Preserving original font with intact GID mapping: " +
-              std::to_string(original_data.size()) + " bytes");
+    double compression_ratio = 100.0 * subset_data.size() / original_data.size();
+    PDF_DEBUG("Font subset created: " + std::to_string(subset_data.size()) +
+              " bytes (" + std::to_string(compression_ratio) + "% of original)");
     PDF_DEBUG("Used glyphs: " + std::to_string(used_glyphs.size()) +
-              " out of " + std::to_string(face->num_glyphs) +
-              " total glyphs (usage ratio: " + std::to_string(usage_ratio * 100) + "%)");
+              " out of " + std::to_string(face->num_glyphs) + " total glyphs");
 
-    // 返回完整的原始字体，保持GID映射正确
-    return original_data;
+    return subset_data;
+}
+
+std::vector<std::uint8_t> FontSubsetManager::createHarfBuzzSubset(const std::vector<std::uint8_t>& font_data,
+                                                                 const std::set<uint16_t>& used_glyphs) {
+    PDF_DEBUG("Creating HarfBuzz subset with " + std::to_string(used_glyphs.size()) + " glyphs");
+
+    // 创建HarfBuzz blob
+    hb_blob_t* blob = hb_blob_create(reinterpret_cast<const char*>(font_data.data()),
+                                    font_data.size(),
+                                    HB_MEMORY_MODE_READONLY,
+                                    nullptr, nullptr);
+    if (!blob) {
+        PDF_ERROR("Failed to create HarfBuzz blob");
+        return {};
+    }
+
+    // 创建HarfBuzz face
+    hb_face_t* face = hb_face_create(blob, 0);
+    if (!face) {
+        PDF_ERROR("Failed to create HarfBuzz face");
+        hb_blob_destroy(blob);
+        return {};
+    }
+
+    // 创建子集化输入
+    hb_subset_input_t* input = hb_subset_input_create_or_fail();
+    if (!input) {
+        PDF_ERROR("Failed to create HarfBuzz subset input");
+        hb_face_destroy(face);
+        hb_blob_destroy(blob);
+        return {};
+    }
+
+    // 配置子集化选项
+    hb_set_t* glyph_set = hb_subset_input_glyph_set(input);
+
+    // 添加使用的字形ID
+    for (uint16_t gid : used_glyphs) {
+        hb_set_add(glyph_set, gid);
+    }
+
+    // 设置保留GID选项（相当于fonttools的--retain-gids）
+    hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_RETAIN_GIDS);
+
+    PDF_DEBUG("HarfBuzz subset configured with " + std::to_string(used_glyphs.size()) + " glyphs, retain-gids enabled");
+
+    // 执行子集化
+    hb_face_t* subset_face = hb_subset_or_fail(face, input);
+    if (!subset_face) {
+        PDF_ERROR("HarfBuzz subsetting failed");
+        hb_subset_input_destroy(input);
+        hb_face_destroy(face);
+        hb_blob_destroy(blob);
+        return {};
+    }
+
+    // 获取子集化后的数据
+    hb_blob_t* subset_blob = hb_face_reference_blob(subset_face);
+    if (!subset_blob) {
+        PDF_ERROR("Failed to get subset blob");
+        hb_face_destroy(subset_face);
+        hb_subset_input_destroy(input);
+        hb_face_destroy(face);
+        hb_blob_destroy(blob);
+        return {};
+    }
+
+    // 复制数据到vector
+    unsigned int subset_size;
+    const char* subset_data_ptr = hb_blob_get_data(subset_blob, &subset_size);
+    std::vector<std::uint8_t> subset_data(subset_data_ptr, subset_data_ptr + subset_size);
+
+    // 清理资源
+    hb_blob_destroy(subset_blob);
+    hb_face_destroy(subset_face);
+    hb_subset_input_destroy(input);
+    hb_face_destroy(face);
+    hb_blob_destroy(blob);
+
+    PDF_DEBUG("HarfBuzz subset completed: " + std::to_string(subset_data.size()) + " bytes");
+    return subset_data;
 }
 
 std::vector<std::uint8_t> FontSubsetManager::createBasicSubset(const std::vector<std::uint8_t>& font_data,
                                                               const std::set<uint32_t>& used_codepoints) {
-    // 这个方法现在作为FreeType方法的后备
+    // 这个方法现在作为HarfBuzz方法的后备
     PDF_DEBUG("Creating basic subset with " + std::to_string(used_codepoints.size()) + " codepoints");
     return font_data;  // 简单返回原始数据
 }

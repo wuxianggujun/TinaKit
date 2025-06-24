@@ -48,15 +48,10 @@ target_include_directories(tinakit PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR}/third_party/zlib-ng)
 
-# 添加FreeType和HarfBuzz的包含目录
-target_include_directories(tinakit PRIVATE
-        ${CMAKE_SOURCE_DIR}/third_party/harfbuzz-ft/freetype/include
-        ${CMAKE_SOURCE_DIR}/third_party/harfbuzz-ft/harfbuzz/src)
-
+# 使用组合的 harfbuzz-ft 目标，避免符号冲突
 target_link_libraries(tinakit PUBLIC
         libstudxml
         MINIZIP::minizip
         zlibstatic
         utf8cpp
-        freetype
-        harfbuzz)
+        harfbuzz-ft-combined)
